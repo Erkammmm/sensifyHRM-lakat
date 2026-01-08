@@ -1,0 +1,56 @@
+{
+  "interview_id": "29d1a3ed-5b24-41ab-8518-6b2886f5987e",
+  "duration_seconds": 45.63333333333333,
+  "analysis_timestamp": "2026-01-06T20:02:33.817214Z",
+  "video_info": {
+    "fps": 30.0,
+    "resolution": {
+      "width": 852,
+      "height": 480
+    }
+  },
+  "emotion_analysis": {
+    "dominant_emotion": null,
+    "dominant_emotion_tr": "bilinmiyor",
+    "emotion_distribution": {},
+    "stability_score": 0.0,
+    "coverage": 0.0
+  },
+  "eye_contact_analysis": {
+    "average_eye_contact_percentage": 20.669229774568777,
+    "consistency_score": 0.912848026719425,
+    "gaze_patterns": {
+      "direct": 1359,
+      "slight_deviation": 0,
+      "moderate_deviation": 0,
+      "significant_deviation": 0
+    },
+    "average_gaze_angle": 11.899615533814686,
+    "coverage": 0.9926953981008035
+  },
+  "voice_analysis": {
+    "stress_level": 0.6472915545492299,
+    "confidence_score": 0.3543165056058116,
+    "speech_rate": 11.868040195777855,
+    "pause_ratio": 0.20042046250875964,
+    "mean_pitch": 167.77511596679688,
+    "pitch_variability": 0.3213779330253601,
+    "voice_activity_ratio": 0.98458304134548,
+    "duration_seconds": 45.632
+  },
+  "behavioral_analysis": {
+    "suspicion_score": 0.29207958516768223,
+    "risk_level": "low",
+    "reading_suspicion": 0.0,
+    "total_anomalies": 2
+  },
+  "overall_assessment": {
+    "engagement_score": 0.38438317655774595,
+    "recommendations": [
+      "Göz teması seviyesi düşük. Adayın kameraya daha fazla bakması önerilir.",
+      "Duygu değişkenliği yüksek. Adayın stres seviyesi gözlemlenmeli.",
+      "Ses analizi yüksek stres seviyesi gösteriyor (0.65). Adayın rahatlatılması önerilir.",
+      "Ses analizi düşük güven skoru gösteriyor (0.35). Adayın kendine güveni değerlendirilmeli."
+    ]
+  }
+}
