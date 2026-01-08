@@ -7,7 +7,13 @@ ffmpeg-python>=0.2.0
 deepface>=0.0.79
 mediapipe==0.10.7
 numpy<2.0,>=1.24.0
-# Not: TensorFlow DeepFace tarafından otomatik yüklenir, bu yüzden buraya eklemiyoruz
+tf-keras>=2.15.0
+# Not: TensorFlow DeepFace tarafından otomatik yüklenir, ama tf-keras manuel yüklenmeli (TensorFlow 2.19+ için)
+
+# Gaze Estimation (opsiyonel - sadece gaze-estimation kullanılırsa)
+torch>=2.0.0
+torchvision>=0.15.0
+# Not: Gaze estimation modeli için gerekli (otomatik indirme için)
 
 # Audio Processing
 librosa>=0.10.0

@@ -1,6 +1,7 @@
 """
 Göz Teması Analizi Modülü
-MediaPipe kullanarak göz teması ve bakış yönü analizi yapar.
+Gaze Estimation Model kullanarak göz teması ve bakış yönü analizi yapar.
+MediaPipe Face Detection kullanarak yüz tespiti yapar.
 """
 
 import cv2
@@ -9,260 +10,137 @@ import mediapipe as mp
 from typing import List, Dict, Tuple, Optional
 from collections import deque
 
+try:
+    from src.gaze_estimation_model import GazeEstimationModel
+except ImportError:
+    try:
+        from gaze_estimation_model import GazeEstimationModel
+    except ImportError:
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent))
+        from gaze_estimation_model import GazeEstimationModel
+
 
 class EyeContactAnalyzer:
     """
     Göz teması ve bakış yönü analizi yapan sınıf.
-    MediaPipe Face Mesh kullanır.
+    Gaze Estimation Model (pretrained) kullanır.
+    MediaPipe Face Detection ile yüz tespiti yapar.
     """
     
-    # MediaPipe landmark indeksleri (gözler için)
-    LEFT_EYE_INDICES = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
-    RIGHT_EYE_INDICES = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
-    
-    # Yüz merkezi ve kamera yönü için landmark'lar
-    NOSE_TIP = 4
-    FOREHEAD_CENTER = 10
-    
     def __init__(self, 
+                 model_name: str = "mobilenetv2",
                  min_detection_confidence: float = 0.5,
-                 min_tracking_confidence: float = 0.5):
+                 min_tracking_confidence: float = 0.5,
+                 device: str = "cpu"):
         """
         Göz teması analizcisini başlatır.
         
         Args:
-            min_detection_confidence: Minimum yüz tespit güveni
-            min_tracking_confidence: Minimum takip güveni
+            model_name: Gaze estimation model adı (resnet18, resnet34, resnet50, mobilenetv2, mobileone_s0)
+            min_detection_confidence: Minimum yüz tespit güveni (MediaPipe Face Detection için)
+            min_tracking_confidence: Minimum takip güveni (MediaPipe Face Detection için)
+            device: Cihaz (cpu veya cuda)
         """
-        # MediaPipe import - versiyon uyumluluğu için
-        try:
-            self.mp_face_mesh = mp.solutions.face_mesh
-            self.mp_drawing = mp.solutions.drawing_utils
-        except AttributeError:
-            # Yeni MediaPipe versiyonları için alternatif import
-            import mediapipe.python.solutions.face_mesh as face_mesh_module
-            import mediapipe.python.solutions.drawing_utils as drawing_utils_module
-            self.mp_face_mesh = face_mesh_module
-            self.mp_drawing = drawing_utils_module
+        # Gaze estimation modelini başlat
+        print(f"[EyeContactAnalyzer] Gaze estimation modeli yükleniyor: {model_name}")
+        self.gaze_model = GazeEstimationModel(model_name=model_name, device=device)
+        print(f"[EyeContactAnalyzer] Gaze estimation modeli yüklendi.")
         
-        # Face Mesh modelini başlat
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            static_image_mode=False,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence
+        # MediaPipe Face Detection (yüz crop için)
+        try:
+            self.mp_face_detection = mp.solutions.face_detection
+        except AttributeError:
+            import mediapipe.python.solutions.face_detection as face_detection_module
+            self.mp_face_detection = face_detection_module
+        
+        self.face_detection = self.mp_face_detection.FaceDetection(
+            model_selection=0,  # 0 = kısa mesafe, 1 = uzun mesafe
+            min_detection_confidence=min_detection_confidence
         )
         
-        # Kamera parametreleri (dinamik olarak frame boyutuna göre ayarlanacak)
-        # Varsayılan değerler, analyze_frame'de güncellenecek
-        self.camera_matrix = None
-        self.dist_coeffs = np.zeros((4, 1), dtype=np.float32)
+        # Eye contact threshold (derece cinsinden)
+        # Yaw ve pitch açıları bu değerden küçükse göz teması var sayılır
+        self.eye_contact_threshold = 15.0  # derece
     
-    def detect_face_landmarks(self, frame: np.ndarray) -> Optional[Dict]:
+    def detect_face(self, frame: np.ndarray) -> Optional[Dict]:
         """
-        Frame'de yüz landmark'larını tespit eder.
+        Frame'de yüz tespiti yapar ve yüz bölgesini crop eder.
         
         Args:
             frame: BGR formatında görüntü
             
         Returns:
-            Landmark bilgileri veya None
+            Yüz bölgesi (crop edilmiş) ve bounding box bilgileri veya None
         """
         # MediaPipe RGB format bekliyor
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        results = self.face_mesh.process(rgb_frame)
+        results = self.face_detection.process(rgb_frame)
         
-        if not results.multi_face_landmarks:
+        if not results.detections:
             return None
         
         # İlk yüzü al (çoklu yüz desteklenmiyor şimdilik)
-        face_landmarks = results.multi_face_landmarks[0]
+        detection = results.detections[0]
+        bbox = detection.location_data.relative_bounding_box
         
-        # Landmark'ları numpy array'e çevir
         h, w = frame.shape[:2]
-        landmarks = []
-        for landmark in face_landmarks.landmark:
-            landmarks.append([landmark.x * w, landmark.y * h, landmark.z * w])
         
-        landmarks = np.array(landmarks)
+        # Bounding box koordinatlarını hesapla
+        x_min = int(bbox.xmin * w)
+        y_min = int(bbox.ymin * h)
+        x_max = int((bbox.xmin + bbox.width) * w)
+        y_max = int((bbox.ymin + bbox.height) * h)
         
-        return {
-            'landmarks': landmarks,
-            'face_landmarks_mp': face_landmarks
-        }
-    
-    def calculate_head_pose(self, landmarks: np.ndarray) -> Dict:
-        """
-        Baş pozisyonunu (head pose) hesaplar.
+        # Sınırları kontrol et
+        x_min = max(0, x_min)
+        y_min = max(0, y_min)
+        x_max = min(w, x_max)
+        y_max = min(h, y_max)
         
-        Args:
-            landmarks: Yüz landmark'ları (468x3)
-            
-        Returns:
-            Baş pozisyonu bilgileri (pitch, yaw, roll)
-        """
-        # MediaPipe landmark indeksleri (doğru indeksler)
-        # MediaPipe Face Mesh 468 landmark kullanır
-        try:
-            # Görüntü noktaları (landmark'lardan) - en az 4 nokta gerekli
-            # MediaPipe landmark indeksleri: 0-467
-            nose_tip_idx = 4  # Nose tip (doğru indeks)
-            chin_idx = 175    # Chin
-            left_eye_idx = 33  # Left eye left corner
-            right_eye_idx = 263  # Right eye right corner
-            left_mouth_idx = 61  # Left mouth corner
-            right_mouth_idx = 291  # Right mouth corner
-            
-            # Landmark'ların geçerli olduğundan emin ol
-            if landmarks.shape[0] < 468:
-                return {'pitch': 0, 'yaw': 0, 'roll': 0, 'success': False}
-            
-            # Görüntü noktaları (2D koordinatlar - x, y)
-            image_points = np.array([
-                [landmarks[nose_tip_idx][0], landmarks[nose_tip_idx][1]],      # Nose tip
-                [landmarks[chin_idx][0], landmarks[chin_idx][1]],              # Chin
-                [landmarks[left_eye_idx][0], landmarks[left_eye_idx][1]],       # Left eye
-                [landmarks[right_eye_idx][0], landmarks[right_eye_idx][1]],    # Right eye
-                [landmarks[left_mouth_idx][0], landmarks[left_mouth_idx][1]],   # Left mouth
-                [landmarks[right_mouth_idx][0], landmarks[right_mouth_idx][1]] # Right mouth
-            ], dtype=np.float32)
-            
-            # 3D model noktaları (MediaPipe face mesh referans noktaları)
-            # Basitleştirilmiş model noktaları (mm cinsinden)
-            model_points = np.array([
-                (0.0, 0.0, 0.0),             # Nose tip
-                (0.0, -330.0, -65.0),        # Chin
-                (-225.0, 170.0, -135.0),     # Left eye left corner
-                (225.0, 170.0, -135.0),      # Right eye right corner
-                (-150.0, -150.0, -125.0),    # Left mouth corner
-                (150.0, -150.0, -125.0)      # Right mouth corner
-            ], dtype=np.float32)
-            # SolvePnP ile baş pozisyonunu hesapla
-            # En az 4 nokta gerekli, biz 6 nokta kullanıyoruz
-            success, rotation_vector, translation_vector = cv2.solvePnP(
-                model_points,
-                image_points,
-                self.camera_matrix,
-                self.dist_coeffs,
-                flags=cv2.SOLVEPNP_ITERATIVE
-            )
-            
-            if not success:
-                return {'pitch': 0, 'yaw': 0, 'roll': 0, 'success': False}
-        except (IndexError, KeyError, cv2.error, Exception) as e:
-            # Eğer hata olursa, varsayılan değerler döndür
-            return {'pitch': 0, 'yaw': 0, 'roll': 0, 'success': False}
+        # Yüz bölgesini crop et (biraz padding ekle)
+        padding = 20
+        x_min = max(0, x_min - padding)
+        y_min = max(0, y_min - padding)
+        x_max = min(w, x_max + padding)
+        y_max = min(h, y_max + padding)
         
-        # Rotation vector'ü Euler açılarına çevir
-        rotation_matrix, _ = cv2.Rodrigues(rotation_vector)
+        face_crop = frame[y_min:y_max, x_min:x_max]
         
-        # Pitch, Yaw, Roll hesapla
-        pitch = np.arcsin(-rotation_matrix[2][1]) * 180 / np.pi
-        yaw = np.arctan2(rotation_matrix[2][0], rotation_matrix[2][2]) * 180 / np.pi
-        roll = np.arctan2(rotation_matrix[0][1], rotation_matrix[1][1]) * 180 / np.pi
+        if face_crop.size == 0:
+            return None
         
         return {
-            'pitch': float(pitch),
-            'yaw': float(yaw),
-            'roll': float(roll),
-            'success': True
+            'face_crop': face_crop,
+            'bbox': (x_min, y_min, x_max, y_max),
+            'confidence': detection.score[0] if detection.score else 0.0
         }
     
-    def calculate_gaze_direction(self, landmarks: np.ndarray, head_pose: Dict) -> Dict:
+    def calculate_eye_contact_score(self, yaw: float, pitch: float) -> float:
         """
-        Bakış yönünü hesaplar (head pose'u dikkate alarak).
+        Yaw ve pitch açılarından göz teması skorunu hesaplar.
         
         Args:
-            landmarks: Yüz landmark'ları
-            head_pose: Baş pozisyonu bilgileri (pitch, yaw, roll)
+            yaw: Yatay bakış açısı (derece)
+            pitch: Dikey bakış açısı (derece)
             
         Returns:
-            Bakış yönü bilgileri
+            Eye contact score (0.0 - 1.0)
         """
-        try:
-            # Sol göz merkezi
-            left_eye_landmarks = landmarks[self.LEFT_EYE_INDICES]
-            left_eye_center = np.mean(left_eye_landmarks, axis=0)
-            
-            # Sağ göz merkezi
-            right_eye_landmarks = landmarks[self.RIGHT_EYE_INDICES]
-            right_eye_center = np.mean(right_eye_landmarks, axis=0)
-            
-            # Göz merkezi (iki gözün ortası) - 2D koordinatlar (x, y)
-            eye_center_2d = (left_eye_center[:2] + right_eye_center[:2]) / 2
-            
-            # Kamera merkezi (frame merkezi)
-            if self.camera_matrix is not None:
-                camera_center_x = self.camera_matrix[0, 2]
-                camera_center_y = self.camera_matrix[1, 2]
-            else:
-                camera_center_x = eye_center_2d[0]
-                camera_center_y = eye_center_2d[1]
-            
-            # Head pose'u dikkate al (yaw ve pitch)
-            yaw = head_pose.get('yaw', 0.0)  # Yatay açı
-            pitch = head_pose.get('pitch', 0.0)  # Dikey açı
-            
-            # Göz merkezinden kamera merkezine vektör (2D)
-            gaze_vector_2d = np.array([camera_center_x, camera_center_y]) - eye_center_2d
-            
-            # Frame boyutuna normalize et
-            if self.camera_matrix is not None:
-                frame_width = self.camera_matrix[0, 2] * 2
-                frame_height = self.camera_matrix[1, 2] * 2
-                frame_diagonal = np.sqrt(frame_width**2 + frame_height**2)
-                
-                # 2D mesafe (piksel cinsinden)
-                distance_2d = np.linalg.norm(gaze_vector_2d)
-                
-                # Frame boyutuna göre normalize et (0-1 arası)
-                # Frame'in yarısı kadar sapma = 1.0
-                max_distance = np.sqrt((frame_width/2)**2 + (frame_height/2)**2)
-                normalized_deviation_2d = min(1.0, distance_2d / max_distance) if max_distance > 0 else 1.0
-                
-                # Head pose'u dikkate alarak toplam sapma
-                # Yaw ve pitch'i normalize et (0-1 arası)
-                yaw_normalized = min(1.0, abs(yaw) / 45.0)  # 45 derece = 1.0
-                pitch_normalized = min(1.0, abs(pitch) / 30.0)  # 30 derece = 1.0
-                
-                # Kombine sapma (2D + head pose)
-                # 2D sapma daha az ağırlıklı, head pose daha önemli
-                combined_deviation = min(1.0, (normalized_deviation_2d * 0.3 + yaw_normalized * 0.4 + pitch_normalized * 0.3))
-                
-                # Açı hesaplama (0-1 sapma = 0-25 derece)
-                angle = combined_deviation * 25.0
-            else:
-                # Varsayılan: sadece head pose'a göre
-                yaw_normalized = min(1.0, abs(yaw) / 45.0)
-                pitch_normalized = min(1.0, abs(pitch) / 30.0)
-                combined_deviation = min(1.0, (yaw_normalized * 0.5 + pitch_normalized * 0.5))
-                angle = combined_deviation * 25.0
-            
-            # Göz teması skoru (0-1 arası, 0-25 derece arası iyi kabul edilir)
-            # Daha esnek threshold (25 derece)
-            eye_contact_score = max(0, 1.0 - (angle / 25.0))
-            
-            return {
-                'gaze_vector': gaze_vector_2d.tolist(),
-                'angle_degrees': float(angle),
-                'eye_contact_score': float(eye_contact_score),
-                'eye_center': eye_center_2d.tolist(),
-                'head_pose_contribution': {
-                    'yaw': float(yaw),
-                    'pitch': float(pitch)
-                }
-            }
-        except Exception as e:
-            # Hata durumunda varsayılan değerler
-            return {
-                'gaze_vector': [0, 0],
-                'angle_degrees': 30.0,
-                'eye_contact_score': 0.0,
-                'eye_center': [0, 0],
-                'head_pose_contribution': {'yaw': 0.0, 'pitch': 0.0}
-            }
+        # Toplam gaze açısı
+        gaze_angle = np.sqrt(yaw**2 + pitch**2)
+        
+        # Eğer gaze açısı threshold'dan küçükse, göz teması var
+        if gaze_angle <= self.eye_contact_threshold:
+            # Açı ne kadar küçükse, skor o kadar yüksek
+            score = 1.0 - (gaze_angle / self.eye_contact_threshold)
+        else:
+            # Threshold'dan büyükse, skor düşer
+            score = max(0.0, 1.0 - (gaze_angle - self.eye_contact_threshold) / 30.0)
+        
+        return max(0.0, min(1.0, score))  # 0-1 aralığına sınırla
     
     def analyze_frame(self, frame: np.ndarray) -> Optional[Dict]:
         """
@@ -274,34 +152,36 @@ class EyeContactAnalyzer:
         Returns:
             Analiz sonuçları veya None
         """
-        # Kamera matrisini frame boyutuna göre ayarla
-        h, w = frame.shape[:2]
-        focal_length = w  # Focal length genişlik kadar (yaklaşık)
-        center_x = w / 2.0
-        center_y = h / 2.0
-        
-        self.camera_matrix = np.array([
-            [focal_length, 0, center_x],
-            [0, focal_length, center_y],
-            [0, 0, 1]
-        ], dtype=np.float32)
-        
-        face_data = self.detect_face_landmarks(frame)
+        # Yüz tespiti ve crop
+        face_data = self.detect_face(frame)
         
         if face_data is None:
             return None
         
-        landmarks = face_data['landmarks']
+        face_crop = face_data['face_crop']
+        bbox = face_data['bbox']
         
-        # Baş pozisyonu
-        head_pose = self.calculate_head_pose(landmarks)
+        # Gaze estimation
+        gaze_result = self.gaze_model.estimate_gaze(face_crop)
         
-        # Bakış yönü (head pose'u dikkate alarak)
-        gaze = self.calculate_gaze_direction(landmarks, head_pose)
+        if gaze_result is None:
+            return None
+        
+        yaw = gaze_result['yaw']
+        pitch = gaze_result['pitch']
+        gaze_angle = gaze_result['gaze_angle']
+        
+        # Eye contact score hesapla
+        eye_contact_score = self.calculate_eye_contact_score(yaw, pitch)
         
         return {
-            'head_pose': head_pose,
-            'gaze': gaze,
+            'gaze': {
+                'yaw': yaw,
+                'pitch': pitch,
+                'gaze_angle': gaze_angle,
+                'eye_contact_score': eye_contact_score
+            },
+            'bbox': bbox,
             'has_face': True
         }
     
@@ -314,104 +194,133 @@ class EyeContactAnalyzer:
             sample_rate: Her N frame'de bir analiz yap (performans için, 1 = tüm frame'ler)
             
         Returns:
-            Her frame için analiz sonuçları
+            Her frame için analiz sonuçları (None = yüz bulunamadı veya hata)
         """
         results = []
         total_frames = len(frames)
-        analyzed_count = 0
-        success_count = 0
+        successful = 0
         
-        # Her N frame'de bir analiz yap (performans için)
         for i, frame in enumerate(frames):
-            if i % sample_rate == 0 or i == total_frames - 1:  # İlk, son ve her N. frame
-                analyzed_count += 1
+            # Sample rate kontrolü
+            if i % sample_rate != 0:
+                results.append(None)
+                continue
+            
+            try:
                 result = self.analyze_frame(frame)
-                if result is not None and result.get('has_face', False):
-                    success_count += 1
                 results.append(result)
-            else:
-                # Analiz edilmeyen frame'ler için None (interpolation yapma)
+                if result is not None:
+                    successful += 1
+            except Exception as e:
+                # Hata durumunda None ekle
+                if not hasattr(self, '_error_count'):
+                    self._error_count = 0
+                if self._error_count < 3:
+                    print(f"[EyeContactAnalyzer] Hata (frame {i}): {str(e)}")
+                    self._error_count += 1
                 results.append(None)
         
-        # Debug bilgisi
-        if analyzed_count > 0:
-            success_rate = (success_count / analyzed_count) * 100
-            print(f"[EyeContactAnalyzer] {analyzed_count} frame analiz edildi, {success_count} başarılı ({success_rate:.1f}%)")
+        print(f"[EyeContactAnalyzer] {total_frames} frame analiz edildi, {successful} başarılı ({100.0*successful/max(1, len([r for r in results if r is not None])):.1f}%)")
         
         return results
     
-    def calculate_eye_contact_metrics(self, analysis_results: List[Optional[Dict]]) -> Dict:
+    def calculate_eye_contact_metrics(self, eye_contact_results: List[Optional[Dict]]) -> Dict:
         """
         Göz teması metriklerini hesaplar.
         
         Args:
-            analysis_results: Frame analiz sonuçları
+            eye_contact_results: Frame bazlı göz teması sonuçları
             
         Returns:
-            Göz teması metrikleri
+            Özet metrikler
         """
-        # Geçerli sonuçları filtrele
-        valid_results = [r for r in analysis_results if r is not None and r.get('has_face', False)]
+        valid_results = [r for r in eye_contact_results if r is not None and r.get('has_face', False)]
         
-        if not valid_results:
+        if len(valid_results) == 0:
+            total_frames = len(eye_contact_results)
             return {
+                'average_eye_contact': 0.0,
                 'average_eye_contact_percentage': 0.0,
+                'eye_contact_percentage': 0.0,
                 'consistency_score': 0.0,
-                'total_frames_analyzed': 0,
-                'total_frames': len(analysis_results)
+                'average_gaze_angle': 0.0,
+                'coverage': 0.0,
+                'gaze_patterns': {},
+                'total_frames': total_frames,
+                'frames_with_face': 0
             }
         
-        # Göz teması skorlarını topla
+        # Eye contact skorları
         eye_contact_scores = []
         gaze_angles = []
         
         for result in valid_results:
             gaze = result.get('gaze', {})
-            eye_contact_score = gaze.get('eye_contact_score', 0.0)
-            angle = gaze.get('angle_degrees', 90.0)
-            
-            eye_contact_scores.append(eye_contact_score)
-            gaze_angles.append(angle)
+            if gaze:
+                eye_contact_scores.append(gaze.get('eye_contact_score', 0.0))
+                gaze_angles.append(gaze.get('gaze_angle', 0.0))
         
-        # Debug: İlk birkaç skoru göster
-        if len(eye_contact_scores) > 0 and not hasattr(self, '_debug_shown'):
-            print(f"[EyeContactAnalyzer] İlk 5 göz teması skoru: {eye_contact_scores[:5]}")
-            print(f"[EyeContactAnalyzer] İlk 5 gaze açısı: {gaze_angles[:5]}")
-            self._debug_shown = True
+        if len(eye_contact_scores) == 0:
+            total_frames = len(eye_contact_results)
+            coverage = len(valid_results) / total_frames if total_frames > 0 else 0.0
+            return {
+                'average_eye_contact': 0.0,
+                'average_eye_contact_percentage': 0.0,
+                'eye_contact_percentage': 0.0,
+                'consistency_score': 0.0,
+                'average_gaze_angle': 0.0,
+                'coverage': float(coverage),
+                'gaze_patterns': {},
+                'total_frames': total_frames,
+                'frames_with_face': len(valid_results)
+            }
         
-        # Ortalama göz teması yüzdesi
-        if len(eye_contact_scores) > 0:
-            avg_eye_contact = np.mean(eye_contact_scores) * 100
-        else:
-            avg_eye_contact = 0.0
+        # Ortalama göz teması skoru
+        avg_eye_contact = np.mean(eye_contact_scores)
         
-        # Tutarlılık skoru (düşük standart sapma = yüksek tutarlılık)
+        # Göz teması yüzdesi: Ortalama skorun yüzdesi (0-100 arası)
+        # Bu, ortalama göz teması kalitesini gösterir
+        eye_contact_percentage = avg_eye_contact * 100.0
+        
+        # Alternatif: Yüksek kaliteli göz teması yüzdesi (skor > 0.5 olan frame'ler)
+        high_quality_eye_contact_pct = sum(1 for score in eye_contact_scores if score > 0.5) / len(eye_contact_scores) * 100.0
+        
+        # Tutarlılık skoru (standart sapmanın tersi)
         if len(eye_contact_scores) > 1:
             std_dev = np.std(eye_contact_scores)
-            consistency_score = max(0, 1.0 - (std_dev / 0.5))  # 0.5 std dev threshold
+            consistency_score = max(0.0, 1.0 - std_dev)  # Düşük std = yüksek tutarlılık
         else:
             consistency_score = 1.0
         
-        # Bakış yönü dağılımı
-        gaze_patterns = {
-            'direct': sum(1 for angle in gaze_angles if angle < 15),
-            'slight_deviation': sum(1 for angle in gaze_angles if 15 <= angle < 30),
-            'moderate_deviation': sum(1 for angle in gaze_angles if 30 <= angle < 45),
-            'significant_deviation': sum(1 for angle in gaze_angles if angle >= 45)
-        }
+        # Ortalama gaze açısı
+        avg_gaze_angle = np.mean(gaze_angles) if gaze_angles else 0.0
+        
+        # Coverage: yüz tespit edilen frame'lerin toplam frame'lere oranı
+        total_frames = len(eye_contact_results)
+        coverage = len(valid_results) / total_frames if total_frames > 0 else 0.0
+        
+        # Gaze patterns (basit bir histogram)
+        gaze_patterns = {}
+        if gaze_angles:
+            # Gaze açılarına göre kategorize et
+            low_gaze = sum(1 for angle in gaze_angles if angle < 10.0)
+            medium_gaze = sum(1 for angle in gaze_angles if 10.0 <= angle < 30.0)
+            high_gaze = sum(1 for angle in gaze_angles if angle >= 30.0)
+            
+            gaze_patterns = {
+                'low_gaze_ratio': low_gaze / len(gaze_angles) if gaze_angles else 0.0,
+                'medium_gaze_ratio': medium_gaze / len(gaze_angles) if gaze_angles else 0.0,
+                'high_gaze_ratio': high_gaze / len(gaze_angles) if gaze_angles else 0.0
+            }
         
         return {
-            'average_eye_contact_percentage': float(avg_eye_contact),
+            'average_eye_contact': float(avg_eye_contact),
+            'average_eye_contact_percentage': float(eye_contact_percentage),  # Pipeline'ın beklediği isim
+            'eye_contact_percentage': float(eye_contact_percentage),  # Geriye uyumluluk için
             'consistency_score': float(consistency_score),
-            'gaze_patterns': gaze_patterns,
-            'average_gaze_angle': float(np.mean(gaze_angles)),
-            'total_frames_analyzed': len(valid_results),
-            'total_frames': len(analysis_results),
-            'coverage': len(valid_results) / len(analysis_results) if analysis_results else 0.0
+            'average_gaze_angle': float(avg_gaze_angle),
+            'coverage': float(coverage),  # Pipeline'ın beklediği coverage
+            'gaze_patterns': gaze_patterns,  # Pipeline'ın beklediği gaze_patterns
+            'total_frames': total_frames,
+            'frames_with_face': len(valid_results)
         }
-
-
-if __name__ == "__main__":
-    # Test kodu
-    analyzer = EyeContactAnalyzer()
-    print("EyeContactAnalyzer modülü hazır.")

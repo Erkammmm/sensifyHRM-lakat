@@ -65,12 +65,26 @@ class EmotionAnalyzer:
             
             try:
                 # DeepFace analizi - tüm özellikleri al (age, gender, emotion, race)
-                result = DeepFace.analyze(
-                    img_path=tmp_path,
-                    actions=['age', 'gender', 'emotion', 'race'],
-                    enforce_detection=self.enforce_detection,
-                    silent=False  # Hata mesajlarını görmek için
-                )
+                # Hata durumunda otomatik retry yap
+                max_retries = 2
+                for retry in range(max_retries):
+                    try:
+                        result = DeepFace.analyze(
+                            img_path=tmp_path,
+                            actions=['age', 'gender', 'emotion', 'race'],
+                            enforce_detection=self.enforce_detection,
+                            silent=False  # Hata mesajlarını görmek için
+                        )
+                        break  # Başarılı, döngüden çık
+                    except Exception as e:
+                        if retry < max_retries - 1:
+                            # Son deneme değilse, kısa bir bekleme yap ve tekrar dene
+                            import time
+                            time.sleep(0.5)
+                            continue
+                        else:
+                            # Son deneme de başarısız, hatayı fırlat
+                            raise
                 
                 # Sonuç formatını düzenle
                 if isinstance(result, list):

@@ -475,10 +475,14 @@ class BehavioralAnalyzer:
             
             if emotion_result and eye_result and eye_result.get('has_face', False):
                 # Dominant duyguyu bul
-                if emotion_result:
-                    dominant_emotion = max(emotion_result.items(), key=lambda x: x[1])[0]
-                    emotion_value = 1.0 if dominant_emotion in stress_emotions else 0.0
-                    emotion_scores.append(emotion_value)
+                if emotion_result and 'emotion' in emotion_result:
+                    emotion_dict = emotion_result['emotion']
+                    if emotion_dict and isinstance(emotion_dict, dict):
+                        dominant_emotion = max(emotion_dict.items(), key=lambda x: x[1])[0]
+                        emotion_value = 1.0 if dominant_emotion in stress_emotions else 0.0
+                        emotion_scores.append(emotion_value)
+                    else:
+                        emotion_scores.append(0.0)
                 else:
                     emotion_scores.append(0.0)
                 

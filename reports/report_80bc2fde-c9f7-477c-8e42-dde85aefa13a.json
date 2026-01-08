@@ -1,0 +1,126 @@
+{
+  "interview_id": "80bc2fde-c9f7-477c-8e42-dde85aefa13a",
+  "duration_seconds": 45.63333333333333,
+  "analysis_timestamp": "2026-01-08T12:15:00.734815Z",
+  "video_info": {
+    "fps": 30.0,
+    "resolution": {
+      "width": 852,
+      "height": 480
+    }
+  },
+  "emotion_analysis": {
+    "dominant_emotion": "neutral",
+    "dominant_emotion_tr": "nötr",
+    "emotion_distribution": {
+      "kızgınlık": {
+        "average": 1.8236442427778468,
+        "max": 68.21597814559937,
+        "min": 1.7345710978666773e-08,
+        "std": 7.196308112245971
+      },
+      "iğrenme": {
+        "average": 0.00846209070199582,
+        "max": 0.8221807889640331,
+        "min": 1.581638978152989e-20,
+        "std": 0.06193794438185383
+      },
+      "korku": {
+        "average": 2.6326528850481092,
+        "max": 77.39045485201208,
+        "min": 4.4384762250097853e-11,
+        "std": 10.50167009193459
+      },
+      "mutluluk": {
+        "average": 5.444787265535572,
+        "max": 98.63395690917969,
+        "min": 2.3105104526681408e-11,
+        "std": 18.692757139002072
+      },
+      "üzüntü": {
+        "average": 35.484192707170244,
+        "max": 99.99821186065674,
+        "min": 1.8057266792936844e-08,
+        "std": 41.03471460642996
+      },
+      "şaşkınlık": {
+        "average": 0.8880835237131323,
+        "max": 97.92928695678711,
+        "min": 1.0934819892409117e-21,
+        "std": 8.027788771311144
+      },
+      "nötr": {
+        "average": 53.718178154029395,
+        "max": 99.99841451644897,
+        "min": 1.122266168884778e-09,
+        "std": 42.49436597037692
+      }
+    },
+    "stability_score": 0.5236363636363637,
+    "coverage": 0.20087655222790357,
+    "age_info": {
+      "average_age": 30.207272727272727,
+      "min_age": 24.0,
+      "max_age": 36.0,
+      "std_age": 1.943928033222194,
+      "total_detections": 275
+    },
+    "gender_info": {
+      "dominant_gender": "Man",
+      "gender_distribution": {
+        "Man": 269,
+        "Woman": 6
+      },
+      "average_confidence": 95.35658064755526,
+      "total_detections": 275
+    },
+    "race_info": {
+      "dominant_race": "middle eastern",
+      "race_distribution": {
+        "white": 45,
+        "middle eastern": 214,
+        "asian": 11,
+        "latino hispanic": 5
+      },
+      "average_confidence": 53.39010393264578,
+      "total_detections": 275
+    }
+  },
+  "eye_contact_analysis": {
+    "average_eye_contact_percentage": 10.533319763760883,
+    "consistency_score": 0.8345128678795973,
+    "gaze_patterns": {
+      "low_gaze_ratio": 0.24354243542435425,
+      "medium_gaze_ratio": 0.07011070110701106,
+      "high_gaze_ratio": 0.6863468634686347
+    },
+    "average_gaze_angle": 68.27062193105209,
+    "coverage": 0.197954711468225
+  },
+  "voice_analysis": {
+    "stress_level": 0.6472915545492299,
+    "confidence_score": 0.3543165056058116,
+    "speech_rate": 11.868040195777855,
+    "pause_ratio": 0.20042046250875964,
+    "mean_pitch": 167.77511596679688,
+    "pitch_variability": 0.3213779330253601,
+    "voice_activity_ratio": 0.98458304134548,
+    "duration_seconds": 45.632
+  },
+  "behavioral_analysis": {
+    "suspicion_score": 0.15276752767527677,
+    "risk_level": "low",
+    "reading_suspicion": 0.0,
+    "high_deviation_ratio": 0.0,
+    "average_deviation": 0.2142032560111749,
+    "total_anomalies": 2
+  },
+  "overall_assessment": {
+    "engagement_score": 0.43929919573035514,
+    "recommendations": [
+      "Göz teması seviyesi düşük. Adayın kameraya daha fazla bakması önerilir.",
+      "Ses analizi yüksek stres seviyesi gösteriyor (0.65). Adayın rahatlatılması önerilir.",
+      "Ses analizi düşük güven skoru gösteriyor (0.35). Adayın kendine güveni değerlendirilmeli."
+    ]
+  }
+}

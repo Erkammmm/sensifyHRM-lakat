@@ -1,0 +1,58 @@
+{
+  "interview_id": "1b1c954b-9814-4c6b-9a5f-e3d3df016899",
+  "duration_seconds": 56.6178,
+  "analysis_timestamp": "2026-01-08T10:51:48.457233Z",
+  "video_info": {
+    "fps": 30.0435552070197,
+    "resolution": {
+      "width": 478,
+      "height": 850
+    }
+  },
+  "emotion_analysis": {
+    "dominant_emotion": null,
+    "dominant_emotion_tr": "bilinmiyor",
+    "emotion_distribution": {},
+    "stability_score": 0.0,
+    "coverage": 0.0,
+    "age_info": {
+      "status": "not_available",
+      "note": "Yaş bilgisi bulunamadı"
+    },
+    "gender_info": {
+      "status": "not_available",
+      "note": "Cinsiyet bilgisi bulunamadı"
+    },
+    "race_info": {
+      "status": "not_available",
+      "note": "Irk bilgisi bulunamadı"
+    }
+  },
+  "eye_contact_analysis": {
+    "average_eye_contact_percentage": 0.0,
+    "consistency_score": 0.0,
+    "gaze_patterns": {},
+    "average_gaze_angle": 0.0,
+    "coverage": 0.0
+  },
+  "voice_analysis": {
+    "stress_level": 0.0,
+    "confidence_score": 0.0,
+    "error": "Ses çıkarma hatası: Command '['ffmpeg', '-i', 'Test_erkam.mp4', '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-y', 'Test_erkam_audio.wav']' returned non-zero exit status 4294967268."
+  },
+  "behavioral_analysis": {
+    "suspicion_score": 0.0,
+    "risk_level": "low",
+    "reading_suspicion": 0.0,
+    "high_deviation_ratio": 0.0,
+    "average_deviation": 0.0,
+    "total_anomalies": 0
+  },
+  "overall_assessment": {
+    "engagement_score": 0.15,
+    "recommendations": [
+      "Göz teması seviyesi düşük. Adayın kameraya daha fazla bakması önerilir.",
+      "Duygu değişkenliği yüksek. Adayın stres seviyesi gözlemlenmeli."
+    ]
+  }
+}
