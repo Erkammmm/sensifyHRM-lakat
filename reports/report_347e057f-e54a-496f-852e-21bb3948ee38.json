@@ -1,0 +1,629 @@
+{
+  "interview_id": "347e057f-e54a-496f-852e-21bb3948ee38",
+  "duration_seconds": 15.833333333333334,
+  "analysis_timestamp": "2026-01-09T09:38:09.593476Z",
+  "video_info": {
+    "fps": 30.0,
+    "resolution": {
+      "width": 852,
+      "height": 480
+    }
+  },
+  "emotion_analysis": {
+    "dominant_emotion": "neutral",
+    "dominant_emotion_tr": "nötr",
+    "emotion_distribution": {
+      "kızgınlık": {
+        "average": 1.057033745093294,
+        "max": 38.63156871419326,
+        "min": 2.70927502654672e-07,
+        "std": 4.222373558372656
+      },
+      "iğrenme": {
+        "average": 0.12049346768411316,
+        "max": 11.473526182946422,
+        "min": 6.411386858915803e-19,
+        "std": 1.1648127412896316
+      },
+      "korku": {
+        "average": 1.7885212752655981,
+        "max": 70.93770254400938,
+        "min": 9.039077819572583e-09,
+        "std": 8.464134739964933
+      },
+      "mutluluk": {
+        "average": 1.2238590469280233,
+        "max": 48.414346764761596,
+        "min": 1.3133649549856852e-09,
+        "std": 5.774812359688941
+      },
+      "üzüntü": {
+        "average": 25.282885362982455,
+        "max": 99.97765422133753,
+        "min": 1.9916904869000317e-07,
+        "std": 36.63801627203746
+      },
+      "şaşkınlık": {
+        "average": 1.8245218441702307,
+        "max": 88.51230144500732,
+        "min": 2.061055801598332e-19,
+        "std": 11.234194832289477
+      },
+      "nötr": {
+        "average": 68.70268565744091,
+        "max": 99.98835325241089,
+        "min": 7.964280751647864e-10,
+        "std": 38.49621201836002
+      }
+    },
+    "stability_score": 0.65625,
+    "coverage": 0.20210526315789473,
+    "age_info": {
+      "average_age": 30.5,
+      "min_age": 25.0,
+      "max_age": 34.0,
+      "std_age": 2.0361319538117693,
+      "total_detections": 96
+    },
+    "gender_info": {
+      "dominant_gender": "Man",
+      "gender_distribution": {
+        "Man": 95,
+        "Woman": 1
+      },
+      "average_confidence": 98.57316079239051,
+      "total_detections": 96
+    },
+    "race_info": {
+      "dominant_race": "middle eastern",
+      "race_distribution": {
+        "white": 6,
+        "middle eastern": 86,
+        "asian": 3,
+        "latino hispanic": 1
+      },
+      "average_confidence": 57.05343989313301,
+      "total_detections": 96
+    }
+  },
+  "eye_contact_analysis": {
+    "raw_gaze_predictions": [
+      {
+        "frame_index": 0,
+        "gaze_class": "up",
+        "confidence": 0.14808209420394353
+      },
+      {
+        "frame_index": 5,
+        "gaze_class": "up",
+        "confidence": 0.1679426628690882
+      },
+      {
+        "frame_index": 10,
+        "gaze_class": "up",
+        "confidence": 0.16731278504428337
+      },
+      {
+        "frame_index": 15,
+        "gaze_class": "up",
+        "confidence": 0.17305699921556594
+      },
+      {
+        "frame_index": 20,
+        "gaze_class": "right",
+        "confidence": 0.15670119752113734
+      },
+      {
+        "frame_index": 25,
+        "gaze_class": "up",
+        "confidence": 0.16385169272873545
+      },
+      {
+        "frame_index": 30,
+        "gaze_class": "up",
+        "confidence": 0.1879468703743727
+      },
+      {
+        "frame_index": 35,
+        "gaze_class": "up",
+        "confidence": 0.18936548832948225
+      },
+      {
+        "frame_index": 40,
+        "gaze_class": "up",
+        "confidence": 0.1265049797971921
+      },
+      {
+        "frame_index": 45,
+        "gaze_class": "up",
+        "confidence": 0.20158594446956166
+      },
+      {
+        "frame_index": 50,
+        "gaze_class": "camera",
+        "confidence": 0.15735351397221786
+      },
+      {
+        "frame_index": 55,
+        "gaze_class": "right",
+        "confidence": 0.15632168765921273
+      },
+      {
+        "frame_index": 60,
+        "gaze_class": "up",
+        "confidence": 0.14010939964298283
+      },
+      {
+        "frame_index": 65,
+        "gaze_class": "up",
+        "confidence": 0.17785994520838783
+      },
+      {
+        "frame_index": 70,
+        "gaze_class": "camera",
+        "confidence": 0.13710606592573346
+      },
+      {
+        "frame_index": 75,
+        "gaze_class": "up",
+        "confidence": 0.17719600827991155
+      },
+      {
+        "frame_index": 80,
+        "gaze_class": "left",
+        "confidence": 0.14242671958198244
+      },
+      {
+        "frame_index": 85,
+        "gaze_class": "up",
+        "confidence": 0.1370334141693467
+      },
+      {
+        "frame_index": 90,
+        "gaze_class": "camera",
+        "confidence": 0.14291807640798632
+      },
+      {
+        "frame_index": 95,
+        "gaze_class": "right",
+        "confidence": 0.15534604119444106
+      },
+      {
+        "frame_index": 100,
+        "gaze_class": "up",
+        "confidence": 0.10500954065976263
+      },
+      {
+        "frame_index": 105,
+        "gaze_class": "left",
+        "confidence": 0.18085365090592462
+      },
+      {
+        "frame_index": 110,
+        "gaze_class": "camera",
+        "confidence": 0.1342978667992136
+      },
+      {
+        "frame_index": 115,
+        "gaze_class": "right",
+        "confidence": 0.12701761074838722
+      },
+      {
+        "frame_index": 120,
+        "gaze_class": "camera",
+        "confidence": 0.14065532592300048
+      },
+      {
+        "frame_index": 125,
+        "gaze_class": "right",
+        "confidence": 0.14289231232559402
+      },
+      {
+        "frame_index": 130,
+        "gaze_class": "camera",
+        "confidence": 0.17571624914395106
+      },
+      {
+        "frame_index": 135,
+        "gaze_class": "camera",
+        "confidence": 0.11997728109261346
+      },
+      {
+        "frame_index": 140,
+        "gaze_class": "left",
+        "confidence": 0.1460068449716168
+      },
+      {
+        "frame_index": 145,
+        "gaze_class": "left",
+        "confidence": 0.10302207158424387
+      },
+      {
+        "frame_index": 150,
+        "gaze_class": "up",
+        "confidence": 0.1441648482142646
+      },
+      {
+        "frame_index": 155,
+        "gaze_class": "right",
+        "confidence": 0.1876310036796498
+      },
+      {
+        "frame_index": 160,
+        "gaze_class": "camera",
+        "confidence": 0.13473873924136673
+      },
+      {
+        "frame_index": 165,
+        "gaze_class": "camera",
+        "confidence": 0.1572491452478632
+      },
+      {
+        "frame_index": 170,
+        "gaze_class": "camera",
+        "confidence": 0.17469430612614756
+      },
+      {
+        "frame_index": 175,
+        "gaze_class": "camera",
+        "confidence": 0.19672472388316414
+      },
+      {
+        "frame_index": 180,
+        "gaze_class": "left",
+        "confidence": 0.1486044098928708
+      },
+      {
+        "frame_index": 185,
+        "gaze_class": "right",
+        "confidence": 0.15661873471380172
+      },
+      {
+        "frame_index": 190,
+        "gaze_class": "right",
+        "confidence": 0.13979566093560547
+      },
+      {
+        "frame_index": 195,
+        "gaze_class": "camera",
+        "confidence": 0.1288606809345353
+      },
+      {
+        "frame_index": 200,
+        "gaze_class": "camera",
+        "confidence": 0.16039185489019236
+      },
+      {
+        "frame_index": 205,
+        "gaze_class": "camera",
+        "confidence": 0.1821579326661023
+      },
+      {
+        "frame_index": 210,
+        "gaze_class": "camera",
+        "confidence": 0.12053970355734175
+      },
+      {
+        "frame_index": 215,
+        "gaze_class": "left",
+        "confidence": 0.10401124336891271
+      },
+      {
+        "frame_index": 220,
+        "gaze_class": "left",
+        "confidence": 0.15924881037647437
+      },
+      {
+        "frame_index": 225,
+        "gaze_class": "right",
+        "confidence": 0.11305854309746818
+      },
+      {
+        "frame_index": 230,
+        "gaze_class": "camera",
+        "confidence": 0.1675953780061367
+      },
+      {
+        "frame_index": 235,
+        "gaze_class": "left",
+        "confidence": 0.10901065144563929
+      },
+      {
+        "frame_index": 240,
+        "gaze_class": "left",
+        "confidence": 0.19996757230107404
+      },
+      {
+        "frame_index": 245,
+        "gaze_class": "left",
+        "confidence": 0.15740767280541362
+      },
+      {
+        "frame_index": 250,
+        "gaze_class": "left",
+        "confidence": 0.1420306665717504
+      },
+      {
+        "frame_index": 255,
+        "gaze_class": "camera",
+        "confidence": 0.1745306580905886
+      },
+      {
+        "frame_index": 260,
+        "gaze_class": "camera",
+        "confidence": 0.16531529387426303
+      },
+      {
+        "frame_index": 265,
+        "gaze_class": "left",
+        "confidence": 0.1483182787081037
+      },
+      {
+        "frame_index": 270,
+        "gaze_class": "right",
+        "confidence": 0.10083779313424684
+      },
+      {
+        "frame_index": 275,
+        "gaze_class": "left",
+        "confidence": 0.11972609535827253
+      },
+      {
+        "frame_index": 280,
+        "gaze_class": "left",
+        "confidence": 0.11684938435166294
+      },
+      {
+        "frame_index": 285,
+        "gaze_class": "left",
+        "confidence": 0.1715598204113732
+      },
+      {
+        "frame_index": 290,
+        "gaze_class": "right",
+        "confidence": 0.18534776926678234
+      },
+      {
+        "frame_index": 295,
+        "gaze_class": "camera",
+        "confidence": 0.15434034152521584
+      },
+      {
+        "frame_index": 300,
+        "gaze_class": "up",
+        "confidence": 0.13645978502969652
+      },
+      {
+        "frame_index": 305,
+        "gaze_class": "up",
+        "confidence": 0.15295539543633274
+      },
+      {
+        "frame_index": 310,
+        "gaze_class": "up",
+        "confidence": 0.15743053106901633
+      },
+      {
+        "frame_index": 315,
+        "gaze_class": "right",
+        "confidence": 0.1477484642729336
+      },
+      {
+        "frame_index": 320,
+        "gaze_class": "right",
+        "confidence": 0.14105500522585007
+      },
+      {
+        "frame_index": 325,
+        "gaze_class": "camera",
+        "confidence": 0.18650516263533085
+      },
+      {
+        "frame_index": 330,
+        "gaze_class": "right",
+        "confidence": 0.14042090976248056
+      },
+      {
+        "frame_index": 335,
+        "gaze_class": "camera",
+        "confidence": 0.13974469593429728
+      },
+      {
+        "frame_index": 340,
+        "gaze_class": "left",
+        "confidence": 0.15584895479607205
+      },
+      {
+        "frame_index": 345,
+        "gaze_class": "up",
+        "confidence": 0.1441875207468573
+      },
+      {
+        "frame_index": 350,
+        "gaze_class": "left",
+        "confidence": 0.18922539802380017
+      },
+      {
+        "frame_index": 355,
+        "gaze_class": "left",
+        "confidence": 0.15744255191276463
+      },
+      {
+        "frame_index": 360,
+        "gaze_class": "left",
+        "confidence": 0.17243043455921858
+      },
+      {
+        "frame_index": 365,
+        "gaze_class": "camera",
+        "confidence": 0.17295486598089393
+      },
+      {
+        "frame_index": 370,
+        "gaze_class": "camera",
+        "confidence": 0.18914118324725906
+      },
+      {
+        "frame_index": 375,
+        "gaze_class": "right",
+        "confidence": 0.11932031407754791
+      },
+      {
+        "frame_index": 380,
+        "gaze_class": "up",
+        "confidence": 0.1004901695339511
+      },
+      {
+        "frame_index": 385,
+        "gaze_class": "up",
+        "confidence": 0.1242328748352895
+      },
+      {
+        "frame_index": 390,
+        "gaze_class": "left",
+        "confidence": 0.1541895255929815
+      },
+      {
+        "frame_index": 395,
+        "gaze_class": "left",
+        "confidence": 0.1909058715370871
+      },
+      {
+        "frame_index": 400,
+        "gaze_class": "left",
+        "confidence": 0.1396845618895264
+      },
+      {
+        "frame_index": 405,
+        "gaze_class": "left",
+        "confidence": 0.12683846703365703
+      },
+      {
+        "frame_index": 410,
+        "gaze_class": "left",
+        "confidence": 0.1230054256564582
+      },
+      {
+        "frame_index": 415,
+        "gaze_class": "left",
+        "confidence": 0.12491302632061532
+      },
+      {
+        "frame_index": 420,
+        "gaze_class": "up",
+        "confidence": 0.16491247635672024
+      },
+      {
+        "frame_index": 425,
+        "gaze_class": "up",
+        "confidence": 0.13313595966670647
+      },
+      {
+        "frame_index": 430,
+        "gaze_class": "up",
+        "confidence": 0.12436707144621073
+      },
+      {
+        "frame_index": 435,
+        "gaze_class": "left",
+        "confidence": 0.14145927243288403
+      },
+      {
+        "frame_index": 440,
+        "gaze_class": "up",
+        "confidence": 0.12611924632430088
+      },
+      {
+        "frame_index": 445,
+        "gaze_class": "up",
+        "confidence": 0.10509952529286623
+      },
+      {
+        "frame_index": 450,
+        "gaze_class": "camera",
+        "confidence": 0.11306012604589588
+      },
+      {
+        "frame_index": 455,
+        "gaze_class": "left",
+        "confidence": 0.14832172422247775
+      },
+      {
+        "frame_index": 460,
+        "gaze_class": "left",
+        "confidence": 0.12175830619872122
+      },
+      {
+        "frame_index": 465,
+        "gaze_class": "up",
+        "confidence": 0.16116914627645929
+      },
+      {
+        "frame_index": 470,
+        "gaze_class": "up",
+        "confidence": 0.15642472159304482
+      }
+    ],
+    "gaze_counts": {
+      "up": 28,
+      "right": 15,
+      "camera": 24,
+      "left": 28
+    },
+    "gaze_ratios": {
+      "up": 0.29473684210526313,
+      "right": 0.15789473684210525,
+      "camera": 0.25263157894736843,
+      "left": 0.29473684210526313
+    }
+  },
+  "voice_analysis": {
+    "speech_rate": {
+      "value": 11.054292929292929,
+      "unit": "relative_index_0_100"
+    },
+    "rms_energy": {
+      "mean": 0.10658594965934753,
+      "std": 0.04855059087276459,
+      "min": 0.0,
+      "max": 0.20624463260173798
+    },
+    "pitch_f0": {
+      "mean": 166.63064575195312,
+      "std": 51.34521484375,
+      "min": 62.41360855102539,
+      "max": 401.77947998046875
+    },
+    "pause_durations": [
+      0.704,
+      0.064,
+      0.064,
+      0.032,
+      0.032,
+      0.128,
+      0.096,
+      0.032,
+      0.128,
+      0.096,
+      0.64,
+      0.064,
+      0.064,
+      0.288,
+      0.256,
+      0.064,
+      0.16,
+      0.224,
+      0.032
+    ],
+    "silence_ratio": 0.2,
+    "spectral_centroid": {
+      "mean": 1595.2662385683684,
+      "std": 972.7493043922655
+    },
+    "zero_crossing_rate": {
+      "mean": 0.11054292929292929,
+      "std": 0.1040719357950888
+    },
+    "duration_seconds": 15.808
+  }
+}

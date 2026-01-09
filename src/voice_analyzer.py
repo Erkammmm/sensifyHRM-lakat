@@ -16,7 +16,7 @@ warnings.filterwarnings('ignore')
 class VoiceAnalyzer:
     """
     Ses analizi yapan sınıf.
-    Pitch, energy, MFCC ve prosodic features kullanarak stres ve güven skorları hesaplar.
+    Librosa tabanlı özellikleri çıkarır ve sadece ham (raw) ses özelliklerini döner.
     """
     
     def __init__(self, sample_rate: int = 16000, frame_length: int = 2048, hop_length: int = 512):
@@ -80,6 +80,8 @@ class VoiceAnalyzer:
             return {
                 'mean_pitch': 0.0,
                 'std_pitch': 0.0,
+                'min_pitch': 0.0,
+                'max_pitch': 0.0,
                 'pitch_range': 0.0,
                 'pitch_variability': 0.0
             }
@@ -89,7 +91,9 @@ class VoiceAnalyzer:
         # Pitch özellikleri
         mean_pitch = np.mean(pitch_values)
         std_pitch = np.std(pitch_values)
-        pitch_range = np.max(pitch_values) - np.min(pitch_values)
+        min_pitch = np.min(pitch_values)
+        max_pitch = np.max(pitch_values)
+        pitch_range = max_pitch - min_pitch
         
         # Pitch değişkenliği (coefficient of variation)
         pitch_variability = std_pitch / mean_pitch if mean_pitch > 0 else 0.0
@@ -97,6 +101,8 @@ class VoiceAnalyzer:
         return {
             'mean_pitch': float(mean_pitch),
             'std_pitch': float(std_pitch),
+            'min_pitch': float(min_pitch),
+            'max_pitch': float(max_pitch),
             'pitch_range': float(pitch_range),
             'pitch_variability': float(pitch_variability),
             'pitch_values': pitch_values.tolist()[:100]  # İlk 100 değer (örnek)
@@ -135,16 +141,8 @@ class VoiceAnalyzer:
     def extract_mfcc(self, audio: np.ndarray, n_mfcc: int = 13) -> Dict:
         """
         MFCC (Mel-Frequency Cepstral Coefficients) özelliklerini çıkarır.
-        Ses kalitesi ve ton özelliklerini temsil eder.
-        
-        Args:
-            audio: Ses sinyali
-            n_mfcc: MFCC katsayı sayısı
-            
-        Returns:
-            MFCC özellikleri dictionary'si
+        (Şu an rapora eklenmiyor; gerekirse ileride kullanılabilir.)
         """
-        # MFCC çıkarma
         mfccs = librosa.feature.mfcc(
             y=audio,
             sr=self.sample_rate,
@@ -152,7 +150,6 @@ class VoiceAnalyzer:
             hop_length=self.hop_length
         )
         
-        # Her MFCC katsayısı için ortalama ve standart sapma
         mfcc_features = {}
         for i in range(n_mfcc):
             mfcc_features[f'mfcc_{i}_mean'] = float(np.mean(mfccs[i]))
@@ -182,16 +179,34 @@ class VoiceAnalyzer:
         energy_threshold = np.percentile(rms, 20)  # En düşük %20'lik dilim
         pauses = rms < energy_threshold
         pause_ratio = np.sum(pauses) / len(pauses)
+        # Duraklama sürelerini (saniye) hesapla
+        pause_durations = []
+        in_pause = False
+        start_idx = 0
+        for i, is_pause in enumerate(pauses):
+            if is_pause and not in_pause:
+                in_pause = True
+                start_idx = i
+            elif not is_pause and in_pause:
+                length = i - start_idx
+                duration_sec = (length * self.hop_length) / float(self.sample_rate)
+                pause_durations.append(float(duration_sec))
+                in_pause = False
+        if in_pause:
+            length = len(pauses) - start_idx
+            duration_sec = (length * self.hop_length) / float(self.sample_rate)
+            pause_durations.append(float(duration_sec))
         
-        # Konuşma hızı (saniyede kelime tahmini - basit hesaplama)
+        # Konuşma hızı (göreli indeks, yaklaşık konuşma hızı göstergesi)
         # Yüksek ZCR = daha hızlı konuşma (yaklaşık)
-        speech_rate = np.mean(zcr) * 100  # Normalize edilmiş hız
+        speech_rate = np.mean(zcr) * 100  # Göreli ölçek (0-100 civarı)
         
         return {
             'zero_crossing_rate_mean': float(np.mean(zcr)),
             'zero_crossing_rate_std': float(np.std(zcr)),
             'tempo_bpm': float(tempo),
             'pause_ratio': float(pause_ratio),
+            'pause_durations': pause_durations,
             'speech_rate': float(speech_rate)
         }
     
@@ -240,80 +255,7 @@ class VoiceAnalyzer:
             'avg_segment_length': float(avg_segment_length),
             'total_duration_seconds': len(audio) / self.sample_rate
         }
-    
-    def calculate_stress_score(self, features: Dict) -> float:
-        """
-        Stres skoru hesaplar (0-1 arası).
-        Yüksek pitch değişkenliği, yüksek enerji değişkenliği = stres göstergesi.
-        
-        Args:
-            features: Tüm ses özellikleri
-            
-        Returns:
-            Stres skoru (0-1, yüksek = daha stresli)
-        """
-        # Pitch değişkenliği (yüksek = stres)
-        pitch_var = features.get('pitch', {}).get('pitch_variability', 0.0)
-        pitch_stress = min(1.0, pitch_var * 2.0)  # Normalize et
-        
-        # Enerji değişkenliği (yüksek = stres)
-        energy_var = features.get('energy', {}).get('energy_variability', 0.0)
-        energy_stress = min(1.0, energy_var * 3.0)  # Normalize et
-        
-        # Duraklama oranı (yüksek = stres/tereddüt)
-        pause_ratio = features.get('prosodic', {}).get('pause_ratio', 0.0)
-        pause_stress = pause_ratio * 1.5  # Normalize et
-        
-        # Ağırlıklı ortalama
-        stress_score = (
-            pitch_stress * 0.4 +
-            energy_stress * 0.3 +
-            pause_stress * 0.3
-        )
-        
-        return float(np.clip(stress_score, 0.0, 1.0))
-    
-    def calculate_confidence_score(self, features: Dict) -> float:
-        """
-        Güven skoru hesaplar (0-1 arası).
-        Düşük pitch değişkenliği, düşük duraklama = güven göstergesi.
-        
-        Args:
-            features: Tüm ses özellikleri
-            
-        Returns:
-            Güven skoru (0-1, yüksek = daha güvenli)
-        """
-        # Pitch stabilitesi (düşük değişkenlik = güven)
-        pitch_var = features.get('pitch', {}).get('pitch_variability', 0.0)
-        pitch_confidence = max(0.0, 1.0 - (pitch_var * 2.0))
-        
-        # Enerji stabilitesi
-        energy_var = features.get('energy', {}).get('energy_variability', 0.0)
-        energy_confidence = max(0.0, 1.0 - (energy_var * 2.0))
-        
-        # Düşük duraklama = güven
-        pause_ratio = features.get('prosodic', {}).get('pause_ratio', 0.0)
-        pause_confidence = max(0.0, 1.0 - (pause_ratio * 2.0))
-        
-        # Konuşma hızı (orta hız = güven, çok hızlı/yavaş = güvensizlik)
-        speech_rate = features.get('prosodic', {}).get('speech_rate', 0.0)
-        # Optimal hız: 50-80 arası (normalize edilmiş)
-        if 50 <= speech_rate <= 80:
-            rate_confidence = 1.0
-        else:
-            rate_confidence = max(0.0, 1.0 - abs(speech_rate - 65) / 65)
-        
-        # Ağırlıklı ortalama
-        confidence_score = (
-            pitch_confidence * 0.3 +
-            energy_confidence * 0.2 +
-            pause_confidence * 0.3 +
-            rate_confidence * 0.2
-        )
-        
-        return float(np.clip(confidence_score, 0.0, 1.0))
-    
+
     def analyze_audio(self, audio_path: str) -> Dict:
         """
         Ses dosyasını tam olarak analiz eder.
@@ -330,38 +272,50 @@ class VoiceAnalyzer:
         # Tüm özellikleri çıkar
         pitch_features = self.extract_pitch(audio)
         energy_features = self.extract_energy(audio)
-        mfcc_features = self.extract_mfcc(audio)
         prosodic_features = self.extract_prosodic_features(audio)
         vad_features = self.detect_voice_activity(audio)
-        
-        # Özellikleri birleştir
-        all_features = {
-            'pitch': pitch_features,
-            'energy': energy_features,
-            'mfcc': mfcc_features,
-            'prosodic': prosodic_features,
-            'vad': vad_features
+
+        # Spektral centroid (enerjinin frekans eksenindeki ağırlık merkezi)
+        spectral_centroid = librosa.feature.spectral_centroid(
+            y=audio,
+            sr=self.sample_rate
+        )[0]
+        spectral_centroid_mean = float(np.mean(spectral_centroid))
+        spectral_centroid_std = float(np.std(spectral_centroid))
+
+        # RAW VOICE FEATURES (yorum içermeyen, ham özellikler)
+        raw_voice_features = {
+            "speech_rate": {
+                "value": float(prosodic_features.get("speech_rate", 0.0)),
+                "unit": "relative_index_0_100"
+            },
+            "rms_energy": {
+                "mean": float(energy_features.get("mean_energy", 0.0)),
+                "std": float(energy_features.get("std_energy", 0.0)),
+                "min": float(energy_features.get("min_energy", 0.0)),
+                "max": float(energy_features.get("max_energy", 0.0))
+            },
+            "pitch_f0": {
+                "mean": float(pitch_features.get("mean_pitch", 0.0)),
+                "std": float(pitch_features.get("std_pitch", 0.0)),
+                "min": float(pitch_features.get("min_pitch", 0.0)),
+                "max": float(pitch_features.get("max_pitch", 0.0))
+            },
+            "pause_durations": prosodic_features.get("pause_durations", []),
+            "silence_ratio": float(prosodic_features.get("pause_ratio", 0.0)),
+            "spectral_centroid": {
+                "mean": spectral_centroid_mean,
+                "std": spectral_centroid_std
+            },
+            "zero_crossing_rate": {
+                "mean": float(prosodic_features.get("zero_crossing_rate_mean", 0.0)),
+                "std": float(prosodic_features.get("zero_crossing_rate_std", 0.0))
+            },
+            "duration_seconds": float(vad_features.get("total_duration_seconds", 0.0))
         }
-        
-        # Stres ve güven skorlarını hesapla
-        stress_score = self.calculate_stress_score(all_features)
-        confidence_score = self.calculate_confidence_score(all_features)
-        
-        # Özet rapor
-        summary = {
-            'stress_level': stress_score,
-            'confidence_score': confidence_score,
-            'speech_rate': prosodic_features.get('speech_rate', 0.0),
-            'pause_ratio': prosodic_features.get('pause_ratio', 0.0),
-            'mean_pitch': pitch_features.get('mean_pitch', 0.0),
-            'pitch_variability': pitch_features.get('pitch_variability', 0.0),
-            'voice_activity_ratio': vad_features.get('voice_ratio', 0.0),
-            'duration_seconds': vad_features.get('total_duration_seconds', 0.0)
-        }
-        
+
         return {
-            'summary': summary,
-            'detailed_features': all_features
+            "raw_voice_features": raw_voice_features
         }
 
 

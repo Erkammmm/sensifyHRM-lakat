@@ -63,11 +63,21 @@ def test_pipeline(video_path: str):
                 print(f"  - Toplam Prediction: {len(raw_predictions)} frame")
         else:
             print(f"  - Göz teması analizi mevcut değil")
-        print(f"\nGenel Değerlendirme:")
-        print(f"  - Katılım Skoru: {report['overall_assessment']['engagement_score']:.2f}")
-        print(f"  - Öneriler:")
-        for rec in report['overall_assessment']['recommendations']:
-            print(f"    • {rec}")
+
+        # Ses Analizi (ham özellikler)
+        voice_analysis = report.get('voice_analysis', {})
+        print(f"\nSes Analizi (raw özellikler):")
+        if voice_analysis:
+            # Pipeline'da voice_analysis doğrudan raw_voice_features dict'i olarak yazılıyor.
+            rv = voice_analysis.get('raw_voice_features', voice_analysis)
+            sr = rv.get('speech_rate', {})
+            print(f"  - Speech rate: {sr.get('value', 0.0):.2f} ({sr.get('unit', '')})")
+            print(f"  - RMS Energy (mean): {rv.get('rms_energy', {}).get('mean', 0.0):.6f}")
+            print(f"  - Pitch f0 mean: {rv.get('pitch_f0', {}).get('mean', 0.0):.2f} Hz")
+            print(f"  - Silence ratio: {rv.get('silence_ratio', 0.0):.3f}")
+            print(f"  - Duration: {rv.get('duration_seconds', 0.0):.2f} s")
+        else:
+            print("  - Ses analizi mevcut değil")
         print("-" * 60)
         
         # JSON çıktısı (raporlar klasörüne kaydet)
