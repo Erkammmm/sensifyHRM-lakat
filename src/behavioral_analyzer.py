@@ -561,8 +561,9 @@ class BehavioralAnalyzer:
         negative_emotions = ['angry', 'fear', 'sad', 'disgust']
         is_negative_emotion = dominant_emotion in negative_emotions
         
-        # Göz teması
-        eye_contact_pct = eye_contact_metrics.get('average_eye_contact_percentage', 0.0) / 100.0
+        # Göz teması (sadeleştirilmiş: MobileGaze sınıflarından kamera oranı)
+        gaze_ratios = eye_contact_metrics.get('gaze_ratios', {}) if eye_contact_metrics else {}
+        eye_contact_pct = gaze_ratios.get('camera', gaze_ratios.get('center', 0.0))
         
         # Şüphe skoru hesapla
         suspicion_factors = []

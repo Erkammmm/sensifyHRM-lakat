@@ -249,6 +249,8 @@ class GazeEstimationModel:
             # Model output format: (pitch, yaw) tuple
             # Modeller classification yapıyor (bins sayısı kadar class)
             # Softmax + argmax ile açıya çevirmemiz gerekiyor
+            confidence = 1.0  # Varsayılan confidence
+            
             if isinstance(output, tuple) and len(output) == 2:
                 pitch_logits, yaw_logits = output
                 
@@ -258,6 +260,12 @@ class GazeEstimationModel:
                 
                 pitch_class = torch.argmax(pitch_probs, dim=1)
                 yaw_class = torch.argmax(yaw_probs, dim=1)
+                
+                # Confidence: seçilen class'ın probability'si
+                pitch_confidence = float(pitch_probs[0, pitch_class[0]].item())
+                yaw_confidence = float(yaw_probs[0, yaw_class[0]].item())
+                # Ortalama confidence
+                confidence = (pitch_confidence + yaw_confidence) / 2.0
                 
                 # Class index'i açıya çevir
                 # Bins: -90 ile +90 arası (veya -angle ile +angle arası)
@@ -273,6 +281,8 @@ class GazeEstimationModel:
                 # Eğer farklı format ise (regression)
                 pitch = float(output[0, 0].item())
                 yaw = float(output[0, 1].item())
+                # Regression için confidence yok, varsayılan 1.0
+                confidence = 1.0
             
             # Açıları derece cinsinden al (zaten derece olmalı, ama kontrol et)
             # Eğer radyan ise dereceye çevir
@@ -318,7 +328,8 @@ class GazeEstimationModel:
                 'yaw': yaw,
                 'pitch': pitch,
                 'gaze_angle': gaze_angle,
-                'gaze_class': gaze_class
+                'gaze_class': gaze_class,
+                'confidence': confidence
             }
         except Exception as e:
             print(f"[GazeEstimationModel] Inference hatası: {str(e)}")

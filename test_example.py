@@ -49,8 +49,20 @@ def test_pipeline(video_path: str):
         print(f"  - Dominant Duygu: {report['emotion_analysis']['dominant_emotion_tr']}")
         print(f"  - Stabilite Skoru: {report['emotion_analysis']['stability_score']:.2f}")
         print(f"\nGöz Teması Analizi:")
-        print(f"  - Ortalama Göz Teması: {report['eye_contact_analysis']['average_eye_contact_percentage']:.1f}%")
-        print(f"  - Tutarlılık Skoru: {report['eye_contact_analysis']['consistency_score']:.2f}")
+        eye_contact = report.get('eye_contact_analysis', {})
+        if eye_contact:
+            gaze_ratios = eye_contact.get('gaze_ratios', {})
+            gaze_counts = eye_contact.get('gaze_counts', {})
+            if gaze_ratios:
+                print(f"  - Gaze Oranları:")
+                for gaze_class, ratio in gaze_ratios.items():
+                    count = gaze_counts.get(gaze_class, 0)
+                    print(f"    • {gaze_class}: {ratio*100:.1f}% ({count} frame)")
+            raw_predictions = eye_contact.get('raw_gaze_predictions', [])
+            if raw_predictions:
+                print(f"  - Toplam Prediction: {len(raw_predictions)} frame")
+        else:
+            print(f"  - Göz teması analizi mevcut değil")
         print(f"\nGenel Değerlendirme:")
         print(f"  - Katılım Skoru: {report['overall_assessment']['engagement_score']:.2f}")
         print(f"  - Öneriler:")

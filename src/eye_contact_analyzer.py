@@ -27,6 +27,9 @@ class EyeContactAnalyzer:
     Göz teması ve bakış yönü analizi yapan sınıf.
     Gaze Estimation Model (pretrained) kullanır.
     MediaPipe Face Detection ile yüz tespiti yapar.
+    
+    Sadece MobileGaze modelinin ham çıktılarını kullanır.
+    Hiçbir ek yorum, açı, landmark, consistency veya eye-contact skoru hesaplamaz.
     """
     
     def __init__(self, 
@@ -59,10 +62,6 @@ class EyeContactAnalyzer:
             model_selection=0,  # 0 = kısa mesafe, 1 = uzun mesafe
             min_detection_confidence=min_detection_confidence
         )
-        
-        # Eye contact threshold (derece cinsinden)
-        # Yaw ve pitch açıları bu değerden küçükse göz teması var sayılır
-        self.eye_contact_threshold = 15.0  # derece
     
     def detect_face(self, frame: np.ndarray) -> Optional[Dict]:
         """
@@ -118,43 +117,13 @@ class EyeContactAnalyzer:
             'confidence': detection.score[0] if detection.score else 0.0
         }
     
-    def calculate_eye_contact_score(self, yaw: float, pitch: float, gaze_class: Optional[str] = None) -> float:
-        """
-        Yaw ve pitch açılarından veya gaze_class'tan göz teması skorunu hesaplar.
-        Webcam modunda sadece gaze_class kullanılır (açı bazlı hesaplama devre dışı).
-        
-        Args:
-            yaw: Yatay bakış açısı (derece) - webcam modunda kullanılmaz
-            pitch: Dikey bakış açısı (derece) - webcam modunda kullanılmaz
-            gaze_class: Gaze sınıfı (camera/left/right/up/down) - webcam modunda kullanılır
-            
-        Returns:
-            Eye contact score (0.0 - 1.0)
-        """
-        # Webcam modu: Sadece gaze_class kullan (açı bazlı hesaplama devre dışı)
-        if gaze_class is not None:
-            return 1.0 if gaze_class == 'camera' else 0.0
-        
-        # Eski mod: Açı bazlı hesaplama (video analizi için)
-        # Toplam gaze açısı
-        gaze_angle = np.sqrt(yaw**2 + pitch**2)
-        
-        # Eğer gaze açısı threshold'dan küçükse, göz teması var
-        if gaze_angle <= self.eye_contact_threshold:
-            # Açı ne kadar küçükse, skor o kadar yüksek
-            score = 1.0 - (gaze_angle / self.eye_contact_threshold)
-        else:
-            # Threshold'dan büyükse, skor düşer
-            score = max(0.0, 1.0 - (gaze_angle - self.eye_contact_threshold) / 30.0)
-        
-        return max(0.0, min(1.0, score))  # 0-1 aralığına sınırla
-    
-    def analyze_frame(self, frame: np.ndarray) -> Optional[Dict]:
+    def analyze_frame(self, frame: np.ndarray, frame_index: int = 0) -> Optional[Dict]:
         """
         Tek bir frame'de göz teması analizi yapar.
         
         Args:
             frame: BGR formatında görüntü
+            frame_index: Frame indeksi (raw_gaze_predictions için)
             
         Returns:
             Analiz sonuçları veya None
@@ -174,23 +143,14 @@ class EyeContactAnalyzer:
         if gaze_result is None:
             return None
         
-        yaw = gaze_result['yaw']
-        pitch = gaze_result['pitch']
-        gaze_angle = gaze_result['gaze_angle']
-        gaze_class = gaze_result.get('gaze_class', 'camera')
-        
-        # Eye contact score hesapla (gaze_class'a göre - webcam modu)
-        # Camera sınıfı = göz teması var, açı bazlı hesaplama devre dışı
-        eye_contact_score = self.calculate_eye_contact_score(yaw, pitch, gaze_class)
+        # Modelin ham çıktılarını al
+        gaze_class = gaze_result.get('gaze_class', 'unknown')
+        confidence = gaze_result.get('confidence', 1.0)
         
         return {
-            'gaze': {
-                'yaw': yaw,
-                'pitch': pitch,
-                'gaze_angle': gaze_angle,
-                'gaze_class': gaze_class,
-                'eye_contact_score': eye_contact_score
-            },
+            'frame_index': frame_index,
+            'gaze_class': gaze_class,
+            'confidence': confidence,
             'bbox': bbox,
             'has_face': True
         }
@@ -217,7 +177,7 @@ class EyeContactAnalyzer:
                 continue
             
             try:
-                result = self.analyze_frame(frame)
+                result = self.analyze_frame(frame, frame_index=i)
                 results.append(result)
                 if result is not None:
                     successful += 1
@@ -236,107 +196,73 @@ class EyeContactAnalyzer:
     
     def calculate_eye_contact_metrics(self, eye_contact_results: List[Optional[Dict]]) -> Dict:
         """
-        Göz teması metriklerini hesaplar.
-        
+        Göz teması metriklerini hesaplar (sadeleştirilmiş versiyon).
+
+        Not:
+        - Sadece MobileGaze modelinin verdiği sınıflar kullanılır.
+        - Herhangi bir açı (angle), eye contact skoru, consistency veya coverage hesabı yapılmaz.
+        - Her frame için raw_gaze_predictions listesi oluşturulur.
+
         Args:
             eye_contact_results: Frame bazlı göz teması sonuçları
-            
+
         Returns:
-            Özet metrikler
-        """
-        valid_results = [r for r in eye_contact_results if r is not None and r.get('has_face', False)]
-        
-        if len(valid_results) == 0:
-            total_frames = len(eye_contact_results)
-            return {
-                'average_eye_contact': 0.0,
-                'average_eye_contact_percentage': 0.0,
-                'eye_contact_percentage': 0.0,
-                'consistency_score': 0.0,
-                'average_gaze_angle': 0.0,
-                'coverage': 0.0,
-                'gaze_patterns': {},
-                'total_frames': total_frames,
-                'frames_with_face': 0
+            {
+                "raw_gaze_predictions": [...],
+                "gaze_counts": { ... },
+                "gaze_ratios": { ... }
             }
-        
-        # Eye contact skorları ve gaze sınıfları
-        eye_contact_scores = []
-        gaze_angles = []
+        """
+        # Geçerli sonuçları filtrele
+        valid_results = [r for r in eye_contact_results if r is not None and r.get('has_face', False)]
+
+        # Eğer hiç yüz bulunamadıysa
+        if len(valid_results) == 0:
+            return {
+                "raw_gaze_predictions": [],
+                "gaze_counts": {},
+                "gaze_ratios": {}
+            }
+
+        # Raw gaze predictions listesi oluştur
+        raw_gaze_predictions = []
         gaze_classes = []
         
         for result in valid_results:
-            gaze = result.get('gaze', {})
-            if gaze:
-                eye_contact_scores.append(gaze.get('eye_contact_score', 0.0))
-                gaze_angles.append(gaze.get('gaze_angle', 0.0))
-                gaze_classes.append(gaze.get('gaze_class', 'unknown'))
-        
-        if len(eye_contact_scores) == 0:
-            total_frames = len(eye_contact_results)
-            coverage = len(valid_results) / total_frames if total_frames > 0 else 0.0
-            return {
-                'average_eye_contact': 0.0,
-                'average_eye_contact_percentage': 0.0,
-                'eye_contact_percentage': 0.0,
-                'consistency_score': 0.0,
-                'average_gaze_angle': 0.0,
-                'coverage': float(coverage),
-                'gaze_patterns': {},
-                'total_frames': total_frames,
-                'frames_with_face': len(valid_results)
-            }
-        
-        # Ortalama göz teması skoru
-        avg_eye_contact = np.mean(eye_contact_scores)
-        
-        # Göz teması yüzdesi: "camera" sınıfında geçirilen frame oranı (0-100 arası)
-        # Webcam analizinde sadece gerçek kamera bakışı eye contact olarak kabul edilir
-        camera_frames = sum(1 for gc in gaze_classes if gc == 'camera')
-        eye_contact_percentage = (camera_frames / len(gaze_classes)) * 100.0 if gaze_classes else 0.0
-        
-        # Tutarlılık skoru (standart sapmanın tersi)
-        if len(eye_contact_scores) > 1:
-            std_dev = np.std(eye_contact_scores)
-            consistency_score = max(0.0, 1.0 - std_dev)  # Düşük std = yüksek tutarlılık
-        else:
-            consistency_score = 1.0
-        
-        # Ortalama gaze açısı
-        avg_gaze_angle = np.mean(gaze_angles) if gaze_angles else 0.0
-        
-        # Coverage: yüz tespit edilen frame'lerin toplam frame'lere oranı
-        total_frames = len(eye_contact_results)
-        coverage = len(valid_results) / total_frames if total_frames > 0 else 0.0
-        
-        # Gaze patterns (gaze sınıflarına göre)
-        gaze_patterns = {}
-        if gaze_classes:
-            gaze_class_counts = {
-                'camera': sum(1 for gc in gaze_classes if gc == 'camera'),
-                'left': sum(1 for gc in gaze_classes if gc == 'left'),
-                'right': sum(1 for gc in gaze_classes if gc == 'right'),
-                'up': sum(1 for gc in gaze_classes if gc == 'up'),
-                'down': sum(1 for gc in gaze_classes if gc == 'down')
-            }
+            frame_index = result.get('frame_index', 0)
+            gaze_class = result.get('gaze_class', 'unknown')
+            confidence = result.get('confidence', 1.0)
             
-            total = len(gaze_classes)
-            gaze_patterns = {
-                'camera_ratio': gaze_class_counts['camera'] / total if total > 0 else 0.0,
-                'left_ratio': gaze_class_counts['left'] / total if total > 0 else 0.0,
-                'right_ratio': gaze_class_counts['right'] / total if total > 0 else 0.0,
-                'up_ratio': gaze_class_counts['up'] / total if total > 0 else 0.0,
-                'down_ratio': gaze_class_counts['down'] / total if total > 0 else 0.0
+            # Raw prediction kaydı
+            raw_gaze_predictions.append({
+                'frame_index': int(frame_index),
+                'gaze_class': gaze_class,
+                'confidence': float(confidence)
+            })
+            
+            gaze_classes.append(gaze_class)
+
+        if not gaze_classes:
+            return {
+                "raw_gaze_predictions": [],
+                "gaze_counts": {},
+                "gaze_ratios": {}
             }
-        
+
+        # Tüm sınıfları say
+        gaze_counts: Dict[str, int] = {}
+        for gc in gaze_classes:
+            gaze_counts[gc] = gaze_counts.get(gc, 0) + 1
+
+        total = len(gaze_classes)
+
+        # Oranları hesapla
+        gaze_ratios: Dict[str, float] = {}
+        for gc, count in gaze_counts.items():
+            gaze_ratios[gc] = float(count) / float(total) if total > 0 else 0.0
+
         return {
-            'average_eye_contact': float(avg_eye_contact),
-            'average_eye_contact_percentage': float(eye_contact_percentage),  # Pipeline'ın beklediği isim
-            'eye_contact_percentage': float(eye_contact_percentage),  # Geriye uyumluluk için
-            'consistency_score': float(consistency_score),
-            'average_gaze_angle': float(avg_gaze_angle),
-            'coverage': float(coverage),  # Pipeline'ın beklediği coverage
-            'gaze_patterns': gaze_patterns,  # Pipeline'ın beklediği gaze_patterns
-            'total_frames': total_frames,
-            'frames_with_face': len(valid_results)
+            "raw_gaze_predictions": raw_gaze_predictions,
+            "gaze_counts": gaze_counts,
+            "gaze_ratios": gaze_ratios
         }

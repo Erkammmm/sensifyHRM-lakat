@@ -195,13 +195,12 @@ class InterviewAnalysisPipeline:
                 "gender_info": gender_info,
                 "race_info": race_info
             },
-            "eye_contact_analysis": {
-                "average_eye_contact_percentage": eye_contact_metrics.get('average_eye_contact_percentage', 0.0),
-                "consistency_score": eye_contact_metrics.get('consistency_score', 0.0),
-                "gaze_patterns": eye_contact_metrics.get('gaze_patterns', {}),
-                "average_gaze_angle": eye_contact_metrics.get('average_gaze_angle', 0.0),
-                "coverage": eye_contact_metrics.get('coverage', 0.0)
-            },
+            # Göz teması analizi: sadeleştirilmiş yapı
+            # {
+            #   "gaze_counts": { ... },
+            #   "gaze_ratios": { ... }
+            # }
+            "eye_contact_analysis": eye_contact_metrics if eye_contact_metrics else {},
             "voice_analysis": voice_summary if voice_summary else {
                 "status": "not_available",
                 "note": "Ses analizi yapılamadı"
@@ -325,9 +324,11 @@ class InterviewAnalysisPipeline:
         # Duygu stabilitesi
         stability_score = emotion_summary.get('stability_score', 0.5)
         
-        # Göz teması skoru
-        eye_contact_pct = eye_contact_metrics.get('average_eye_contact_percentage', 0.0) / 100.0
-        eye_consistency = eye_contact_metrics.get('consistency_score', 0.5)
+        # Göz teması skoru (sadeleştirilmiş: sadece MobileGaze sınıfları)
+        gaze_ratios = eye_contact_metrics.get('gaze_ratios', {}) if eye_contact_metrics else {}
+        # Kamera yönü: modelin kamera için kullandığı etiket ("camera" veya "center")
+        eye_contact_pct = gaze_ratios.get('camera', gaze_ratios.get('center', 0.0))
+        eye_consistency = 0.5  # Artık ayrı bir consistency metriği hesaplanmıyor, nötr değer
         
         # Ses skorları (varsa)
         if voice_summary and 'error' not in voice_summary:
@@ -340,17 +341,15 @@ class InterviewAnalysisPipeline:
                 emotion_score * 0.25 +
                 stability_score * 0.15 +
                 eye_contact_pct * 0.30 +
-                eye_consistency * 0.10 +
-                confidence_score * 0.10 +
-                stress_inverted * 0.10
+                confidence_score * 0.15 +
+                stress_inverted * 0.15
             )
         else:
             # Ağırlıklı ortalama (ses yok)
             engagement_score = (
                 emotion_score * 0.30 +
                 stability_score * 0.20 +
-                eye_contact_pct * 0.35 +
-                eye_consistency * 0.15
+                eye_contact_pct * 0.50
             )
         
         return float(np.clip(engagement_score, 0.0, 1.0))
@@ -374,12 +373,8 @@ class InterviewAnalysisPipeline:
         """
         recommendations = []
         
-        # Göz teması önerileri
-        eye_contact_pct = eye_contact_metrics.get('average_eye_contact_percentage', 0.0)
-        if eye_contact_pct < 40:
-            recommendations.append("Göz teması seviyesi düşük. Adayın kameraya daha fazla bakması önerilir.")
-        elif eye_contact_pct < 60:
-            recommendations.append("Göz teması seviyesi orta. Adayın göz temasını artırması önerilir.")
+        # Göz teması önerileri (sadeleştirildi - sadece MobileGaze sınıfları raporlanır,
+        # ekstra yorum üretilmez)
         
         # Duygu stabilitesi önerileri
         stability_score = emotion_summary.get('stability_score', 0.5)
