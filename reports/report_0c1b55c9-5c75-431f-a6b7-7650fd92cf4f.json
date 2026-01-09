@@ -1,0 +1,124 @@
+{
+  "interview_id": "0c1b55c9-5c75-431f-a6b7-7650fd92cf4f",
+  "duration_seconds": 51.704851,
+  "analysis_timestamp": "2026-01-08T12:52:24.026623Z",
+  "source": "webcam",
+  "video_info": {
+    "fps": 30.0,
+    "resolution": {
+      "width": 1280,
+      "height": 720
+    },
+    "total_frames": 201
+  },
+  "emotion_analysis": {
+    "dominant_emotion": "sad",
+    "dominant_emotion_tr": "üzüntü",
+    "emotion_distribution": {
+      "kızgınlık": {
+        "average": 1.7646835415006952,
+        "max": 19.50773149728775,
+        "min": 1.8135351271584914e-14,
+        "std": 3.8383874391971045
+      },
+      "iğrenme": {
+        "average": 0.007775553665821432,
+        "max": 0.10353740071877837,
+        "min": 7.518239350246919e-23,
+        "std": 0.02059280929067185
+      },
+      "korku": {
+        "average": 14.53089817645749,
+        "max": 96.79911713594896,
+        "min": 0.00038686225707351696,
+        "std": 24.937225430949155
+      },
+      "mutluluk": {
+        "average": 8.326719934348212,
+        "max": 98.34357490203232,
+        "min": 1.0878208923925659e-09,
+        "std": 24.742980889484528
+      },
+      "üzüntü": {
+        "average": 28.129166998719583,
+        "max": 99.98084902763367,
+        "min": 0.00039850472250364463,
+        "std": 38.8715981410909
+      },
+      "şaşkınlık": {
+        "average": 22.791245013014215,
+        "max": 99.90111589431763,
+        "min": 3.5909673939992894e-15,
+        "std": 37.111680179969255
+      },
+      "nötr": {
+        "average": 24.44951065408169,
+        "max": 99.16594614576651,
+        "min": 0.0007696837660132544,
+        "std": 36.22395341515612
+      }
+    },
+    "stability_score": 0.8855721393034826,
+    "coverage": 1.0,
+    "age_info": {
+      "average_age": 32.124378109452735,
+      "min_age": 22.0,
+      "max_age": 42.0,
+      "std_age": 4.902984443586188,
+      "total_detections": 201
+    },
+    "gender_info": {
+      "dominant_gender": "Man",
+      "gender_distribution": {
+        "Man": 196,
+        "Woman": 5
+      },
+      "total_detections": 201
+    },
+    "race_info": {
+      "dominant_race": "middle eastern",
+      "race_distribution": {
+        "middle eastern": 121,
+        "white": 60,
+        "asian": 5,
+        "indian": 5,
+        "latino hispanic": 10
+      },
+      "total_detections": 201
+    }
+  },
+  "eye_contact_analysis": {
+    "average_eye_contact_percentage": 9.950248756218906,
+    "consistency_score": 0.700664498378282,
+    "gaze_patterns": {
+      "camera_ratio": 0.09950248756218906,
+      "left_ratio": 0.22885572139303484,
+      "right_ratio": 0.04975124378109453,
+      "up_ratio": 0.024875621890547265,
+      "down_ratio": 0.5970149253731343
+    },
+    "average_gaze_angle": 96.0345131884482,
+    "coverage": 1.0
+  },
+  "voice_analysis": {
+    "status": "not_available",
+    "note": "Ses analizi yapılamadı (pyaudio mevcut değil veya ses kaydı başarısız)"
+  },
+  "behavioral_analysis": {
+    "suspicion_score": 0.7338308457711442,
+    "risk_level": "high",
+    "anomalies": [
+      "Yüksek gaze kaçırma oranı",
+      "139 uzun süre kameradan uzaklaşma dönemi"
+    ],
+    "gaze_anomalies": 181,
+    "gaze_anomaly_ratio": 0.900497512437811,
+    "extreme_lr_ratio": 0.27860696517412936,
+    "long_away_periods": 139,
+    "max_consecutive_away": 135
+  },
+  "overall_assessment": {
+    "engagement_score": 0.0,
+    "recommendations": []
+  }
+}

@@ -287,10 +287,38 @@ class GazeEstimationModel:
             # Gaze angle hesapla (toplam sapma açısı)
             gaze_angle = np.sqrt(yaw**2 + pitch**2)
             
+            # Gaze sınıfını belirle (camera/left/right/up/down)
+            # Camera: yaw ve pitch küçükse (kameraya bakıyor)
+            # Left: yaw negatif ve büyükse
+            # Right: yaw pozitif ve büyükse
+            # Up: pitch pozitif ve büyükse
+            # Down: pitch negatif ve büyükse
+            threshold = 15.0  # derece
+            
+            if abs(yaw) <= threshold and abs(pitch) <= threshold:
+                gaze_class = "camera"
+            elif abs(yaw) > abs(pitch):
+                # Yatay bakış daha dominant
+                if yaw < -threshold:
+                    gaze_class = "left"
+                elif yaw > threshold:
+                    gaze_class = "right"
+                else:
+                    gaze_class = "camera"
+            else:
+                # Dikey bakış daha dominant
+                if pitch > threshold:
+                    gaze_class = "up"
+                elif pitch < -threshold:
+                    gaze_class = "down"
+                else:
+                    gaze_class = "camera"
+            
             return {
                 'yaw': yaw,
                 'pitch': pitch,
-                'gaze_angle': gaze_angle
+                'gaze_angle': gaze_angle,
+                'gaze_class': gaze_class
             }
         except Exception as e:
             print(f"[GazeEstimationModel] Inference hatası: {str(e)}")

@@ -1,0 +1,55 @@
+{
+  "interview_id": "07dff766-b498-4ad3-a59d-59fe0b47e32e",
+  "duration_seconds": 7.728963,
+  "analysis_timestamp": "2026-01-08T13:13:59.768154Z",
+  "source": "webcam",
+  "video_info": {
+    "fps": 30.0,
+    "resolution": {
+      "width": 1280,
+      "height": 720
+    },
+    "total_frames": 221
+  },
+  "emotion_analysis": {
+    "dominant_emotion": null,
+    "dominant_emotion_tr": "bilinmiyor",
+    "emotion_distribution": {},
+    "stability_score": 0.0,
+    "coverage": 0.0,
+    "age_info": {
+      "status": "not_available",
+      "note": "Yaş bilgisi bulunamadı"
+    },
+    "gender_info": {
+      "status": "not_available",
+      "note": "Cinsiyet bilgisi bulunamadı"
+    },
+    "race_info": {
+      "status": "not_available",
+      "note": "Irk bilgisi bulunamadı"
+    }
+  },
+  "eye_contact_analysis": {
+    "average_eye_contact_percentage": 0.0,
+    "consistency_score": 0.0,
+    "gaze_patterns": {},
+    "average_gaze_angle": 0.0,
+    "coverage": 0.0
+  },
+  "voice_analysis": {
+    "status": "not_available",
+    "note": "Ses analizi yapılamadı (pyaudio mevcut değil veya ses kaydı başarısız)"
+  },
+  "behavioral_analysis": {
+    "suspicion_score": 0.0,
+    "risk_level": "low",
+    "anomalies": [],
+    "gaze_anomalies": 0,
+    "long_away_periods": 0
+  },
+  "overall_assessment": {
+    "engagement_score": 0.0,
+    "recommendations": []
+  }
+}

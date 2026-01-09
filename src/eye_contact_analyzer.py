@@ -118,17 +118,24 @@ class EyeContactAnalyzer:
             'confidence': detection.score[0] if detection.score else 0.0
         }
     
-    def calculate_eye_contact_score(self, yaw: float, pitch: float) -> float:
+    def calculate_eye_contact_score(self, yaw: float, pitch: float, gaze_class: Optional[str] = None) -> float:
         """
-        Yaw ve pitch açılarından göz teması skorunu hesaplar.
+        Yaw ve pitch açılarından veya gaze_class'tan göz teması skorunu hesaplar.
+        Webcam modunda sadece gaze_class kullanılır (açı bazlı hesaplama devre dışı).
         
         Args:
-            yaw: Yatay bakış açısı (derece)
-            pitch: Dikey bakış açısı (derece)
+            yaw: Yatay bakış açısı (derece) - webcam modunda kullanılmaz
+            pitch: Dikey bakış açısı (derece) - webcam modunda kullanılmaz
+            gaze_class: Gaze sınıfı (camera/left/right/up/down) - webcam modunda kullanılır
             
         Returns:
             Eye contact score (0.0 - 1.0)
         """
+        # Webcam modu: Sadece gaze_class kullan (açı bazlı hesaplama devre dışı)
+        if gaze_class is not None:
+            return 1.0 if gaze_class == 'camera' else 0.0
+        
+        # Eski mod: Açı bazlı hesaplama (video analizi için)
         # Toplam gaze açısı
         gaze_angle = np.sqrt(yaw**2 + pitch**2)
         
@@ -170,15 +177,18 @@ class EyeContactAnalyzer:
         yaw = gaze_result['yaw']
         pitch = gaze_result['pitch']
         gaze_angle = gaze_result['gaze_angle']
+        gaze_class = gaze_result.get('gaze_class', 'camera')
         
-        # Eye contact score hesapla
-        eye_contact_score = self.calculate_eye_contact_score(yaw, pitch)
+        # Eye contact score hesapla (gaze_class'a göre - webcam modu)
+        # Camera sınıfı = göz teması var, açı bazlı hesaplama devre dışı
+        eye_contact_score = self.calculate_eye_contact_score(yaw, pitch, gaze_class)
         
         return {
             'gaze': {
                 'yaw': yaw,
                 'pitch': pitch,
                 'gaze_angle': gaze_angle,
+                'gaze_class': gaze_class,
                 'eye_contact_score': eye_contact_score
             },
             'bbox': bbox,
@@ -250,15 +260,17 @@ class EyeContactAnalyzer:
                 'frames_with_face': 0
             }
         
-        # Eye contact skorları
+        # Eye contact skorları ve gaze sınıfları
         eye_contact_scores = []
         gaze_angles = []
+        gaze_classes = []
         
         for result in valid_results:
             gaze = result.get('gaze', {})
             if gaze:
                 eye_contact_scores.append(gaze.get('eye_contact_score', 0.0))
                 gaze_angles.append(gaze.get('gaze_angle', 0.0))
+                gaze_classes.append(gaze.get('gaze_class', 'unknown'))
         
         if len(eye_contact_scores) == 0:
             total_frames = len(eye_contact_results)
@@ -278,12 +290,10 @@ class EyeContactAnalyzer:
         # Ortalama göz teması skoru
         avg_eye_contact = np.mean(eye_contact_scores)
         
-        # Göz teması yüzdesi: Ortalama skorun yüzdesi (0-100 arası)
-        # Bu, ortalama göz teması kalitesini gösterir
-        eye_contact_percentage = avg_eye_contact * 100.0
-        
-        # Alternatif: Yüksek kaliteli göz teması yüzdesi (skor > 0.5 olan frame'ler)
-        high_quality_eye_contact_pct = sum(1 for score in eye_contact_scores if score > 0.5) / len(eye_contact_scores) * 100.0
+        # Göz teması yüzdesi: "camera" sınıfında geçirilen frame oranı (0-100 arası)
+        # Webcam analizinde sadece gerçek kamera bakışı eye contact olarak kabul edilir
+        camera_frames = sum(1 for gc in gaze_classes if gc == 'camera')
+        eye_contact_percentage = (camera_frames / len(gaze_classes)) * 100.0 if gaze_classes else 0.0
         
         # Tutarlılık skoru (standart sapmanın tersi)
         if len(eye_contact_scores) > 1:
@@ -299,18 +309,24 @@ class EyeContactAnalyzer:
         total_frames = len(eye_contact_results)
         coverage = len(valid_results) / total_frames if total_frames > 0 else 0.0
         
-        # Gaze patterns (basit bir histogram)
+        # Gaze patterns (gaze sınıflarına göre)
         gaze_patterns = {}
-        if gaze_angles:
-            # Gaze açılarına göre kategorize et
-            low_gaze = sum(1 for angle in gaze_angles if angle < 10.0)
-            medium_gaze = sum(1 for angle in gaze_angles if 10.0 <= angle < 30.0)
-            high_gaze = sum(1 for angle in gaze_angles if angle >= 30.0)
+        if gaze_classes:
+            gaze_class_counts = {
+                'camera': sum(1 for gc in gaze_classes if gc == 'camera'),
+                'left': sum(1 for gc in gaze_classes if gc == 'left'),
+                'right': sum(1 for gc in gaze_classes if gc == 'right'),
+                'up': sum(1 for gc in gaze_classes if gc == 'up'),
+                'down': sum(1 for gc in gaze_classes if gc == 'down')
+            }
             
+            total = len(gaze_classes)
             gaze_patterns = {
-                'low_gaze_ratio': low_gaze / len(gaze_angles) if gaze_angles else 0.0,
-                'medium_gaze_ratio': medium_gaze / len(gaze_angles) if gaze_angles else 0.0,
-                'high_gaze_ratio': high_gaze / len(gaze_angles) if gaze_angles else 0.0
+                'camera_ratio': gaze_class_counts['camera'] / total if total > 0 else 0.0,
+                'left_ratio': gaze_class_counts['left'] / total if total > 0 else 0.0,
+                'right_ratio': gaze_class_counts['right'] / total if total > 0 else 0.0,
+                'up_ratio': gaze_class_counts['up'] / total if total > 0 else 0.0,
+                'down_ratio': gaze_class_counts['down'] / total if total > 0 else 0.0
             }
         
         return {

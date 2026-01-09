@@ -4,8 +4,9 @@ Online iş görüşmelerinde aday davranışlarını analiz eden AI motoru.
 
 ## Özellikler
 
-- **Yüz Duygu Analizi**: DeepFace kullanarak 7 temel duygu tespiti
-- **Göz Teması Analizi**: MediaPipe ile göz teması ve bakış yönü analizi
+- **Yüz Duygu Analizi**: DeepFace kullanarak yaş, cinsiyet, duygu ve ırk tespiti
+- **Göz Teması Analizi**: MobileGaze pre-trained modeli ile bakış yönü analizi (camera/left/right/up/down)
+- **Ses Analizi**: Librosa ile stres, kaygı, konuşma hızı ve ton kalitesi analizi
 - **Gerçek Zamanlı İşleme**: Arka planda video analizi
 - **Yapılandırılmış Raporlar**: JSON formatında detaylı analiz raporları
 - **RESTful API**: FastAPI ile modern API arayüzü
@@ -126,11 +127,7 @@ Analiz sonuçları JSON formatında döner:
 }
 ```
 
-Detaylı format için `ARCHITECTURE.md` dosyasına bakın.
-
-## Geliştirme
-
-Detaylı geliştirme raporu için `PROJECT_REPORT.md` dosyasına bakın.
+Detaylı format ve teknik bilgiler için `PROJE_DOKUMANTASYONU.md` dosyasına bakın.
 
 ## Lisans
 
