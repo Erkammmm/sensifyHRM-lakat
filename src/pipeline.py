@@ -10,9 +10,9 @@ from datetime import datetime
 from collections import Counter
 
 from .video_processor import VideoProcessor
-from .emotion_analyzer import EmotionAnalyzer
-from .eye_contact_analyzer import EyeContactAnalyzer
+from .mediapipe_face_gaze_analyzer import MediapipeFaceGazeAnalyzer
 from .voice_analyzer import VoiceAnalyzer
+from .frame_summarizer import FrameAnalysisSummarizer
 
 
 class InterviewAnalysisPipeline:
@@ -24,8 +24,12 @@ class InterviewAnalysisPipeline:
     def __init__(self):
         """Pipeline'ı başlatır ve modülleri yükler."""
         self.video_processor = VideoProcessor()
-        self.emotion_analyzer = EmotionAnalyzer()
-        self.eye_contact_analyzer = EyeContactAnalyzer()
+        # DeepFace + MobileGaze yerine tamamen Mediapipe tabanlı analizör
+        self.face_gaze_analyzer = MediapipeFaceGazeAnalyzer(
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5,
+            frame_skip=3,  # FRAME_SKIP: her 3 karede bir analiz
+        )
         self.voice_analyzer = VoiceAnalyzer()
     
     def process_interview(self, video_path: str, interview_id: Optional[str] = None) -> Dict:
@@ -53,21 +57,14 @@ class InterviewAnalysisPipeline:
         frames = self.video_processor.extract_frames(video_path)
         print(f"[Pipeline] {len(frames)} frame çıkarıldı.")
         
-        # 3. Duygu analizi (DeepFace - age, gender, emotion, race)
-        print("[Pipeline] Duygu analizi yapılıyor...")
-        # Her 5 frame'de bir analiz yap (performans için, tüm frame'ler çok yavaş olabilir)
-        emotion_results = self.emotion_analyzer.analyze_frames(frames, sample_rate=5)
-        emotion_summary = self.emotion_analyzer.get_emotion_summary(emotion_results)
-        print(f"[Pipeline] Duygu analizi tamamlandı. {len([r for r in emotion_results if r is not None])}/{len(emotion_results)} frame'de yüz tespit edildi.")
+        # 3. Mediapipe tabanlı yüz + ham özellikler + bakış yönü analizi
+        print("[Pipeline] Mediapipe yüz + ham özellikler + bakış yönü analizi yapılıyor...")
+        fps = video_info.get("fps", 0) or 30.0
+        frame_analysis = self.face_gaze_analyzer.analyze_frames(frames, fps=fps)
+        valid_face_frames = len([r for r in frame_analysis if r is not None])
+        print(f"[Pipeline] Mediapipe analizi tamamlandı. {valid_face_frames}/{len(frame_analysis)} frame'de yüz tespit edildi.")
         
-        # 4. Göz teması analizi (MediaPipe Face Mesh)
-        print("[Pipeline] Göz teması analizi yapılıyor...")
-        # Her 5 frame'de bir analiz yap (performans için)
-        eye_contact_results = self.eye_contact_analyzer.analyze_frames(frames, sample_rate=5)
-        eye_contact_metrics = self.eye_contact_analyzer.calculate_eye_contact_metrics(eye_contact_results)
-        print(f"[Pipeline] Göz teması analizi tamamlandı. {len([r for r in eye_contact_results if r is not None])}/{len(eye_contact_results)} frame'de yüz tespit edildi.")
-        
-        # 5. Ses analizi (librosa - sadece raw özellikler)
+        # 4. Ses analizi (librosa - sadece raw özellikler)
         print("[Pipeline] Ses analizi yapılıyor...")
         voice_summary = None
         try:
@@ -90,14 +87,17 @@ class InterviewAnalysisPipeline:
                 'raw_voice_features': {}
             }
         
+        # 5. Frame analizini özetle
+        print("[Pipeline] Frame analizi özetleniyor...")
+        frame_summary = FrameAnalysisSummarizer.summarize(frame_analysis)
+        
         # 6. Sonuçları birleştir
         print("[Pipeline] Sonuçlar birleştiriliyor...")
         report = self._generate_report(
             interview_id=interview_id,
             video_info=video_info,
-            emotion_results=emotion_results,
-            emotion_summary=emotion_summary,
-            eye_contact_metrics=eye_contact_metrics,
+            frame_analysis=frame_analysis,
+            frame_summary=frame_summary,
             voice_summary=voice_summary
         )
         
@@ -105,32 +105,37 @@ class InterviewAnalysisPipeline:
         
         return report
     
-    def _generate_report(self, 
-                        interview_id: str,
-                        video_info: Dict,
-                        emotion_results: List[Optional[Dict]],
-                        emotion_summary: Dict,
-                        eye_contact_metrics: Dict,
-                        voice_summary: Optional[Dict] = None) -> Dict:
+    def _generate_report(
+        self,
+        interview_id: str,
+        video_info: Dict,
+        frame_analysis: List[Optional[Dict]],
+        frame_summary: Dict,
+        voice_summary: Optional[Dict] = None,
+    ) -> Dict:
         """
         Analiz sonuçlarından rapor oluşturur.
         
         Args:
             interview_id: Mülakat ID
             video_info: Video bilgileri
-            emotion_results: Frame bazlı duygu sonuçları (age, gender, emotion, race içerir)
-            emotion_summary: Duygu analizi özeti
-            eye_contact_metrics: Göz teması metrikleri
-            voice_summary: Ses analizi özeti (opsiyonel)
+            frame_analysis: Her işlenen frame için
+                {
+                    "timestamp": float,
+                    "raw_features": {
+                        "mouth_width_norm": float,
+                        "mouth_height_norm": float,
+                        "eye_opening_norm": float,
+                        "brow_distance_norm": float,
+                        "jaw_open_norm": float,
+                    },
+                    "gaze": {...}
+                }
+            voice_summary: Ses analizi özeti (opsiyonel, raw voice features)
             
         Returns:
             Yapılandırılmış rapor
         """
-        # Age, Gender, Race bilgilerini çıkar
-        age_info = self._extract_age_info(emotion_results)
-        gender_info = self._extract_gender_info(emotion_results)
-        race_info = self._extract_race_info(emotion_results)
-        
         report = {
             "interview_id": interview_id,
             "duration_seconds": video_info.get('duration_seconds', 0),
@@ -142,23 +147,13 @@ class InterviewAnalysisPipeline:
                     "height": video_info.get('height', 0)
                 }
             },
-            "emotion_analysis": {
-                "dominant_emotion": emotion_summary.get('dominant_emotion'),
-                "dominant_emotion_tr": emotion_summary.get('dominant_emotion_tr'),
-                "emotion_distribution": emotion_summary.get('emotion_distribution', {}),
-                "stability_score": emotion_summary.get('stability_score', 0.0),
-                "coverage": emotion_summary.get('coverage', 0.0),
-                "age_info": age_info,
-                "gender_info": gender_info,
-                "race_info": race_info
-            },
-            # Göz teması analizi: sadeleştirilmiş yapı
-            # {
-            #   "raw_gaze_predictions": [...],
-            #   "gaze_counts": { ... },
-            #   "gaze_ratios": { ... }
-            # }
-            "eye_contact_analysis": eye_contact_metrics if eye_contact_metrics else {},
+            # Frame bazlı Mediapipe analizi (ham özellikler + gaze vektörü)
+            # Not: Ham veri çok kalabalık olabilir, Gemini API için frame_summary kullanılmalı
+            "frame_analysis": [
+                fa for fa in frame_analysis if fa is not None
+            ],
+            # Frame analizi özeti (Gemini API için sadeleştirilmiş)
+            "frame_summary": frame_summary,
             # Ses analizi: sadece raw_voice_features içeren sade yapı
             "voice_analysis": voice_summary if voice_summary else {
                 "status": "not_available",
@@ -167,82 +162,6 @@ class InterviewAnalysisPipeline:
         }
         
         return report
-
-    def _extract_age_info(self, emotion_results: List[Optional[Dict]]) -> Dict:
-        """Age bilgilerini çıkarır."""
-        ages = []
-        for result in emotion_results:
-            if result and 'age' in result:
-                age = result['age']
-                if isinstance(age, (int, float)) and age > 0:
-                    ages.append(float(age))
-        
-        if not ages:
-            return {"status": "not_available", "note": "Yaş bilgisi bulunamadı"}
-        
-        return {
-            "average_age": float(np.mean(ages)),
-            "min_age": float(np.min(ages)),
-            "max_age": float(np.max(ages)),
-            "std_age": float(np.std(ages)),
-            "total_detections": len(ages)
-        }
-    
-    def _extract_gender_info(self, emotion_results: List[Optional[Dict]]) -> Dict:
-        """Gender bilgilerini çıkarır."""
-        genders = []
-        gender_confidences = []
-        
-        for result in emotion_results:
-            if result and 'gender' in result:
-                gender = result.get('gender', 'unknown')
-                confidence = result.get('gender_confidence', 0.0)
-                if gender != 'unknown':
-                    genders.append(gender)
-                    if confidence > 0:
-                        gender_confidences.append(confidence)
-        
-        if not genders:
-            return {"status": "not_available", "note": "Cinsiyet bilgisi bulunamadı"}
-        
-        # En sık görülen cinsiyet
-        gender_counter = Counter(genders)
-        dominant_gender = gender_counter.most_common(1)[0][0] if gender_counter else 'unknown'
-        
-        return {
-            "dominant_gender": dominant_gender,
-            "gender_distribution": dict(gender_counter),
-            "average_confidence": float(np.mean(gender_confidences)) if gender_confidences else 0.0,
-            "total_detections": len(genders)
-        }
-    
-    def _extract_race_info(self, emotion_results: List[Optional[Dict]]) -> Dict:
-        """Race bilgilerini çıkarır."""
-        races = []
-        race_confidences = []
-        
-        for result in emotion_results:
-            if result and 'race' in result:
-                race = result.get('race', 'unknown')
-                confidence = result.get('race_confidence', 0.0)
-                if race != 'unknown':
-                    races.append(race)
-                    if confidence > 0:
-                        race_confidences.append(confidence)
-        
-        if not races:
-            return {"status": "not_available", "note": "Irk bilgisi bulunamadı"}
-        
-        # En sık görülen ırk
-        race_counter = Counter(races)
-        dominant_race = race_counter.most_common(1)[0][0] if race_counter else 'unknown'
-        
-        return {
-            "dominant_race": dominant_race,
-            "race_distribution": dict(race_counter),
-            "average_confidence": float(np.mean(race_confidences)) if race_confidences else 0.0,
-            "total_detections": len(races)
-        }
     
 
 

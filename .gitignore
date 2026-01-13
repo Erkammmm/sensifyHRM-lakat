@@ -38,6 +38,7 @@ wheels/
 
 # Temporary files
 temp_uploads/
+uploads/
 *.mp4
 *.avi
 *.mov

@@ -1,0 +1,72 @@
+{
+  "interview_id": "e9a73d79-8d80-45a1-82e6-2414be2a7e6e",
+  "duration_seconds": 15.833333333333334,
+  "analysis_timestamp": "2026-01-13T10:25:52.732578Z",
+  "video_info": {
+    "fps": 30.0,
+    "resolution": {
+      "width": 852,
+      "height": 480
+    }
+  },
+  "frame_summary": {
+    "general_statistics": {},
+    "emotion_change_points": [],
+    "gaze_summary": {},
+    "cognitive_load_score": {}
+  },
+  "voice_analysis": {
+    "speech_rate": {
+      "value": 11.054292929292929,
+      "unit": "relative_index_0_100"
+    },
+    "rms_energy": {
+      "mean": 0.10658594965934753,
+      "std": 0.04855059087276459,
+      "min": 0.0,
+      "max": 0.20624463260173798
+    },
+    "pitch_f0": {
+      "mean": 166.63064575195312,
+      "std": 51.34521484375,
+      "min": 62.41360855102539,
+      "max": 401.77947998046875
+    },
+    "pause_durations": [
+      0.704,
+      0.064,
+      0.064,
+      0.032,
+      0.032,
+      0.128,
+      0.096,
+      0.032,
+      0.128,
+      0.096,
+      0.64,
+      0.064,
+      0.064,
+      0.288,
+      0.256,
+      0.064,
+      0.16,
+      0.224,
+      0.032
+    ],
+    "silence_ratio": 0.2,
+    "spectral_centroid": {
+      "mean": 1595.2662385683684,
+      "std": 972.7493043922655
+    },
+    "zero_crossing_rate": {
+      "mean": 0.11054292929292929,
+      "std": 0.1040719357950888
+    },
+    "duration_seconds": 15.808
+  },
+  "ai_analysis": {
+    "error": "Gemini API quota limiti aşıldı. Lütfen birkaç dakika sonra tekrar deneyin veya Google Cloud Console'dan quota ayarlarınızı kontrol edin.",
+    "analysis": "Analiz yapılamadı (quota limiti).",
+    "quota_exceeded": true
+  }
+}

@@ -4,9 +4,9 @@
 
 SensifyHR Mülakat Analiz Sistemi, video tabanlı mülakat kayıtlarını analiz ederek adayların davranışsal özelliklerini değerlendiren bir sistemdir. Sistem üç ana bileşenden oluşur:
 
-1. **Duygu Analizi**: DeepFace ile yüz ifadelerinden yaş, cinsiyet, duygu ve ırk tespiti
-2. **Göz Teması Analizi**: MobileGaze pre-trained modeli ile bakış yönü tespiti (camera/left/right/up/down)
-3. **Ses Analizi**: Librosa ile ses özelliklerinden stres, kaygı, heyecan ve konuşma kalitesi analizi
+1. **Yüz ve Gaze Analizi**: MediaPipe Face Mesh ile 478 landmark + iris tracking
+2. **Ses Analizi**: Librosa ile ham ses özellikleri analizi
+3. **Rapor Oluşturma**: JSON, HTML ve PDF formatında detaylı raporlar
 
 ---
 
@@ -14,163 +14,124 @@ SensifyHR Mülakat Analiz Sistemi, video tabanlı mülakat kayıtlarını analiz
 
 ```
 sensifyHRMülakay/
-├── src/                          # Ana kaynak kod klasörü
+├── src/                                  # Ana kaynak kod klasörü
 │   ├── __init__.py
-│   ├── video_processor.py        # Video işleme (frame/audio extraction)
-│   ├── emotion_analyzer.py      # Duygu analizi (DeepFace)
-│   ├── eye_contact_analyzer.py  # Göz teması analizi (MobileGaze)
-│   ├── voice_analyzer.py        # Ses analizi (Librosa)
-│   ├── behavioral_analyzer.py   # Davranışsal analiz (rule-based fusion)
-│   ├── pipeline.py              # Ana pipeline (tüm modülleri koordine eder)
-│   ├── gaze_estimation_model.py # MobileGaze model wrapper
-│   └── models/                  # Gaze estimation model mimarileri
-│       ├── mobilenet.py         # MobileNetV2 architecture
-│       ├── mobileone.py         # MobileOne architecture
-│       └── resnet.py            # ResNet architectures
-├── api/                          # FastAPI REST API
+│   ├── video_processor.py                # Video işleme (frame/audio extraction)
+│   ├── mediapipe_face_gaze_analyzer.py   # MediaPipe yüz + gaze analizi
+│   ├── voice_analyzer.py                 # Ses analizi (Librosa - raw features)
+│   ├── frame_summarizer.py               # Frame analiz özetleme
+│   ├── report_generator.py               # Rapor oluşturma (JSON, HTML, PDF)
+│   └── pipeline.py                       # Ana pipeline (tüm modülleri koordine eder)
+├── api/                                  # FastAPI REST API
 │   └── main.py
-├── reports/                      # Analiz raporları (JSON formatında)
-├── weights/                      # Pre-trained model weights
-│   └── gaze_estimation/
-│       └── mobilenetv2.pt       # MobileGaze model weights
-├── test_example.py              # Test scripti (video analizi için)
-├── requirements.txt             # Python bağımlılıkları
-└── README.md                    # Genel bilgiler
+├── reports/                              # Analiz raporları (JSON, HTML, PDF)
+├── uploads/                              # Yüklenen videolar
+├── test_example.py                       # Test scripti (video analizi için)
+├── test_webcam_mediapipe.py              # Canlı kamera testi
+├── requirements.txt                      # Python bağımlılıkları
+└── README.md                             # Genel bilgiler
 ```
 
 ---
 
 ## 🔧 Kullanılan Teknolojiler ve Modeller
 
-### 1. Duygu Analizi (Emotion Analysis)
+### 1. Yüz ve Gaze Analizi (Face & Gaze Analysis)
 
-**Model**: DeepFace  
-**Kütüphane**: `deepface` (Python)  
-**Versiyon**: 0.0.79+
+**Kütüphane**: MediaPipe Face Mesh  
+**Versiyon**: 0.10.9  
+**Model**: Face Mesh with Iris (refine_landmarks=True)
 
-**Çıktılar**:
-- **Age (Yaş)**: Ortalama, min, max, standart sapma
-- **Gender (Cinsiyet)**: Dominant cinsiyet, dağılım, güven skoru
-- **Emotion (Duygu)**: 7 kategori (angry, disgust, fear, happy, sad, surprise, neutral)
-- **Race (Irk)**: Dominant ırk, dağılım, güven skoru
+**Özellikler**:
+- **478 Facial Landmarks**: Yüzün detaylı geometrik noktaları
+- **Iris Tracking**: Her iki göz için iris merkez noktaları (4 nokta/göz)
+- **Real-time Processing**: Yüksek FPS ile gerçek zamanlı işleme
 
-**Veri Seti**: 
-- **FER2013**: DeepFace'in eğitildiği veri seti
-  - 35,887 grayscale yüz görüntüsü
-  - 7 duygu kategorisi
-  - Train/Validation/Test split
+**Ham Özellikler (Raw Features)**:
+- **mouth_width_norm**: Normalize edilmiş ağız genişliği (0-1)
+- **mouth_height_norm**: Normalize edilmiş ağız yüksekliği (0-1)
+- **eye_opening_norm**: Normalize edilmiş göz açıklığı (0-1)
+- **brow_distance_norm**: Normalize edilmiş kaş-göz mesafesi (0-1)
+- **jaw_open_norm**: Normalize edilmiş çene açıklığı (0-1)
 
-**Transfer Learning**: 
-- ✅ Pre-trained model kullanımı (DeepFace)
-- ❌ Fine-tuning yapılmadı (out-of-the-box kullanım)
+**Gaze Yönü (Iris Tabanlı)**:
+- **Left**: Sola bakış
+- **Right**: Sağa bakış
+- **Up**: Yukarı bakış
+- **Down**: Aşağı bakış
+- **Center**: Merkez (kameraya bakış)
 
-**Veri Ön İşleme**:
-- Yüz tespiti (otomatik)
-- Normalizasyon (ImageNet stats)
-- Resize (model gereksinimlerine göre)
+**Gaze Hesaplama Yöntemi**:
+1. İlk 2 saniyede iris pozisyonları toplanır (baseline calibration)
+2. Baseline'dan standart sapma hesaplanır
+3. Sonraki frame'lerde iris pozisyonu baseline'a göre normalize edilir
+4. Kalman filtresi ile gürültü azaltılır
+5. Threshold'lara göre yön belirlenir
 
-**Modül**: `src/emotion_analyzer.py`
+**Kalman Filtreleme**:
+- Gaze x ve y koordinatları için ayrı Kalman filtreleri
+- Ham özellikler için de Kalman filtreleme (opsiyonel)
+- Gürültü azaltma ve daha stabil sonuçlar
 
----
+**Frame Skip Optimizasyonu**:
+- Varsayılan: Her 3 frame'de bir analiz (frame_skip=3)
+- Performans için optimize edilmiş
+- Tüm frame'ler için timestamp senkronizasyonu
 
-### 2. Göz Teması Analizi (Eye Contact Analysis)
-
-**Model**: MobileGaze (MobileNetV2 tabanlı)  
-**Kaynak**: https://github.com/yakhyo/gaze-estimation  
-**Model Tipi**: Pre-trained CNN classification model
-
-**Çıktılar**:
-- **Gaze Class (Bakış Sınıfı)**: 
-  - `camera`: Kameraya bakıyor (göz teması var)
-  - `left`: Sola bakıyor
-  - `right`: Sağa bakıyor
-  - `up`: Yukarı bakıyor
-  - `down`: Aşağı bakıyor
-- **Gaze Angles**: Yaw (yatay) ve Pitch (dikey) açıları (derece)
-- **Eye Contact Score**: Camera sınıfı oranına göre (0-100%)
-
-**Veri Seti**: 
-- Model Gaze360 ve MPIIGaze veri setleri üzerinde eğitilmiş
-- Classification approach: Açılar bin'lere ayrılmış (90 bins, -90° ile +90° arası)
-
-**Transfer Learning**: 
-- ✅ Pre-trained model kullanımı
-- ❌ Fine-tuning yapılmadı
-
-**Veri Ön İşleme**:
-- MediaPipe Face Detection ile yüz tespiti
-- Yüz crop (bounding box)
-- Resize (224x224)
-- Normalizasyon (ImageNet stats: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-- Float64 (double) format (model gereksinimi)
-
-**Model Mimarisi**:
-- Backbone: MobileNetV2 (hafif, mobil uyumlu)
-- Output: 2 fully connected layers (pitch ve yaw için ayrı)
-- Classification: 90 bins (her biri ~2 derece genişliğinde)
-
-**Modül**: 
-- `src/eye_contact_analyzer.py` (analiz logic)
-- `src/gaze_estimation_model.py` (model wrapper)
-- `src/models/mobilenet.py` (model architecture)
+**Modül**: `src/mediapipe_face_gaze_analyzer.py`
 
 ---
 
-### 3. Ses Analizi (Voice Analysis)
+### 2. Ses Analizi (Voice Analysis)
 
 **Kütüphane**: Librosa  
 **Versiyon**: 0.10.0+
 
-**Çıktılar**:
-- **Pitch (Perde)**:
-  - Mean pitch, std pitch, pitch range
-  - Pitch variability (coefficient of variation)
-  - Yüksek değişkenlik → stres/kaygı göstergesi
-- **Energy (Enerji)**:
-  - Mean energy, std energy, energy variability
-  - Ses seviyesi ve değişkenliği
-- **MFCC (Mel-Frequency Cepstral Coefficients)**:
-  - 13 MFCC katsayısı (ton kalitesi)
-  - Her katsayı için mean ve std
-- **Prosodic Features (Prosodik Özellikler)**:
-  - Speech rate (konuşma hızı): Zero crossing rate bazlı
-  - Pause ratio (duraklama oranı): Düşük enerji bölgeleri
-  - Tempo (BPM): Beat tracking
-- **Voice Activity Detection (VAD)**:
-  - Voice activity ratio: Konuşma süresi / toplam süre
-  - Dominance score: Konuşma oranı
-
-**Stres ve Kaygı Hesaplama**:
-- **Stres Seviyesi**: Pitch variability + energy variability + pause ratio kombinasyonu
-- **Güven Skoru**: Düşük pitch variability + yüksek energy + düşük pause ratio → yüksek güven
+**Ham Özellikler (Raw Voice Features)**:
+- **speech_rate**: Konuşma hızı (relative_index_0_100)
+- **rms_energy**: RMS enerjisi (mean, std, min, max)
+- **pitch_f0**: Temel frekans (mean, std, min, max) - Hz cinsinden
+- **pause_durations**: Duraklama süreleri listesi
+- **silence_ratio**: Sessizlik oranı (0-1)
+- **spectral_centroid**: Spektral ağırlık merkezi
+- **zero_crossing_rate**: Sıfır geçiş oranı
 
 **Veri Ön İşleme**:
 - Ses dosyası yükleme (librosa.load)
 - Resample (16 kHz)
 - Mono conversion
-- Frame-based feature extraction (2048 frame length, 512 hop length)
+- Frame-based feature extraction
 
 **Modül**: `src/voice_analyzer.py`
 
 ---
 
-### 4. Davranışsal Analiz (Behavioral Analysis)
+### 3. Frame Özetleme (Frame Summarization)
 
-**Yaklaşım**: Rule-based fusion (kural tabanlı birleştirme)
+**Amaç**: Detaylı frame analizlerini özetleyerek daha yönetilebilir hale getirmek.
 
-**Metrikler**:
-- **Suspicion Score**: Gaze kaçırma, aşırı sağ-sol bakış, uzun süre kameradan uzaklaşma
-- **Risk Level**: Suspicion score'a göre (low/medium/high)
-- **Engagement Score**: Eye contact + voice confidence kombinasyonu
-- **Anomalies**: Tespit edilen anormal davranışlar listesi
+**Özet Bileşenleri**:
+- **General Statistics**: Ortalama özellikler, gaze center yüzdesi
+- **Gaze Summary**: Her yön için frame sayısı ve yüzdesi
+- **Cognitive Load Score**: Thinking/Reading tespiti (jaw_open + gaze_direction)
+- **Emotion Change Points**: Özelliklerdeki radikal değişimler (30%+ değişim)
 
-**Kullanılan Sinyaller**:
-- Gaze patterns (camera/left/right/up/down oranları)
-- Eye contact consistency
-- Voice stress level
-- Emotion stability
+**Modül**: `src/frame_summarizer.py`
 
-**Modül**: `src/behavioral_analyzer.py`
+---
+
+### 4. Rapor Oluşturma (Report Generation)
+
+**Formatlar**:
+- **JSON**: Ham ve özetlenmiş veriler
+- **HTML**: Jinja2 template ile görsel rapor
+- **PDF**: xhtml2pdf ile HTML'den PDF oluşturma
+
+**Görselleştirmeler**:
+- **Time-series Grafikler**: Ağız ve göz hareketleri zaman içinde
+- **Gaze Distribution**: Pasta grafiği ile gaze yönleri dağılımı
+
+**Modül**: `src/report_generator.py`
 
 ---
 
@@ -180,16 +141,15 @@ sensifyHRMülakay/
 
 **Akış**:
 1. **Video İşleme**: Frame'ler ve ses çıkarılır
-2. **Duygu Analizi**: DeepFace ile her 5 frame'de bir analiz
-3. **Göz Teması Analizi**: MobileGaze ile her 5 frame'de bir analiz
-4. **Ses Analizi**: Librosa ile tüm ses dosyası analiz edilir
-5. **Davranışsal Analiz**: Tüm sonuçlar birleştirilir
-6. **Rapor Oluşturma**: JSON formatında rapor kaydedilir
+2. **MediaPipe Analizi**: Her 3 frame'de bir yüz + gaze analizi
+3. **Ses Analizi**: Librosa ile tüm ses dosyası analiz edilir
+4. **Frame Özetleme**: Detaylı frame analizleri özetlenir
+5. **Rapor Oluşturma**: JSON, HTML ve PDF formatında raporlar kaydedilir
 
 **Performans Optimizasyonları**:
-- Frame sampling: Her 5 frame'de bir analiz (performans için)
-- Model caching: Modeller bir kez yüklenir, tüm frame'ler için kullanılır
-- Lazy loading: Modeller gerektiğinde yüklenir
+- Frame sampling: Her 3 frame'de bir analiz (frame_skip=3)
+- Lazy loading: MediaPipe ilk kullanımda başlatılır
+- Kalman filtreleme: Gürültü azaltma ve daha stabil sonuçlar
 
 ---
 
@@ -199,34 +159,73 @@ sensifyHRMülakay/
 {
   "interview_id": "uuid",
   "duration_seconds": 56.62,
-  "emotion_analysis": {
-    "dominant_emotion": "neutral",
-    "emotion_distribution": {...},
-    "age_info": {...},
-    "gender_info": {...},
-    "race_info": {...}
-  },
-  "eye_contact_analysis": {
-    "average_eye_contact_percentage": 29.5,
-    "gaze_patterns": {
-      "camera_ratio": 0.295,
-      "left_ratio": 0.229,
-      "right_ratio": 0.050,
-      "up_ratio": 0.025,
-      "down_ratio": 0.597
+  "frame_summary": {
+    "general_statistics": {
+      "total_frames_analyzed": 415,
+      "average_features": {
+        "mouth_width_norm": 0.937,
+        "mouth_height_norm": 0.034,
+        "eye_opening_norm": 0.068,
+        "brow_distance_norm": 0.415,
+        "jaw_open_norm": 0.669
+      },
+      "gaze_center_percentage": 88.2
     },
-    "average_gaze_angle": 36.19
+    "gaze_summary": {
+      "direction_counts": {
+        "center": 75,
+        "down": 10,
+        "left": 0,
+        "right": 0,
+        "up": 0
+      },
+      "direction_percentages": {
+        "center": 88.2,
+        "down": 11.8
+      }
+    },
+    "cognitive_load_score": {
+      "thinking_reading_count": 10,
+      "thinking_reading_percentage": 11.8,
+      "total_speaking_frames": 85,
+      "speaking_percentage": 100.0
+    },
+    "emotion_change_points": [
+      {
+        "timestamp": 0.10,
+        "feature": "mouth_height_norm",
+        "change_percentage": 91.3,
+        "previous_value": 0.005,
+        "current_value": 0.009
+      }
+    ]
   },
   "voice_analysis": {
-    "stress_level": 0.69,
-    "confidence_score": 0.28,
-    "speech_rate": 7.20,
-    "pause_ratio": 0.20
+    "raw_voice_features": {
+      "speech_rate": {
+        "value": 8.39,
+        "unit": "relative_index_0_100"
+      },
+      "rms_energy": {
+        "mean": 0.064711,
+        "std": 0.012345,
+        "min": 0.001234,
+        "max": 0.123456
+      },
+      "pitch_f0": {
+        "mean": 240.38,
+        "std": 12.34,
+        "min": 200.0,
+        "max": 280.0
+      },
+      "silence_ratio": 0.201,
+      "duration_seconds": 13.80
+    }
   },
-  "behavioral_analysis": {
-    "suspicion_score": 0.13,
-    "risk_level": "low",
-    "anomalies": [...]
+  "report_files": {
+    "json": "reports/report_xxx.json",
+    "html": "reports/report_xxx.html",
+    "pdf": "reports/report_xxx.pdf"
   }
 }
 ```
@@ -236,41 +235,35 @@ sensifyHRMülakay/
 ## 🛠️ Kullanılan Yöntemler
 
 ### Veri Ön İşleme
-- **Yüz Tespiti**: MediaPipe Face Detection (yüz bounding box)
-- **Normalizasyon**: ImageNet statistics (mean/std)
-- **Resize**: Model gereksinimlerine göre (224x224)
-- **Audio Preprocessing**: Resample (16 kHz), mono conversion
+- **Yüz Tespiti**: MediaPipe Face Mesh (478 landmark + iris)
+- **Normalizasyon**: Landmark koordinatları normalize edilir (0-1 aralığı)
+- **Frame Skip**: Performans için her 3 frame'de bir analiz
 
 ### Model Inference
-- **DeepFace**: TensorFlow/Keras backend
-- **MobileGaze**: PyTorch (float64/double precision)
+- **MediaPipe**: C++ backend, Python wrapper
 - **Librosa**: NumPy-based signal processing
 
 ### Hiperparametreler
-- **Frame Sampling Rate**: 5 (her 5 frame'de bir analiz)
-- **Gaze Threshold**: 15° (camera sınıfı için)
-- **Eye Contact Threshold**: %60 (zaman penceresi bazlı)
+- **Frame Skip**: 3 (her 3 frame'de bir analiz)
+- **Gaze Baseline Calibration**: İlk 2 saniye
+- **Gaze Threshold**: Baseline'dan standart sapma bazlı
+- **Kalman Filter**: Process variance=5e-2, Measurement variance=1e-1
 - **Audio Sample Rate**: 16 kHz
-- **MFCC Coefficients**: 13
-
-### Transfer Learning
-- ✅ Tüm modeller pre-trained kullanılıyor
-- ❌ Fine-tuning yapılmadı
-- ❌ Custom training yapılmadı
 
 ---
 
 ## 📦 Bağımlılıklar
 
 **Ana Kütüphaneler**:
-- `deepface>=0.0.79`: Duygu analizi
-- `mediapipe==0.10.7`: Yüz tespiti
-- `torch>=2.0.0`: Gaze estimation modeli
-- `torchvision>=0.15.0`: Model utilities
+- `mediapipe==0.10.9`: Yüz landmark ve iris tracking
+- `protobuf==3.20.3`: MediaPipe uyumluluğu için sabit versiyon
 - `librosa>=0.10.0`: Ses analizi
 - `opencv-python>=4.8.0`: Video işleme
 - `numpy>=1.24.0,<2.0.0`: Numerik işlemler
-- `scipy>=1.11.4`: Bilimsel hesaplamalar
+- `fastapi>=0.104.0`: REST API
+- `plotly>=5.18.0`: Veri görselleştirme
+- `jinja2>=3.1.2`: HTML şablonları
+- `xhtml2pdf>=0.2.11`: PDF oluşturma
 
 **Tam liste**: `requirements.txt`
 
@@ -284,32 +277,50 @@ sensifyHRMülakay/
 python test_example.py video_dosyasi.mp4
 ```
 
-**Çıktı**: `reports/report_<uuid>.json`
+**Çıktı**: `reports/report_<uuid>.json`, `reports/report_<uuid>.html`, `reports/report_<uuid>.pdf`
+
+### Canlı Kamera Testi
+
+```bash
+python test_webcam_mediapipe.py
+```
+
+### API Kullanımı
+
+```bash
+# API'yi başlat
+python api/main.py
+
+# Video yükle ve analiz et
+curl -X POST "http://localhost:8000/analyze" -F "file=@video.mp4"
+```
 
 ---
 
 ## 📝 Notlar
 
-- **Performans**: Frame sampling (her 5 frame) performans için optimize edilmiştir
-- **Model Weights**: MobileGaze weights otomatik indirilir (ilk kullanımda)
-- **DeepFace Weights**: DeepFace weights otomatik indirilir (ilk kullanımda)
+- **Performans**: Frame sampling (her 3 frame) performans için optimize edilmiştir
+- **Kalman Filtreleme**: Gürültü azaltma için kullanılır, daha stabil sonuçlar verir
+- **Baseline Calibration**: Gaze yönü için ilk 2 saniyede otomatik kalibrasyon yapılır
 - **Raporlar**: Tüm raporlar `reports/` klasörüne kaydedilir
+- **Uploads**: Yüklenen videolar `uploads/` klasörüne kaydedilir
 
 ---
 
 ## 🔍 Teknik Detaylar
 
-### Gaze Estimation Model
-- **Architecture**: MobileNetV2
-- **Input**: 224x224 RGB face crop
-- **Output**: 90-bin classification (pitch ve yaw için ayrı)
-- **Precision**: Float64 (double)
-- **Inference Time**: ~125ms per frame (CPU)
+### MediaPipe Face Mesh
+- **Landmarks**: 478 nokta (yüz + iris)
+- **Iris Landmarks**: 468-471 (sol), 473-476 (sağ)
+- **Input**: RGB görüntü
+- **Output**: Normalize edilmiş landmark koordinatları (0-1)
+- **Inference Time**: ~10-20ms per frame (CPU)
 
-### DeepFace
-- **Backend**: TensorFlow/Keras
-- **Models**: VGG-Face, FaceNet512 (DeepFace tarafından seçilir)
-- **Inference Time**: ~200-300ms per frame (CPU)
+### Gaze Hesaplama
+- **Method**: Iris center position relative to eye box
+- **Baseline**: İlk 2 saniyede toplanan iris pozisyonları
+- **Normalization**: Baseline'a göre normalize edilir
+- **Direction Classification**: Threshold bazlı (baseline std kullanılır)
 
 ### Librosa
 - **Sample Rate**: 16 kHz
@@ -321,11 +332,11 @@ python test_example.py video_dosyasi.mp4
 
 ## 📚 Referanslar
 
-- **DeepFace**: https://github.com/serengil/deepface
-- **MobileGaze**: https://github.com/yakhyo/gaze-estimation
-- **Librosa**: https://librosa.org/
 - **MediaPipe**: https://mediapipe.dev/
+- **Librosa**: https://librosa.org/
+- **FastAPI**: https://fastapi.tiangolo.com/
+- **Plotly**: https://plotly.com/python/
 
 ---
 
-**Son Güncelleme**: 2026-01-08
+**Son Güncelleme**: 2026-01-13

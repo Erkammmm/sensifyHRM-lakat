@@ -3,17 +3,10 @@ opencv-python>=4.8.0
 opencv-contrib-python>=4.8.0
 ffmpeg-python>=0.2.0
 
-# Deep Learning & Face Analysis
-deepface>=0.0.79
-mediapipe==0.10.7
+# Face / Gaze Analysis (sadece Mediapipe kullanılıyor)
+mediapipe==0.10.9
 numpy<2.0,>=1.24.0
-tf-keras>=2.15.0
-# Not: TensorFlow DeepFace tarafından otomatik yüklenir, ama tf-keras manuel yüklenmeli (TensorFlow 2.19+ için)
-
-# Gaze Estimation (opsiyonel - sadece gaze-estimation kullanılırsa)
-torch>=2.0.0
-torchvision>=0.15.0
-# Not: Gaze estimation modeli için gerekli (otomatik indirme için)
+protobuf==3.20.3  # Mediapipe uyumluluğu için sabit versiyon
 
 # Audio Processing
 librosa>=0.10.0
@@ -40,3 +33,8 @@ aiofiles>=23.2.1
 # Image Processing
 Pillow>=10.1.0
 scikit-image>=0.22.0
+
+# Visualization & Reporting
+plotly>=5.18.0
+jinja2>=3.1.2
+xhtml2pdf>=0.2.11

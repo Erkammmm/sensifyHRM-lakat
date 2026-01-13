@@ -4,11 +4,15 @@ Online iş görüşmelerinde aday davranışlarını analiz eden AI motoru.
 
 ## Özellikler
 
-- **Yüz Duygu Analizi**: DeepFace kullanarak yaş, cinsiyet, duygu ve ırk tespiti
-- **Göz Teması Analizi**: MobileGaze pre-trained modeli ile bakış yönü analizi (camera/left/right/up/down)
-- **Ses Analizi**: Librosa ile stres, kaygı, konuşma hızı ve ton kalitesi analizi
-- **Gerçek Zamanlı İşleme**: Arka planda video analizi
-- **Yapılandırılmış Raporlar**: JSON formatında detaylı analiz raporları
+- **Yüz ve Gaze Analizi**: MediaPipe Face Mesh ile 478 landmark + iris tracking
+  - Ham özellikler: Ağız genişliği/yüksekliği, göz açıklığı, kaş mesafesi, çene açıklığı
+  - Gaze yönü: Left, Right, Up, Down, Center (iris tabanlı)
+  - Kalman filtreleme ile gürültü azaltma
+- **Ses Analizi**: Librosa ile ham ses özellikleri
+  - Speech rate, RMS energy, Pitch (f0), Silence ratio
+  - Spectral centroid, Zero crossing rate
+- **Frame Özetleme**: Detaylı frame analizlerini özetleyen modül
+- **Rapor Oluşturma**: JSON, HTML ve PDF formatında detaylı raporlar
 - **RESTful API**: FastAPI ile modern API arayüzü
 
 ## Kurulum
@@ -17,7 +21,6 @@ Online iş görüşmelerinde aday davranışlarını analiz eden AI motoru.
 
 - Python 3.10+
 - FFmpeg
-- CUDA (opsiyonel, GPU desteği için)
 
 ### Adımlar
 
@@ -29,10 +32,10 @@ cd sensifyHRMülakay
 
 2. **Virtual environment oluşturun:**
 ```bash
-python -m venv torch_env
-torch_env\Scripts\activate  # Windows
+python -m venv sensifyhr
+sensifyhr\Scripts\activate  # Windows
 # veya
-source torch_env/bin/activate  # Linux/Mac
+source sensifyhr/bin/activate  # Linux/Mac
 ```
 
 3. **Bağımlılıkları yükleyin:**
@@ -51,22 +54,25 @@ pip install -r requirements.txt
 
 1. **Test videosunu proje klasörüne koyun** (örn: `test_video.mp4`)
 
-2. **Anaconda Prompt'ta:**
+2. **Terminal'de:**
 ```bash
-cd C:\Users\cetki\Desktop\sensifyHRMülakay
-conda activate torch_env
 python test_example.py test_video.mp4
 ```
 
-3. **Veya Windows'ta hızlı test:**
+3. **Canlı kamera testi:**
 ```bash
-test_quick.bat test_video.mp4
+python test_webcam_mediapipe.py
 ```
 
 ### API'yi Başlatma
 
 ```bash
-conda activate torch_env
+python api/main.py
+```
+
+veya
+
+```bash
 uvicorn api.main:app --reload
 ```
 
@@ -90,26 +96,25 @@ curl "http://localhost:8000/status/{interview_id}"
 curl "http://localhost:8000/health"
 ```
 
-### Docker ile Çalıştırma
-
-```bash
-docker build -t sensifyhr-interview .
-docker run -p 8000:8000 sensifyhr-interview
-```
+#### 4. API Dokümantasyonu
+Tarayıcıda açın: `http://localhost:8000/docs`
 
 ## Proje Yapısı
 
 ```
 sensifyHRMülakay/
 ├── src/
-│   ├── video_processor.py      # Video işleme
-│   ├── emotion_analyzer.py     # Duygu analizi
-│   ├── eye_contact_analyzer.py # Göz teması analizi
-│   └── pipeline.py             # Ana pipeline
+│   ├── video_processor.py           # Video işleme
+│   ├── mediapipe_face_gaze_analyzer.py  # MediaPipe yüz + gaze analizi
+│   ├── voice_analyzer.py            # Ses analizi (Librosa)
+│   ├── frame_summarizer.py          # Frame analiz özetleme
+│   ├── report_generator.py          # Rapor oluşturma (JSON, HTML, PDF)
+│   └── pipeline.py                  # Ana pipeline
 ├── api/
-│   └── main.py                 # FastAPI endpoints
+│   └── main.py                      # FastAPI endpoints
+├── reports/                          # Analiz raporları
+├── uploads/                          # Yüklenen videolar
 ├── requirements.txt
-├── Dockerfile
 └── README.md
 ```
 
@@ -121,13 +126,38 @@ Analiz sonuçları JSON formatında döner:
 {
   "interview_id": "uuid",
   "duration_seconds": 600,
-  "emotion_analysis": {...},
-  "eye_contact_analysis": {...},
-  "overall_assessment": {...}
+  "frame_summary": {
+    "general_statistics": {...},
+    "gaze_summary": {...},
+    "cognitive_load_score": {...},
+    "emotion_change_points": [...]
+  },
+  "voice_analysis": {
+    "raw_voice_features": {
+      "speech_rate": {...},
+      "rms_energy": {...},
+      "pitch_f0": {...},
+      "silence_ratio": 0.2
+    }
+  },
+  "report_files": {
+    "json": "reports/report_xxx.json",
+    "html": "reports/report_xxx.html",
+    "pdf": "reports/report_xxx.pdf"
+  }
 }
 ```
 
 Detaylı format ve teknik bilgiler için `PROJE_DOKUMANTASYONU.md` dosyasına bakın.
+
+## Teknoloji Stack
+
+- **MediaPipe**: Yüz landmark ve iris tracking
+- **Librosa**: Ses analizi
+- **FastAPI**: REST API
+- **Plotly**: Veri görselleştirme
+- **Jinja2**: HTML rapor şablonları
+- **xhtml2pdf**: PDF oluşturma
 
 ## Lisans
 

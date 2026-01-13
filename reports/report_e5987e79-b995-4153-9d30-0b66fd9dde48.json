@@ -1,0 +1,2766 @@
+{
+  "interview_id": "e5987e79-b995-4153-9d30-0b66fd9dde48",
+  "duration_seconds": 15.833333333333334,
+  "analysis_timestamp": "2026-01-12T09:23:39.206155Z",
+  "video_info": {
+    "fps": 30.0,
+    "resolution": {
+      "width": 852,
+      "height": 480
+    }
+  },
+  "frame_analysis": [
+    {
+      "timestamp": 0.0,
+      "emotions": {
+        "happiness": 0.08784915564581758,
+        "stress": 0.0,
+        "surprise": 0.398236456962719,
+        "fear": 0.8923699116944863,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3107722378484885
+      },
+      "gaze": {
+        "x": -0.08938491344451904,
+        "y": -2.860825300216675,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.1,
+      "emotions": {
+        "happiness": 0.12253473174758261,
+        "stress": 0.0,
+        "surprise": 0.39622198038871215,
+        "fear": 0.8879329226501482,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2966551826067785
+      },
+      "gaze": {
+        "x": 0.024108290672302246,
+        "y": -2.728639602661133,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.2,
+      "emotions": {
+        "happiness": 0.10085190250072634,
+        "stress": 0.0,
+        "surprise": 0.4057839838321145,
+        "fear": 0.8911897443297534,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3010871846687029
+      },
+      "gaze": {
+        "x": 0.01566171646118164,
+        "y": -2.56229567527771,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.3,
+      "emotions": {
+        "happiness": 0.02642443369666586,
+        "stress": 0.0,
+        "surprise": 0.41807786069467906,
+        "fear": 0.8956701673905173,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3299137691090689
+      },
+      "gaze": {
+        "x": -0.005200505256652832,
+        "y": -2.705320358276367,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.4,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.38863574514192967,
+        "fear": 0.8690110433193345,
+        "sadness": 0.01765710928004615,
+        "anger": 0.0,
+        "neutral": 0.3623480511293449
+      },
+      "gaze": {
+        "x": -0.0631609559059143,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.5,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 0.8579982661435115,
+        "sadness": 0.0,
+        "anger": 0.23371375554693796,
+        "neutral": 0.20414398915477527
+      },
+      "gaze": {
+        "x": 0.048694610595703125,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.6,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.28334622519240243,
+        "fear": 0.9023765445693523,
+        "sadness": 0.14647506031599744,
+        "anger": 0.0,
+        "neutral": 0.3339010849611239
+      },
+      "gaze": {
+        "x": -0.06195247173309326,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.7,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.2941264755867897,
+        "fear": 0.9589128586302005,
+        "sadness": 0.10189806885962321,
+        "anger": 0.0,
+        "neutral": 0.32253129846169326
+      },
+      "gaze": {
+        "x": -0.09399652481079102,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.8,
+      "emotions": {
+        "happiness": 0.02859193786978731,
+        "stress": 0.0,
+        "surprise": 0.3215117155177706,
+        "fear": 0.9064599212499576,
+        "sadness": 0.02673210421217128,
+        "anger": 0.0,
+        "neutral": 0.3583521605751566
+      },
+      "gaze": {
+        "x": -0.12172400951385498,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.9,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.3702001856227667,
+        "fear": 0.8687459318097737,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.38052694128372977
+      },
+      "gaze": {
+        "x": -0.06831049919128418,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.0,
+      "emotions": {
+        "happiness": 0.11954852893948564,
+        "stress": 0.0,
+        "surprise": 0.40350378880234006,
+        "fear": 0.8989979173987304,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.288974882429722
+      },
+      "gaze": {
+        "x": -0.024764537811279297,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.1,
+      "emotions": {
+        "happiness": 0.19393609791994104,
+        "stress": 0.0,
+        "surprise": 0.39903368977366765,
+        "fear": 0.9102020415425582,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.24841408538191656
+      },
+      "gaze": {
+        "x": 0.0687551498413086,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.2,
+      "emotions": {
+        "happiness": 0.06975450322031984,
+        "stress": 0.0,
+        "surprise": 0.3851465969311402,
+        "fear": 0.9177433099420467,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.31367779495324666
+      },
+      "gaze": {
+        "x": 0.016463398933410645,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.3,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.35952737489083403,
+        "fear": 0.8654607857922275,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.38750591965846926
+      },
+      "gaze": {
+        "x": 0.1499617099761963,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.4,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.3445437074456403,
+        "fear": 0.8750167364332072,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3902197780605763
+      },
+      "gaze": {
+        "x": 0.09172757714986801,
+        "y": 0.00448649562895298,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.5,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.3407435158820078,
+        "fear": 0.8535064648229255,
+        "sadness": 0.03197206421224747,
+        "anger": 0.0,
+        "neutral": 0.3868889775414096
+      },
+      "gaze": {
+        "x": 0.28068822622299194,
+        "y": 0.054797880351543427,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.6,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.2994171123391995,
+        "fear": 0.8305608906836229,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.4350109984885888
+      },
+      "gaze": {
+        "x": 0.005708138458430767,
+        "y": 0.3525591790676117,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.7,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.31300100581852214,
+        "fear": 0.8574196404025519,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.164789676889463
+      },
+      "gaze": {
+        "x": -0.31922560930252075,
+        "y": -0.705755889415741,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.8,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.31339625173621,
+        "fear": 0.8630736949326905,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1617650266655497
+      },
+      "gaze": {
+        "x": 0.21350881457328796,
+        "y": -0.11955536156892776,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.9,
+      "emotions": {
+        "happiness": 0.29966665387153635,
+        "stress": 0.0,
+        "surprise": 0.3096448959809668,
+        "fear": 0.8637807828308539,
+        "sadness": 0.04137890066651169,
+        "anger": 0.0,
+        "neutral": 0.24276438332506556
+      },
+      "gaze": {
+        "x": -0.0074764094315469265,
+        "y": 0.10079912841320038,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.0,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.32955367481941067,
+        "fear": 0.826898452290634,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.42177393644497774
+      },
+      "gaze": {
+        "x": -0.0036716461181640625,
+        "y": -0.20793472230434418,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.1,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.3629058098013948,
+        "fear": 0.8841005248481035,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3764968326752508
+      },
+      "gaze": {
+        "x": 0.2938856780529022,
+        "y": -0.33202502131462097,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.2,
+      "emotions": {
+        "happiness": 0.37274708181619653,
+        "stress": 0.0,
+        "surprise": 0.35880043505718895,
+        "fear": 0.8636016974612222,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.20242539283269623
+      },
+      "gaze": {
+        "x": 0.3033548593521118,
+        "y": 0.34429872035980225,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.3,
+      "emotions": {
+        "happiness": 0.34202427744865427,
+        "stress": 0.0,
+        "surprise": 0.35507968150980396,
+        "fear": 0.8603766850167487,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.22125967801239654
+      },
+      "gaze": {
+        "x": 0.033033888787031174,
+        "y": 0.20305198431015015,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.4,
+      "emotions": {
+        "happiness": 0.042824957398697794,
+        "stress": 0.0,
+        "surprise": 0.45090902396580457,
+        "fear": 0.9139867102460264,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.29613965419473565
+      },
+      "gaze": {
+        "x": -0.23580491542816162,
+        "y": 0.1669522076845169,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.5,
+      "emotions": {
+        "happiness": 0.2164307790994645,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 0.9326829511845118,
+        "sadness": 0.0,
+        "anger": 0.1678346956008362,
+        "neutral": 0.34152578705759384
+      },
+      "gaze": {
+        "x": 0.10532836616039276,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 2.6,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.3043632403093999,
+        "fear": 0.9731914503199748,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.36122265468531267
+      },
+      "gaze": {
+        "x": -1.4581482410430908,
+        "y": -0.22217172384262085,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 2.7,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.34942720502028524,
+        "fear": 0.9555663424961411,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.34750322624178676
+      },
+      "gaze": {
+        "x": -2.1848013401031494,
+        "y": 0.08328580111265182,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 2.8,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.40773873215624884,
+        "fear": 0.9866241494900442,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3028185591768535
+      },
+      "gaze": {
+        "x": -1.255202293395996,
+        "y": 0.7175273299217224,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 2.9,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.4060142348754448,
+        "fear": 0.959107260211048,
+        "sadness": 0.10661256847902822,
+        "anger": 0.0,
+        "neutral": 0.2641329682172395
+      },
+      "gaze": {
+        "x": -1.0932435989379883,
+        "y": 0.23728223145008087,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 3.0,
+      "emotions": {
+        "happiness": 0.431529547572136,
+        "stress": 0.0,
+        "surprise": 0.408307848871585,
+        "fear": 0.9137387113304064,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.12321194611293629
+      },
+      "gaze": {
+        "x": -0.7878869771957397,
+        "y": 0.18461336195468903,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.1,
+      "emotions": {
+        "happiness": 0.18007455348968515,
+        "stress": 0.0,
+        "surprise": 0.37043195775825466,
+        "fear": 0.8632372351695142,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.293128126791273
+      },
+      "gaze": {
+        "x": -0.32810768485069275,
+        "y": -0.1761348396539688,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.2,
+      "emotions": {
+        "happiness": 0.32399207681417475,
+        "stress": 0.0,
+        "surprise": 0.34352820870858025,
+        "fear": 0.8411822477971536,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.24564873334004567
+      },
+      "gaze": {
+        "x": -0.4834860563278198,
+        "y": -0.2901575267314911,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.3,
+      "emotions": {
+        "happiness": 0.40196375876665125,
+        "stress": 0.0,
+        "surprise": 0.2807721760027698,
+        "fear": 0.8376037079873719,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2398301786216035
+      },
+      "gaze": {
+        "x": -0.41303834319114685,
+        "y": -0.4857572913169861,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.4,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.14773212235169814,
+        "fear": 0.835617303127731,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2583252872602855
+      },
+      "gaze": {
+        "x": -1.4502674341201782,
+        "y": -1.7609933614730835,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 3.5,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.15801252090527335,
+        "fear": 0.8812280391448504,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2303797199749381
+      },
+      "gaze": {
+        "x": -1.16600501537323,
+        "y": -2.5414605140686035,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 3.6,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.3582168903344891,
+        "fear": 0.9263757536201261,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.10770367802269232
+      },
+      "gaze": {
+        "x": -0.8153389096260071,
+        "y": -0.5489222407341003,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.7,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.382321120190528,
+        "fear": 0.9072295444142744,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.10522466769759875
+      },
+      "gaze": {
+        "x": -1.028214931488037,
+        "y": -0.1609659492969513,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 3.8,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.34928291108154097,
+        "fear": 0.9041876658470083,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.12326471153572538
+      },
+      "gaze": {
+        "x": -0.5363732576370239,
+        "y": 0.9560234546661377,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.9,
+      "emotions": {
+        "happiness": 0.19671748161315927,
+        "stress": 0.0,
+        "surprise": 0.3583320776459553,
+        "fear": 0.8791730036627674,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.28288871853905895
+      },
+      "gaze": {
+        "x": -0.867935061454773,
+        "y": -0.06612107157707214,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.0,
+      "emotions": {
+        "happiness": 0.1269517946243287,
+        "stress": 0.0,
+        "surprise": 0.3713965472873298,
+        "fear": 0.9166822376760825,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.29248471020612954
+      },
+      "gaze": {
+        "x": -1.44520103931427,
+        "y": 0.0660189762711525,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 4.1,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.36806717352046003,
+        "fear": 0.9101563543336952,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3608882360729224
+      },
+      "gaze": {
+        "x": -0.9165595173835754,
+        "y": -0.09027988463640213,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.2,
+      "emotions": {
+        "happiness": 0.03379964783787737,
+        "stress": 0.0,
+        "surprise": 0.3922686631270041,
+        "fear": 0.9119623177344511,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3309846856503337
+      },
+      "gaze": {
+        "x": -0.7766991853713989,
+        "y": -0.1415121704339981,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.3,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.3605145124983514,
+        "fear": 0.885929228665796,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3767781294179262
+      },
+      "gaze": {
+        "x": -1.1250605583190918,
+        "y": 0.039149049669504166,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 4.4,
+      "emotions": {
+        "happiness": 0.10929639406502256,
+        "stress": 0.0,
+        "surprise": 0.42728160962990913,
+        "fear": 0.9129554356028247,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2752332803511218
+      },
+      "gaze": {
+        "x": -1.5309860706329346,
+        "y": 0.3582530617713928,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 4.5,
+      "emotions": {
+        "happiness": 0.2967731538414956,
+        "stress": 0.0,
+        "surprise": 0.4548694032208817,
+        "fear": 0.9123319123039614,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.16801276531683063
+      },
+      "gaze": {
+        "x": -1.270450234413147,
+        "y": 0.3360728621482849,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 4.6,
+      "emotions": {
+        "happiness": 0.021616055101621956,
+        "stress": 0.0,
+        "surprise": 0.4690461942391655,
+        "fear": 0.9447963165641905,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.28227071704751105
+      },
+      "gaze": {
+        "x": -1.2458374500274658,
+        "y": 0.7734225392341614,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 4.7,
+      "emotions": {
+        "happiness": 0.25723701298236856,
+        "stress": 0.0,
+        "surprise": 0.4678534453054527,
+        "fear": 0.9254327557182196,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.17473839299697957
+      },
+      "gaze": {
+        "x": -1.4062057733535767,
+        "y": 0.11549820005893707,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 4.8,
+      "emotions": {
+        "happiness": 0.45828388959169397,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 0.944458064344497,
+        "sadness": 0.0,
+        "anger": 0.06984189348087314,
+        "neutral": 0.263708076291468
+      },
+      "gaze": {
+        "x": -1.6226162910461426,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 4.9,
+      "emotions": {
+        "happiness": 0.3397515523433686,
+        "stress": 0.0,
+        "surprise": 0.22261574060322348,
+        "fear": 0.8852534966246657,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2761896052143711
+      },
+      "gaze": {
+        "x": -1.1378358602523804,
+        "y": -0.920026421546936,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 5.0,
+      "emotions": {
+        "happiness": 0.47861134588718424,
+        "stress": 0.0,
+        "surprise": 0.33150113970636863,
+        "fear": 0.8968339046712932,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.14652680486757697
+      },
+      "gaze": {
+        "x": -0.6226251721382141,
+        "y": -0.5555596351623535,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.1,
+      "emotions": {
+        "happiness": 0.38653683245182047,
+        "stress": 0.0,
+        "surprise": 0.34282876651114313,
+        "fear": 0.8428325837119129,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.21390090866256173
+      },
+      "gaze": {
+        "x": -0.7121652364730835,
+        "y": -0.2923320233821869,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.2,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.3636985600118251,
+        "fear": 0.9422033373293759,
+        "sadness": 0.04400344753754305,
+        "anger": 0.0,
+        "neutral": 0.32504732756062804
+      },
+      "gaze": {
+        "x": -0.5347768664360046,
+        "y": -0.04307374730706215,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.3,
+      "emotions": {
+        "happiness": 0.01509940952062605,
+        "stress": 0.0,
+        "surprise": 0.3739230219482554,
+        "fear": 0.8950002067056612,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.35798868091272873
+      },
+      "gaze": {
+        "x": -0.4936705231666565,
+        "y": 0.008560515008866787,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.4,
+      "emotions": {
+        "happiness": 0.12208783209323892,
+        "stress": 0.0,
+        "surprise": 0.3246030815046954,
+        "fear": 0.8980092284983995,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3276499289518331
+      },
+      "gaze": {
+        "x": -0.18943846225738525,
+        "y": 0.8919036984443665,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.5,
+      "emotions": {
+        "happiness": 0.3567058178782464,
+        "stress": 0.0,
+        "surprise": 0.33342168863455346,
+        "fear": 0.8370449413622694,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.23641377606246539
+      },
+      "gaze": {
+        "x": 0.032388173043727875,
+        "y": 0.5698326826095581,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.6,
+      "emotions": {
+        "happiness": 0.06254741877317438,
+        "stress": 0.0,
+        "surprise": 0.33173590839329525,
+        "fear": 0.8505767137912601,
+        "sadness": 0.03852006095087367,
+        "anger": 0.0,
+        "neutral": 0.35830994904569835
+      },
+      "gaze": {
+        "x": -0.12185176461935043,
+        "y": 0.42920583486557007,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.7,
+      "emotions": {
+        "happiness": 0.29512676924467096,
+        "stress": 0.0,
+        "surprise": 0.29605343906087733,
+        "fear": 0.8075913084558023,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3006142416193247
+      },
+      "gaze": {
+        "x": -0.13950467109680176,
+        "y": 0.037948861718177795,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.8,
+      "emotions": {
+        "happiness": 0.34644040048122415,
+        "stress": 0.0,
+        "surprise": 0.33363033091903826,
+        "fear": 0.9029349070982287,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.20849718075075452
+      },
+      "gaze": {
+        "x": -0.7736911773681641,
+        "y": -0.04972966015338898,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.9,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 0.8501417813435401,
+        "sadness": 0.0,
+        "anger": 0.05496331099060167,
+        "neutral": 0.547447453832929
+      },
+      "gaze": {
+        "x": -1.4183323383331299,
+        "y": -2.4840545654296875,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 6.0,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.33692086788976583,
+        "fear": 0.9215875935824343,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3707457692639
+      },
+      "gaze": {
+        "x": -1.41166353225708,
+        "y": -1.1017179489135742,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 6.1,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.4260784236524319,
+        "fear": 0.9621095099588065,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3059060331943808
+      },
+      "gaze": {
+        "x": -0.9564846754074097,
+        "y": -0.3245852589607239,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 6.2,
+      "emotions": {
+        "happiness": 0.08588856041431425,
+        "stress": 0.0,
+        "surprise": 0.2885696475128612,
+        "fear": 0.8509400496089631,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3873008712319308
+      },
+      "gaze": {
+        "x": -0.7761558294296265,
+        "y": -1.5289349555969238,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 6.3,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.3114911104557494,
+        "fear": 0.8216992064106933,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1834048415667786
+      },
+      "gaze": {
+        "x": -0.4907777011394501,
+        "y": -1.5347803831100464,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 6.4,
+      "emotions": {
+        "happiness": 0.38376506000757227,
+        "stress": 0.0,
+        "surprise": 0.3531326687924398,
+        "fear": 0.8722953498595934,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.19540346067019732
+      },
+      "gaze": {
+        "x": -0.822568953037262,
+        "y": 0.390337198972702,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 6.5,
+      "emotions": {
+        "happiness": 0.4027333068847657,
+        "stress": 0.0,
+        "surprise": 0.34021474100169397,
+        "fear": 0.8429276055119873,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.20706217330077648
+      },
+      "gaze": {
+        "x": -1.3238787651062012,
+        "y": -0.6176883578300476,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 6.6,
+      "emotions": {
+        "happiness": 0.44986593306064615,
+        "stress": 0.0,
+        "surprise": 0.3669479623656715,
+        "fear": 0.8594955901111735,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.16184525723125442
+      },
+      "gaze": {
+        "x": -0.7783125042915344,
+        "y": 0.2838018238544464,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 6.7,
+      "emotions": {
+        "happiness": 0.47692090600729,
+        "stress": 0.0,
+        "surprise": 0.4471727691858808,
+        "fear": 0.8858695769564982,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.09501837392516554
+      },
+      "gaze": {
+        "x": -0.4770537316799164,
+        "y": 0.4662569463253021,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 6.8,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.5152281548167192,
+        "fear": 0.9132547167420627,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2857585642206091
+      },
+      "gaze": {
+        "x": -0.3322611451148987,
+        "y": -0.1438838392496109,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 6.9,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.5637586664377778,
+        "fear": 0.9862349498114809,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.22500319187537066
+      },
+      "gaze": {
+        "x": -0.24851560592651367,
+        "y": 0.7687966227531433,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 7.0,
+      "emotions": {
+        "happiness": 0.30480911910533914,
+        "stress": 0.0,
+        "surprise": 0.5258919371805549,
+        "fear": 0.944398695461935,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.11245012412608546
+      },
+      "gaze": {
+        "x": -0.1254051923751831,
+        "y": 0.67547607421875,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 7.1,
+      "emotions": {
+        "happiness": 0.37523927867412576,
+        "stress": 0.0,
+        "surprise": 0.5294843574568375,
+        "fear": 0.9225809020833002,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.08634773089286818
+      },
+      "gaze": {
+        "x": 0.11540552228689194,
+        "y": 0.8867622017860413,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 7.2,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.5360736937398769,
+        "fear": 0.9615415669122579,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.25119236967393266
+      },
+      "gaze": {
+        "x": -0.18524229526519775,
+        "y": 0.4964010715484619,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 7.3,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.5602399269418725,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.21988003652906374
+      },
+      "gaze": {
+        "x": 0.03001491352915764,
+        "y": 0.9351583123207092,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 7.4,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.4681765039039446,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.015911748048027752
+      },
+      "gaze": {
+        "x": 0.1954982727766037,
+        "y": 2.8858907222747803,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 7.5,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.46070505634282366,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.26964747182858817
+      },
+      "gaze": {
+        "x": 0.021089117974042892,
+        "y": 2.9745867252349854,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 7.6,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.430849316763666,
+        "fear": 0.9911671926304041,
+        "sadness": 0.13966767327094085,
+        "anger": 0.0,
+        "neutral": 0.21915790866749452
+      },
+      "gaze": {
+        "x": -0.3363977074623108,
+        "y": 1.5130512714385986,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 7.7,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.5367616467371563,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.0
+      },
+      "gaze": {
+        "x": -0.19649764895439148,
+        "y": 2.0274651050567627,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 7.8,
+      "emotions": {
+        "happiness": 0.24390596479177484,
+        "stress": 0.0,
+        "surprise": 0.47973338607451227,
+        "fear": 0.9499760689171588,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.16319229010827707
+      },
+      "gaze": {
+        "x": -1.0113447904586792,
+        "y": 0.8642814755439758,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 7.9,
+      "emotions": {
+        "happiness": 0.36044262677431116,
+        "stress": 0.0,
+        "surprise": 0.46938701318241377,
+        "fear": 0.9317828931457842,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1191937334487454
+      },
+      "gaze": {
+        "x": -0.6274929046630859,
+        "y": 0.029499687254428864,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.0,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.26773868749231333,
+        "fear": 0.8447343412963362,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.19376348560567525
+      },
+      "gaze": {
+        "x": -0.9245812892913818,
+        "y": -1.527281641960144,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 8.1,
+      "emotions": {
+        "happiness": 0.40071393877267847,
+        "stress": 0.0,
+        "surprise": 0.06778754813023208,
+        "fear": 0.8524130305421364,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3395427412774765
+      },
+      "gaze": {
+        "x": -1.4052391052246094,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 8.2,
+      "emotions": {
+        "happiness": 0.30133103162050257,
+        "stress": 0.0,
+        "surprise": 0.3377711523162125,
+        "fear": 0.85267244407772,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.25411268599278247
+      },
+      "gaze": {
+        "x": -0.34512779116630554,
+        "y": -1.3161144256591797,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 8.3,
+      "emotions": {
+        "happiness": 0.3847807902097703,
+        "stress": 0.0,
+        "surprise": 0.3295089908673331,
+        "fear": 0.8593989503069568,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2131556343079699
+      },
+      "gaze": {
+        "x": -0.08848508447408676,
+        "y": -0.7502093315124512,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.4,
+      "emotions": {
+        "happiness": 0.3891718569397927,
+        "stress": 0.0,
+        "surprise": 0.37807403783555393,
+        "fear": 0.8745357431481722,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.17910918103824058
+      },
+      "gaze": {
+        "x": -0.17010271549224854,
+        "y": 0.23629069328308105,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.5,
+      "emotions": {
+        "happiness": 0.4420734676718713,
+        "stress": 0.0,
+        "surprise": 0.41378772166607897,
+        "fear": 0.9382944290000852,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.10292219083098231
+      },
+      "gaze": {
+        "x": 0.03006855770945549,
+        "y": 0.28767484426498413,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.6,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.4196268125944531,
+        "fear": 0.9674945059829148,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.056439340711316066
+      },
+      "gaze": {
+        "x": -0.44824284315109253,
+        "y": 0.9332074522972107,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.7,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.4654791448755796,
+        "fear": 0.9579988382863518,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.03826100841903424
+      },
+      "gaze": {
+        "x": -0.8063982129096985,
+        "y": 1.6979409456253052,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 8.8,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.576472391009327,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2117638044953365
+      },
+      "gaze": {
+        "x": -0.5380144119262695,
+        "y": 1.1553508043289185,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 8.9,
+      "emotions": {
+        "happiness": 0.03981182074174294,
+        "stress": 0.0,
+        "surprise": 0.5842453030510965,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1879714381035803
+      },
+      "gaze": {
+        "x": -0.06837546825408936,
+        "y": 1.496809482574463,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 9.0,
+      "emotions": {
+        "happiness": 0.188729773759842,
+        "stress": 0.0,
+        "surprise": 0.501380875971281,
+        "fear": 0.9912877390044939,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.15930080563219162
+      },
+      "gaze": {
+        "x": -0.8188158273696899,
+        "y": 0.7198090553283691,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 9.1,
+      "emotions": {
+        "happiness": 0.3923186692595483,
+        "stress": 0.0,
+        "surprise": 0.5229205808811457,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.042380374929652964
+      },
+      "gaze": {
+        "x": -0.0658382996916771,
+        "y": 1.7585673332214355,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 9.2,
+      "emotions": {
+        "happiness": 0.45126823663711557,
+        "stress": 0.0,
+        "surprise": 0.5069240985083552,
+        "fear": 0.9527065347057307,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.04455056507439925
+      },
+      "gaze": {
+        "x": 0.15840232372283936,
+        "y": 1.7756680250167847,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 9.3,
+      "emotions": {
+        "happiness": 0.475798021554947,
+        "stress": 0.0,
+        "surprise": 0.4584458385369751,
+        "fear": 0.9710904668062641,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.04733283655090692
+      },
+      "gaze": {
+        "x": -0.1476496458053589,
+        "y": 0.6987805366516113,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 9.4,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.5803213024135255,
+        "fear": 0.9961926444861333,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.21174302655017052
+      },
+      "gaze": {
+        "x": -0.047722458839416504,
+        "y": 2.031280755996704,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 9.5,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.5154030270678476,
+        "fear": 0.9738566016131665,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.255370185659493
+      },
+      "gaze": {
+        "x": -0.5049477219581604,
+        "y": 1.333399772644043,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 9.6,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.5028717128289377,
+        "fear": 0.9469798452242214,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2750742209734205
+      },
+      "gaze": {
+        "x": -0.44248801469802856,
+        "y": 1.475856900215149,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 9.7,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.48227415694944714,
+        "fear": 0.9843973129056103,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2666642650724713
+      },
+      "gaze": {
+        "x": -0.3080010414123535,
+        "y": 1.3929507732391357,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 9.8,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.382983098540441,
+        "fear": 0.897791278162914,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.10961281164832248
+      },
+      "gaze": {
+        "x": -0.13005435466766357,
+        "y": 1.2439225912094116,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 9.9,
+      "emotions": {
+        "happiness": 0.4983858424425126,
+        "stress": 0.0,
+        "surprise": 0.37646752733000766,
+        "fear": 0.8876145947364078,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.11876601774553597
+      },
+      "gaze": {
+        "x": -0.4592905640602112,
+        "y": 1.5041292905807495,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 10.0,
+      "emotions": {
+        "happiness": 0.46302310705184946,
+        "stress": 0.0,
+        "surprise": 0.3961804090960832,
+        "fear": 0.8799428670562953,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.130426808397886
+      },
+      "gaze": {
+        "x": -0.6380230188369751,
+        "y": 0.002124416409060359,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.1,
+      "emotions": {
+        "happiness": 0.4776939857006074,
+        "stress": 0.0,
+        "surprise": 0.38101116400644547,
+        "fear": 0.8520800900678659,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1446073801125407
+      },
+      "gaze": {
+        "x": -1.030426263809204,
+        "y": 0.852590024471283,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 10.2,
+      "emotions": {
+        "happiness": 0.4091480332612992,
+        "stress": 0.0,
+        "surprise": 0.4730415612599731,
+        "fear": 0.9079720933134787,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.10491915608262448
+      },
+      "gaze": {
+        "x": -0.14961859583854675,
+        "y": 0.7229967713356018,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.3,
+      "emotions": {
+        "happiness": 0.35147893011569986,
+        "stress": 0.0,
+        "surprise": 0.35078258269149404,
+        "fear": 0.8996703899180588,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.19903404863737362
+      },
+      "gaze": {
+        "x": 0.28761327266693115,
+        "y": -0.4172798693180084,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.4,
+      "emotions": {
+        "happiness": 0.26306688368320474,
+        "stress": 0.0,
+        "surprise": 0.38270283647667913,
+        "fear": 0.8722611371307278,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2409845713546941
+      },
+      "gaze": {
+        "x": 0.07536908239126205,
+        "y": 0.040457069873809814,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.5,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.39298057710023665,
+        "fear": 0.8981179263501933,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.35445074827478507
+      },
+      "gaze": {
+        "x": -0.2628435790538788,
+        "y": -0.33822375535964966,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.6,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.44597177310251795,
+        "fear": 0.9089929416988488,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3225176425993166
+      },
+      "gaze": {
+        "x": -0.7643908262252808,
+        "y": 0.12261893600225449,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.7,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.4834695649575478,
+        "fear": 0.9335752947956784,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.29147757012338693
+      },
+      "gaze": {
+        "x": 0.09077688306570053,
+        "y": 0.6203691959381104,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.8,
+      "emotions": {
+        "happiness": 0.3230185914039613,
+        "stress": 0.0,
+        "surprise": 0.45866333734802744,
+        "fear": 0.9316745481947031,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1433217615266541
+      },
+      "gaze": {
+        "x": 0.06121893972158432,
+        "y": 0.37429291009902954,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.9,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.4677242319172712,
+        "fear": 0.9392244344334315,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.29652566682464865
+      },
+      "gaze": {
+        "x": -0.6660401821136475,
+        "y": 0.5129318833351135,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 11.0,
+      "emotions": {
+        "happiness": 0.02585323762148628,
+        "stress": 0.0,
+        "surprise": 0.45429671655584936,
+        "fear": 0.9714787720764936,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2741856368730854
+      },
+      "gaze": {
+        "x": -0.34561556577682495,
+        "y": 0.4472590684890747,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 11.1,
+      "emotions": {
+        "happiness": 0.29979499757289896,
+        "stress": 0.0,
+        "surprise": 0.4253693866638136,
+        "fear": 0.934778691602964,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.17002846208016176
+      },
+      "gaze": {
+        "x": -0.5164474248886108,
+        "y": -0.21629966795444489,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 11.2,
+      "emotions": {
+        "happiness": 0.4842026787996293,
+        "stress": 0.0,
+        "surprise": 0.3723423143957094,
+        "fear": 0.9097398575288739,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1168575746378937
+      },
+      "gaze": {
+        "x": -0.3420819938182831,
+        "y": 0.5588715076446533,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 11.3,
+      "emotions": {
+        "happiness": 0.0065197053086013534,
+        "stress": 0.0,
+        "surprise": 0.3141296725387698,
+        "fear": 0.879609697867074,
+        "sadness": 0.11530117605619133,
+        "anger": 0.0,
+        "neutral": 0.3422198741146818
+      },
+      "gaze": {
+        "x": -0.1514047384262085,
+        "y": 0.059819601476192474,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 11.4,
+      "emotions": {
+        "happiness": 0.4506914275884629,
+        "stress": 0.0,
+        "surprise": 0.3248984673225538,
+        "fear": 0.963471200974304,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.13046945205733962
+      },
+      "gaze": {
+        "x": -0.7425835132598877,
+        "y": -0.7159494161605835,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 11.5,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.3417984291560036,
+        "fear": 0.9138150795497216,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1221932456471373
+      },
+      "gaze": {
+        "x": -1.048349380493164,
+        "y": -0.8538740873336792,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 11.6,
+      "emotions": {
+        "happiness": 0.4747023391723634,
+        "stress": 0.0,
+        "surprise": 0.3910845973022941,
+        "fear": 0.9145561019963033,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.10982848076451956
+      },
+      "gaze": {
+        "x": -1.5148829221725464,
+        "y": 0.3065415918827057,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 11.7,
+      "emotions": {
+        "happiness": 0.3608936849236489,
+        "stress": 0.0,
+        "surprise": 0.2345372994021782,
+        "fear": 0.9234133701418163,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.24057782276617823
+      },
+      "gaze": {
+        "x": -3.0,
+        "y": -2.308664083480835,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 11.8,
+      "emotions": {
+        "happiness": 0.27282132908701906,
+        "stress": 0.0,
+        "surprise": 0.27063509523967105,
+        "fear": 0.9260911035542353,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2652262360595372
+      },
+      "gaze": {
+        "x": -1.6320695877075195,
+        "y": -2.139441728591919,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 11.9,
+      "emotions": {
+        "happiness": 0.2961183148622514,
+        "stress": 0.0,
+        "surprise": 0.43951980147093667,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.132180941833406
+      },
+      "gaze": {
+        "x": -1.1443208456039429,
+        "y": 0.03266509622335434,
+        "direction": "left"
+      }
+    },
+    {
+      "timestamp": 12.0,
+      "emotions": {
+        "happiness": 0.01696342704643039,
+        "stress": 0.0,
+        "surprise": 0.18421727428958928,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3994096493319902
+      },
+      "gaze": {
+        "x": -0.5405455827713013,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 12.1,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.23467310354352144,
+        "neutral": 0.13266344822823928
+      },
+      "gaze": {
+        "x": 0.7103830575942993,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 12.2,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.22669453536304915,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1366527323184754
+      },
+      "gaze": {
+        "x": 1.0480791330337524,
+        "y": 0.1770622581243515,
+        "direction": "right"
+      }
+    },
+    {
+      "timestamp": 12.3,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.19344252849504562,
+        "fear": 0.9882524543969946,
+        "sadness": 0.04904033360439295,
+        "anger": 0.0,
+        "neutral": 0.1346323417517834
+      },
+      "gaze": {
+        "x": 0.2554287612438202,
+        "y": -0.23865213990211487,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 12.4,
+      "emotions": {
+        "happiness": 0.33825588554143915,
+        "stress": 0.0,
+        "surprise": 0.21989190046118062,
+        "fear": 0.918827749687111,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.26151223215513464
+      },
+      "gaze": {
+        "x": 0.4311273694038391,
+        "y": 0.2358204424381256,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 12.5,
+      "emotions": {
+        "happiness": 0.2577673974633218,
+        "stress": 0.0,
+        "surprise": 0.25160316328521953,
+        "fear": 0.8831153732007316,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3037570330253636
+      },
+      "gaze": {
+        "x": 0.6285975575447083,
+        "y": -0.03552360087633133,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 12.6,
+      "emotions": {
+        "happiness": 0.16950434774160394,
+        "stress": 0.0,
+        "surprise": 0.27106208963041556,
+        "fear": 0.8932341060889022,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.33309972826953915
+      },
+      "gaze": {
+        "x": 1.200219988822937,
+        "y": 1.0655194520950317,
+        "direction": "right"
+      }
+    },
+    {
+      "timestamp": 12.7,
+      "emotions": {
+        "happiness": 0.19367901936173448,
+        "stress": 0.0,
+        "surprise": 0.30170276550807307,
+        "fear": 0.8554681033835796,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.3245750558733065
+      },
+      "gaze": {
+        "x": 0.7974019050598145,
+        "y": 0.6153649091720581,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 12.8,
+      "emotions": {
+        "happiness": 0.1445226441323758,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 0.8835373459152553,
+        "sadness": 0.0,
+        "anger": 0.2109930787086597,
+        "neutral": 0.38047346562185447
+      },
+      "gaze": {
+        "x": 0.2848317325115204,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 12.9,
+      "emotions": {
+        "happiness": 0.40058709263801584,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 0.7914221751915462,
+        "sadness": 0.0,
+        "anger": 0.2052120691227911,
+        "neutral": 0.3013893315238234
+      },
+      "gaze": {
+        "x": 0.19714534282684326,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 13.0,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 0.9032655507729203,
+        "sadness": 0.0,
+        "anger": 0.25726954939971997,
+        "neutral": 0.16973244991367986
+      },
+      "gaze": {
+        "x": -1.2634923458099365,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 13.1,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 0.8317835467201484,
+        "sadness": 0.0,
+        "anger": 0.06663897015874709,
+        "neutral": 0.5507887415605522
+      },
+      "gaze": {
+        "x": -1.2401094436645508,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 13.2,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.36658296663471485,
+        "fear": 0.9135874730042751,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.35991478018050505
+      },
+      "gaze": {
+        "x": -0.36629340052604675,
+        "y": -0.6579795479774475,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 13.3,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.3967472918353997,
+        "fear": 0.9389532653945065,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.33214972138504684
+      },
+      "gaze": {
+        "x": -0.4006197154521942,
+        "y": -0.45187127590179443,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 13.4,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.4207647651980117,
+        "fear": 0.9164580289888977,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.33138860290654526
+      },
+      "gaze": {
+        "x": -0.6004154682159424,
+        "y": -0.2644680142402649,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 13.5,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.4680269985260459,
+        "fear": 0.9636564929695766,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.28415825425218877
+      },
+      "gaze": {
+        "x": -0.07283787429332733,
+        "y": -0.09986544400453568,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 13.6,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.4640999588513707,
+        "fear": 0.9489615775349021,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.2934692318068637
+      },
+      "gaze": {
+        "x": -0.24434924125671387,
+        "y": 0.0256844162940979,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 13.7,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.4758632159428643,
+        "fear": 0.9864876085018197,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.26882458777765805
+      },
+      "gaze": {
+        "x": -0.289762020111084,
+        "y": 0.07652397453784943,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 13.8,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.5175380828285054,
+        "fear": 0.9963671485282619,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.24304738432161632
+      },
+      "gaze": {
+        "x": -0.37009915709495544,
+        "y": 0.35429519414901733,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 13.9,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.5000778315435166,
+        "fear": 1.0,
+        "sadness": 0.018569179438366924,
+        "anger": 0.0,
+        "neutral": 0.24067649450905826
+      },
+      "gaze": {
+        "x": -0.592018187046051,
+        "y": 0.44263121485710144,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 14.0,
+      "emotions": {
+        "happiness": 0.1010459917783737,
+        "stress": 0.0,
+        "surprise": 0.5081642101390209,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1953948990413027
+      },
+      "gaze": {
+        "x": -0.5810151696205139,
+        "y": 2.3033642768859863,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 14.1,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.5416246211417054,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.0
+      },
+      "gaze": {
+        "x": -0.7470260262489319,
+        "y": 2.114809036254883,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 14.2,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.5202051492362416,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.0
+      },
+      "gaze": {
+        "x": -0.24738709628582,
+        "y": 1.9312471151351929,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 14.3,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.47711840760261676,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.01144079619869165
+      },
+      "gaze": {
+        "x": -0.7798075675964355,
+        "y": 1.0377109050750732,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 14.4,
+      "emotions": {
+        "happiness": 0.0,
+        "stress": 0.0,
+        "surprise": 0.39316951812441403,
+        "fear": 0.9344962447349452,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.33616711857032033
+      },
+      "gaze": {
+        "x": -0.41309696435928345,
+        "y": 0.32526031136512756,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 14.5,
+      "emotions": {
+        "happiness": 0.5,
+        "stress": 0.0,
+        "surprise": 0.39749537803403906,
+        "fear": 0.9175009008848477,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.09250186054055654
+      },
+      "gaze": {
+        "x": -0.21285316348075867,
+        "y": -0.6533383131027222,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 14.6,
+      "emotions": {
+        "happiness": 0.4654823797941209,
+        "stress": 0.0,
+        "surprise": 0.43285985250051723,
+        "fear": 0.9218427366169467,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.0899075155442075
+      },
+      "gaze": {
+        "x": 1.3940324783325195,
+        "y": 0.8830353021621704,
+        "direction": "right"
+      }
+    },
+    {
+      "timestamp": 14.7,
+      "emotions": {
+        "happiness": 0.43287268608808527,
+        "stress": 0.0,
+        "surprise": 0.4466929225076409,
+        "fear": 0.9070257251310527,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.10670433313661054
+      },
+      "gaze": {
+        "x": 1.161570429801941,
+        "y": 0.9559603333473206,
+        "direction": "right"
+      }
+    },
+    {
+      "timestamp": 14.8,
+      "emotions": {
+        "happiness": 0.017775801122188573,
+        "stress": 0.0,
+        "surprise": 0.4516438291458131,
+        "fear": 0.9164601195374695,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.30706012509726444
+      },
+      "gaze": {
+        "x": 0.32348334789276123,
+        "y": 0.6405337452888489,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 14.9,
+      "emotions": {
+        "happiness": 0.12496002495288855,
+        "stress": 0.0,
+        "surprise": 0.5130420724088449,
+        "fear": 0.9339841851636451,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.21400685873731073
+      },
+      "gaze": {
+        "x": 0.12298723310232162,
+        "y": 0.5284201502799988,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 15.0,
+      "emotions": {
+        "happiness": 0.31677834272384653,
+        "stress": 0.0,
+        "surprise": 0.5421667232981005,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.07052746698902657
+      },
+      "gaze": {
+        "x": 0.041599076241254807,
+        "y": 0.48165011405944824,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 15.1,
+      "emotions": {
+        "happiness": 0.29047965735197073,
+        "stress": 0.0,
+        "surprise": 0.5488212408846598,
+        "fear": 0.9629652035009889,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.09886694913119021
+      },
+      "gaze": {
+        "x": 0.10141830146312714,
+        "y": 0.7541493773460388,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 15.2,
+      "emotions": {
+        "happiness": 0.4103889125585557,
+        "stress": 0.0,
+        "surprise": 0.5859288760410819,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.0018411057001812559
+      },
+      "gaze": {
+        "x": -0.5550851821899414,
+        "y": 1.3722827434539795,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 15.3,
+      "emotions": {
+        "happiness": 0.4623702573776246,
+        "stress": 0.0,
+        "surprise": 0.5120780114439369,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.01277586558921917
+      },
+      "gaze": {
+        "x": -1.016669511795044,
+        "y": 2.1668171882629395,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 15.4,
+      "emotions": {
+        "happiness": 0.39057266294956217,
+        "stress": 0.0,
+        "surprise": 0.5114812942130872,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.04897302141867532
+      },
+      "gaze": {
+        "x": -0.700708270072937,
+        "y": 2.028061628341675,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 15.5,
+      "emotions": {
+        "happiness": 0.3230083766579629,
+        "stress": 0.0,
+        "surprise": 0.3227658437916659,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.17711288977518558
+      },
+      "gaze": {
+        "x": 0.14798741042613983,
+        "y": 0.2305312603712082,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 15.6,
+      "emotions": {
+        "happiness": 0.46246780037879953,
+        "stress": 0.0,
+        "surprise": 0.0,
+        "fear": 1.0,
+        "sadness": 0.0,
+        "anger": 0.23890505584066085,
+        "neutral": 0.14931357189026984
+      },
+      "gaze": {
+        "x": 0.6866723299026489,
+        "y": -3.0,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 15.7,
+      "emotions": {
+        "happiness": 0.34122600734233866,
+        "stress": 0.0,
+        "surprise": 0.1913929854152122,
+        "fear": 0.979512153971698,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.24393442663537557
+      },
+      "gaze": {
+        "x": -1.087390422821045,
+        "y": -2.091932535171509,
+        "direction": "up"
+      }
+    },
+    {
+      "timestamp": 15.8,
+      "emotions": {
+        "happiness": 0.4377975571155549,
+        "stress": 0.0,
+        "surprise": 0.33799594068877026,
+        "fear": 0.8881735724728164,
+        "sadness": 0.0,
+        "anger": 0.0,
+        "neutral": 0.1680164648614293
+      },
+      "gaze": {
+        "x": -1.0038048028945923,
+        "y": -0.2777861952781677,
+        "direction": "left"
+      }
+    }
+  ],
+  "voice_analysis": {
+    "speech_rate": {
+      "value": 11.054292929292929,
+      "unit": "relative_index_0_100"
+    },
+    "rms_energy": {
+      "mean": 0.10658594965934753,
+      "std": 0.04855059087276459,
+      "min": 0.0,
+      "max": 0.20624463260173798
+    },
+    "pitch_f0": {
+      "mean": 166.63064575195312,
+      "std": 51.34521484375,
+      "min": 62.41360855102539,
+      "max": 401.77947998046875
+    },
+    "pause_durations": [
+      0.704,
+      0.064,
+      0.064,
+      0.032,
+      0.032,
+      0.128,
+      0.096,
+      0.032,
+      0.128,
+      0.096,
+      0.64,
+      0.064,
+      0.064,
+      0.288,
+      0.256,
+      0.064,
+      0.16,
+      0.224,
+      0.032
+    ],
+    "silence_ratio": 0.2,
+    "spectral_centroid": {
+      "mean": 1595.2662385683684,
+      "std": 972.7493043922655
+    },
+    "zero_crossing_rate": {
+      "mean": 0.11054292929292929,
+      "std": 0.1040719357950888
+    },
+    "duration_seconds": 15.808
+  }
+}

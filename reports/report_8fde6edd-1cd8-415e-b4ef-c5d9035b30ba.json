@@ -1,0 +1,56 @@
+{
+  "interview_id": "8fde6edd-1cd8-415e-b4ef-c5d9035b30ba",
+  "duration_seconds": 13.813300935326032,
+  "analysis_timestamp": "2026-01-12T12:31:11.192564Z",
+  "video_info": {
+    "fps": 30.043506757945316,
+    "resolution": {
+      "width": 478,
+      "height": 850
+    }
+  },
+  "frame_summary": {
+    "general_statistics": {},
+    "emotion_change_points": [],
+    "gaze_summary": {},
+    "cognitive_load_score": {}
+  },
+  "voice_analysis": {
+    "speech_rate": {
+      "value": 8.393803349247685,
+      "unit": "relative_index_0_100"
+    },
+    "rms_energy": {
+      "mean": 0.06471129506826401,
+      "std": 0.04858514294028282,
+      "min": 0.0017782360082492232,
+      "max": 0.22980228066444397
+    },
+    "pitch_f0": {
+      "mean": 240.3787384033203,
+      "std": 95.18492889404297,
+      "min": 102.10458374023438,
+      "max": 400.984130859375
+    },
+    "pause_durations": [
+      0.704,
+      0.352,
+      1.216,
+      0.512
+    ],
+    "silence_ratio": 0.2013888888888889,
+    "spectral_centroid": {
+      "mean": 1186.7158922502117,
+      "std": 836.4501832673451
+    },
+    "zero_crossing_rate": {
+      "mean": 0.08393803349247685,
+      "std": 0.07704512329556999
+    },
+    "duration_seconds": 13.8026875
+  },
+  "ai_analysis": {
+    "error": "Gemini API hatası: 404 models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "analysis": "Analiz yapılamadı."
+  }
+}

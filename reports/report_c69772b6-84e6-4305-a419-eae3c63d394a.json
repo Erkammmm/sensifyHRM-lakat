@@ -1,0 +1,1377 @@
+{
+  "interview_id": "c69772b6-84e6-4305-a419-eae3c63d394a",
+  "duration_seconds": 13.813300935326032,
+  "analysis_timestamp": "2026-01-12T11:03:02.939299Z",
+  "video_info": {
+    "fps": 30.043506757945316,
+    "resolution": {
+      "width": 478,
+      "height": 850
+    }
+  },
+  "frame_analysis": [
+    {
+      "timestamp": 0.0,
+      "raw_features": {
+        "mouth_width_norm": 1.0631541013717651,
+        "mouth_height_norm": 0.004818139132112265,
+        "eye_opening_norm": 0.07317945327735156,
+        "brow_distance_norm": 0.403489214253747,
+        "jaw_open_norm": 0.5230007767677307
+      },
+      "gaze": {
+        "x": -0.11555522680282593,
+        "y": -1.4083856344223022,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.09985518748428457,
+      "raw_features": {
+        "mouth_width_norm": 0.9934357888199727,
+        "mouth_height_norm": 0.009217354704449574,
+        "eye_opening_norm": 0.07046726743832644,
+        "brow_distance_norm": 0.40598406949233873,
+        "jaw_open_norm": 0.5961472773751196
+      },
+      "gaze": {
+        "x": -0.01902252435684204,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.19971037496856914,
+      "raw_features": {
+        "mouth_width_norm": 0.9551710989270161,
+        "mouth_height_norm": 0.030964711516183442,
+        "eye_opening_norm": 0.0717740267729645,
+        "brow_distance_norm": 0.41855031050269775,
+        "jaw_open_norm": 0.6401765468958261
+      },
+      "gaze": {
+        "x": -0.40916621685028076,
+        "y": -2.8676059246063232,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.2995655624528537,
+      "raw_features": {
+        "mouth_width_norm": 0.9504782241492097,
+        "mouth_height_norm": 0.030647039958669384,
+        "eye_opening_norm": 0.07173831057064073,
+        "brow_distance_norm": 0.4153054458442669,
+        "jaw_open_norm": 0.6465816841903002
+      },
+      "gaze": {
+        "x": 0.06475746631622314,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.3994207499371383,
+      "raw_features": {
+        "mouth_width_norm": 0.9424734419414089,
+        "mouth_height_norm": 0.026740417031616958,
+        "eye_opening_norm": 0.0693124480089135,
+        "brow_distance_norm": 0.41569153799272435,
+        "jaw_open_norm": 0.6595220839395551
+      },
+      "gaze": {
+        "x": -0.34067511558532715,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.49927593742142284,
+      "raw_features": {
+        "mouth_width_norm": 0.9384247858629168,
+        "mouth_height_norm": 0.039219674450763006,
+        "eye_opening_norm": 0.06515389378370816,
+        "brow_distance_norm": 0.42084667885135013,
+        "jaw_open_norm": 0.6750823462229163
+      },
+      "gaze": {
+        "x": -0.24821937084197998,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.698986312389992,
+      "raw_features": {
+        "mouth_width_norm": 0.9614207958928709,
+        "mouth_height_norm": 0.03381612639601639,
+        "eye_opening_norm": 0.06473698503988405,
+        "brow_distance_norm": 0.41902713530055824,
+        "jaw_open_norm": 0.6554311618207416
+      },
+      "gaze": {
+        "x": 0.2198106050491333,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.7988414998742766,
+      "raw_features": {
+        "mouth_width_norm": 0.9723514363138935,
+        "mouth_height_norm": 0.032135092749244316,
+        "eye_opening_norm": 0.06664202774658991,
+        "brow_distance_norm": 0.41952630948536873,
+        "jaw_open_norm": 0.6561601223871167
+      },
+      "gaze": {
+        "x": -0.10802328586578369,
+        "y": -2.67390775680542,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.8986966873585611,
+      "raw_features": {
+        "mouth_width_norm": 0.976845597464144,
+        "mouth_height_norm": 0.0349211913316115,
+        "eye_opening_norm": 0.06859952016876766,
+        "brow_distance_norm": 0.4194408682647977,
+        "jaw_open_norm": 0.6622610340519026
+      },
+      "gaze": {
+        "x": -0.08498460054397583,
+        "y": -2.1130013465881348,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 0.9985518748428457,
+      "raw_features": {
+        "mouth_width_norm": 0.9623498831304037,
+        "mouth_height_norm": 0.0368428200465437,
+        "eye_opening_norm": 0.06903842823934367,
+        "brow_distance_norm": 0.4200313701848898,
+        "jaw_open_norm": 0.6685877301888579
+      },
+      "gaze": {
+        "x": 0.6469935178756714,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.0984070623271303,
+      "raw_features": {
+        "mouth_width_norm": 0.9499389659929048,
+        "mouth_height_norm": 0.04106903167927176,
+        "eye_opening_norm": 0.06850433238977514,
+        "brow_distance_norm": 0.41967738534187304,
+        "jaw_open_norm": 0.6721884715200146
+      },
+      "gaze": {
+        "x": -0.03797709941864014,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.1982622498114148,
+      "raw_features": {
+        "mouth_width_norm": 0.9457503317171421,
+        "mouth_height_norm": 0.03903793520417676,
+        "eye_opening_norm": 0.06789700692429324,
+        "brow_distance_norm": 0.42171370081091747,
+        "jaw_open_norm": 0.6765540300875843
+      },
+      "gaze": {
+        "x": 0.2376866340637207,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.2981174372956994,
+      "raw_features": {
+        "mouth_width_norm": 0.9361026445614807,
+        "mouth_height_norm": 0.04026795024945375,
+        "eye_opening_norm": 0.06757588908590034,
+        "brow_distance_norm": 0.42299074957967386,
+        "jaw_open_norm": 0.6829798936520179
+      },
+      "gaze": {
+        "x": -0.12350797653198242,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.6975381872328377,
+      "raw_features": {
+        "mouth_width_norm": 0.941494182645715,
+        "mouth_height_norm": 0.03804812244807657,
+        "eye_opening_norm": 0.06679892829017173,
+        "brow_distance_norm": 0.4172872523997673,
+        "jaw_open_norm": 0.6723787773224467
+      },
+      "gaze": {
+        "x": 0.797804594039917,
+        "y": -3.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.7973933747171222,
+      "raw_features": {
+        "mouth_width_norm": 0.9561930332374147,
+        "mouth_height_norm": 0.033607062029160806,
+        "eye_opening_norm": 0.06791570197201341,
+        "brow_distance_norm": 0.41599264418394793,
+        "jaw_open_norm": 0.6599454149473125
+      },
+      "gaze": {
+        "x": 0.1943141222000122,
+        "y": 1.0314964056015015,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.8972485622014068,
+      "raw_features": {
+        "mouth_width_norm": 0.9641930395058429,
+        "mouth_height_norm": 0.030498184517723567,
+        "eye_opening_norm": 0.06881425250673474,
+        "brow_distance_norm": 0.4130337111522213,
+        "jaw_open_norm": 0.6515395269539654
+      },
+      "gaze": {
+        "x": 0.15089869499206543,
+        "y": -0.4877685606479645,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 1.9971037496856914,
+      "raw_features": {
+        "mouth_width_norm": 0.9619628127327992,
+        "mouth_height_norm": 0.036264498855474295,
+        "eye_opening_norm": 0.07032438937767345,
+        "brow_distance_norm": 0.4134136289820372,
+        "jaw_open_norm": 0.6618227936039321
+      },
+      "gaze": {
+        "x": -0.30938804149627686,
+        "y": 0.6196284294128418,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.096958937169976,
+      "raw_features": {
+        "mouth_width_norm": 0.951940917532124,
+        "mouth_height_norm": 0.038778344736653154,
+        "eye_opening_norm": 0.06923471200251959,
+        "brow_distance_norm": 0.4134964059007176,
+        "jaw_open_norm": 0.6712223723188726
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.1968141246542605,
+      "raw_features": {
+        "mouth_width_norm": 0.944779176085828,
+        "mouth_height_norm": 0.039060089942376364,
+        "eye_opening_norm": 0.06908445367401789,
+        "brow_distance_norm": 0.41508353904130063,
+        "jaw_open_norm": 0.6774575191270897
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.2966693121385453,
+      "raw_features": {
+        "mouth_width_norm": 0.9331283385967684,
+        "mouth_height_norm": 0.04108825622979646,
+        "eye_opening_norm": 0.06933972558845515,
+        "brow_distance_norm": 0.41683838724409455,
+        "jaw_open_norm": 0.6793045696813362
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.3965244996228297,
+      "raw_features": {
+        "mouth_width_norm": 0.927689586839332,
+        "mouth_height_norm": 0.04020285612719642,
+        "eye_opening_norm": 0.06992540415315407,
+        "brow_distance_norm": 0.4174842103005869,
+        "jaw_open_norm": 0.68084396124225
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.4963796871071144,
+      "raw_features": {
+        "mouth_width_norm": 0.9180885140688323,
+        "mouth_height_norm": 0.03982453013878717,
+        "eye_opening_norm": 0.07102158356437803,
+        "brow_distance_norm": 0.41929253927546656,
+        "jaw_open_norm": 0.6735601128552264
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.596234874591399,
+      "raw_features": {
+        "mouth_width_norm": 0.9049968713663237,
+        "mouth_height_norm": 0.039472976865686,
+        "eye_opening_norm": 0.07140622335191078,
+        "brow_distance_norm": 0.41900046380651207,
+        "jaw_open_norm": 0.675431536574293
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.6960900620756836,
+      "raw_features": {
+        "mouth_width_norm": 0.8921347968475342,
+        "mouth_height_norm": 0.04002137647048459,
+        "eye_opening_norm": 0.07175825890407835,
+        "brow_distance_norm": 0.41987703382527314,
+        "jaw_open_norm": 0.6755148118321882
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 2.995655624528537,
+      "raw_features": {
+        "mouth_width_norm": 0.920069932082111,
+        "mouth_height_norm": 0.03607848749418539,
+        "eye_opening_norm": 0.0700255429638581,
+        "brow_distance_norm": 0.41768558598229794,
+        "jaw_open_norm": 0.6673195653638175
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.095510812012822,
+      "raw_features": {
+        "mouth_width_norm": 0.9261027374966151,
+        "mouth_height_norm": 0.03199479894952612,
+        "eye_opening_norm": 0.0692352223987489,
+        "brow_distance_norm": 0.41643177431503475,
+        "jaw_open_norm": 0.6498727531699141
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.195365999497106,
+      "raw_features": {
+        "mouth_width_norm": 0.9170096502459345,
+        "mouth_height_norm": 0.031033827609173215,
+        "eye_opening_norm": 0.06798649661205879,
+        "brow_distance_norm": 0.4169085874025067,
+        "jaw_open_norm": 0.644877680347966
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.6946419369185293,
+      "raw_features": {
+        "mouth_width_norm": 0.9323449515017865,
+        "mouth_height_norm": 0.033844634725015046,
+        "eye_opening_norm": 0.0668944638283326,
+        "brow_distance_norm": 0.41806096081956495,
+        "jaw_open_norm": 0.6526746886991821
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.7944971244028136,
+      "raw_features": {
+        "mouth_width_norm": 0.9466039662456118,
+        "mouth_height_norm": 0.03071534143619007,
+        "eye_opening_norm": 0.064755108654444,
+        "brow_distance_norm": 0.4166758348422964,
+        "jaw_open_norm": 0.6596978592659722
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.8943523118870984,
+      "raw_features": {
+        "mouth_width_norm": 0.958056052796164,
+        "mouth_height_norm": 0.027857477031171148,
+        "eye_opening_norm": 0.06478804618033634,
+        "brow_distance_norm": 0.4146158476417004,
+        "jaw_open_norm": 0.6620562395739603
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 3.9942074993713828,
+      "raw_features": {
+        "mouth_width_norm": 0.9661875814686257,
+        "mouth_height_norm": 0.0296814563629521,
+        "eye_opening_norm": 0.06517171275388621,
+        "brow_distance_norm": 0.41586171189707616,
+        "jaw_open_norm": 0.662860913774697
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.0940626868556675,
+      "raw_features": {
+        "mouth_width_norm": 0.9758665161368201,
+        "mouth_height_norm": 0.03616657416403135,
+        "eye_opening_norm": 0.06503623635173776,
+        "brow_distance_norm": 0.41565074868041013,
+        "jaw_open_norm": 0.6646781180749489
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.193917874339952,
+      "raw_features": {
+        "mouth_width_norm": 0.9719642178438384,
+        "mouth_height_norm": 0.03605389089833013,
+        "eye_opening_norm": 0.06549560506527621,
+        "brow_distance_norm": 0.4164489586973651,
+        "jaw_open_norm": 0.6605621107167529
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.293773061824236,
+      "raw_features": {
+        "mouth_width_norm": 0.9733068288889704,
+        "mouth_height_norm": 0.03784209515325992,
+        "eye_opening_norm": 0.06585206044664349,
+        "brow_distance_norm": 0.41787051803026476,
+        "jaw_open_norm": 0.6620228145104685
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.393628249308521,
+      "raw_features": {
+        "mouth_width_norm": 0.9721821336265631,
+        "mouth_height_norm": 0.03887927592695802,
+        "eye_opening_norm": 0.0656825707423895,
+        "brow_distance_norm": 0.4165527375385003,
+        "jaw_open_norm": 0.6567991735692928
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.493483436792806,
+      "raw_features": {
+        "mouth_width_norm": 0.9758055158807565,
+        "mouth_height_norm": 0.04053739938302888,
+        "eye_opening_norm": 0.06646464728187461,
+        "brow_distance_norm": 0.41814876396387785,
+        "jaw_open_norm": 0.6534939652203055
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.593338624277091,
+      "raw_features": {
+        "mouth_width_norm": 0.9650023582162605,
+        "mouth_height_norm": 0.03794972235389414,
+        "eye_opening_norm": 0.06803200268854882,
+        "brow_distance_norm": 0.41745549471099486,
+        "jaw_open_norm": 0.6546690957183771
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.6931938117613745,
+      "raw_features": {
+        "mouth_width_norm": 0.950159681240908,
+        "mouth_height_norm": 0.03656630083388335,
+        "eye_opening_norm": 0.0692365748804595,
+        "brow_distance_norm": 0.4185045259963824,
+        "jaw_open_norm": 0.6553393205017359
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.793048999245659,
+      "raw_features": {
+        "mouth_width_norm": 0.9378765529362522,
+        "mouth_height_norm": 0.036128465736153165,
+        "eye_opening_norm": 0.06915253283776276,
+        "brow_distance_norm": 0.4173138968565243,
+        "jaw_open_norm": 0.6534422105498822
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.892904186729944,
+      "raw_features": {
+        "mouth_width_norm": 0.930151543636108,
+        "mouth_height_norm": 0.035057187878592896,
+        "eye_opening_norm": 0.07050136575724301,
+        "brow_distance_norm": 0.41635903191583573,
+        "jaw_open_norm": 0.6532506898475117
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 4.992759374214229,
+      "raw_features": {
+        "mouth_width_norm": 0.9212217728174685,
+        "mouth_height_norm": 0.0341818848557923,
+        "eye_opening_norm": 0.07180898638038755,
+        "brow_distance_norm": 0.4158568992858913,
+        "jaw_open_norm": 0.6573156389333191
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.092614561698513,
+      "raw_features": {
+        "mouth_width_norm": 0.9163349635607673,
+        "mouth_height_norm": 0.04090740822794055,
+        "eye_opening_norm": 0.0715835675862283,
+        "brow_distance_norm": 0.41680802635282904,
+        "jaw_open_norm": 0.66532676606249
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.192469749182798,
+      "raw_features": {
+        "mouth_width_norm": 0.9125884698230148,
+        "mouth_height_norm": 0.04430946861575962,
+        "eye_opening_norm": 0.06859940260390697,
+        "brow_distance_norm": 0.41684374014113634,
+        "jaw_open_norm": 0.6688416821690777
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.292324936667082,
+      "raw_features": {
+        "mouth_width_norm": 0.9137733709780194,
+        "mouth_height_norm": 0.04239701528667922,
+        "eye_opening_norm": 0.0655070432288613,
+        "brow_distance_norm": 0.4146261572534117,
+        "jaw_open_norm": 0.6758305458647711
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.392180124151367,
+      "raw_features": {
+        "mouth_width_norm": 0.9105493975459921,
+        "mouth_height_norm": 0.04147064273176285,
+        "eye_opening_norm": 0.06416978571590477,
+        "brow_distance_norm": 0.4146074632753401,
+        "jaw_open_norm": 0.6862977930968824
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.492035311635651,
+      "raw_features": {
+        "mouth_width_norm": 0.9114946070430339,
+        "mouth_height_norm": 0.045946576396319064,
+        "eye_opening_norm": 0.06349942031777958,
+        "brow_distance_norm": 0.4158856256371314,
+        "jaw_open_norm": 0.697126641597709
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.591890499119936,
+      "raw_features": {
+        "mouth_width_norm": 0.9204653791359728,
+        "mouth_height_norm": 0.04529651992613338,
+        "eye_opening_norm": 0.0649982596264473,
+        "brow_distance_norm": 0.4164026946206356,
+        "jaw_open_norm": 0.70638033466869
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.691745686604221,
+      "raw_features": {
+        "mouth_width_norm": 0.9181848033939338,
+        "mouth_height_norm": 0.04442351574101793,
+        "eye_opening_norm": 0.06470068313906495,
+        "brow_distance_norm": 0.4183944365000724,
+        "jaw_open_norm": 0.7089879680695027
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.791600874088505,
+      "raw_features": {
+        "mouth_width_norm": 0.9104917737158428,
+        "mouth_height_norm": 0.04453131643530794,
+        "eye_opening_norm": 0.0644172132933916,
+        "brow_distance_norm": 0.41959027237916496,
+        "jaw_open_norm": 0.7034589293869704
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.891456061572789,
+      "raw_features": {
+        "mouth_width_norm": 0.9106191549516249,
+        "mouth_height_norm": 0.042445578520953445,
+        "eye_opening_norm": 0.06625526365922717,
+        "brow_distance_norm": 0.41846198207491053,
+        "jaw_open_norm": 0.7070489857320351
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 5.991311249057074,
+      "raw_features": {
+        "mouth_width_norm": 0.9022858649396637,
+        "mouth_height_norm": 0.04222883131920956,
+        "eye_opening_norm": 0.06602264093076503,
+        "brow_distance_norm": 0.4192137862450677,
+        "jaw_open_norm": 0.6975912913521908
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 6.091166436541359,
+      "raw_features": {
+        "mouth_width_norm": 0.9013962869299732,
+        "mouth_height_norm": 0.041954563944500804,
+        "eye_opening_norm": 0.06744541939606988,
+        "brow_distance_norm": 0.41843452304861667,
+        "jaw_open_norm": 0.6978740900621847
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 6.191021624025644,
+      "raw_features": {
+        "mouth_width_norm": 0.8998671401274939,
+        "mouth_height_norm": 0.0438088349323135,
+        "eye_opening_norm": 0.06869262426079892,
+        "brow_distance_norm": 0.41888540086918036,
+        "jaw_open_norm": 0.6939614527751187
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 6.8900079364156355,
+      "raw_features": {
+        "mouth_width_norm": 0.9025339804337894,
+        "mouth_height_norm": 0.04736864682714968,
+        "eye_opening_norm": 0.06752205541142361,
+        "brow_distance_norm": 0.41701113861277206,
+        "jaw_open_norm": 0.7016324430072306
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.287980561195619,
+      "raw_features": {
+        "mouth_width_norm": 0.9125867821300099,
+        "mouth_height_norm": 0.042716210853610104,
+        "eye_opening_norm": 0.06368161071460719,
+        "brow_distance_norm": 0.40921577831499417,
+        "jaw_open_norm": 0.692449712884532
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.387835748679905,
+      "raw_features": {
+        "mouth_width_norm": 0.9121491320257151,
+        "mouth_height_norm": 0.04012694349898706,
+        "eye_opening_norm": 0.06470782814711173,
+        "brow_distance_norm": 0.40660925815853555,
+        "jaw_open_norm": 0.679885539858574
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.487690936164189,
+      "raw_features": {
+        "mouth_width_norm": 0.9209057992152809,
+        "mouth_height_norm": 0.039677346259822395,
+        "eye_opening_norm": 0.06426894728617745,
+        "brow_distance_norm": 0.40191485008493594,
+        "jaw_open_norm": 0.6841716980594166
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.587546123648472,
+      "raw_features": {
+        "mouth_width_norm": 0.9311205789371356,
+        "mouth_height_norm": 0.03736735380610534,
+        "eye_opening_norm": 0.06625364004785142,
+        "brow_distance_norm": 0.40359847002495314,
+        "jaw_open_norm": 0.6889875642214338
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.687401311132758,
+      "raw_features": {
+        "mouth_width_norm": 0.9338796227633525,
+        "mouth_height_norm": 0.03570979535417419,
+        "eye_opening_norm": 0.06722471080813372,
+        "brow_distance_norm": 0.4066478526925971,
+        "jaw_open_norm": 0.6966504370092615
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 8.986966873585612,
+      "raw_features": {
+        "mouth_width_norm": 0.9464114439103605,
+        "mouth_height_norm": 0.03204399924562375,
+        "eye_opening_norm": 0.06491340746941696,
+        "brow_distance_norm": 0.4010849013946289,
+        "jaw_open_norm": 0.6897652097813984
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 9.086822061069896,
+      "raw_features": {
+        "mouth_width_norm": 0.9615037655513015,
+        "mouth_height_norm": 0.0330822177333144,
+        "eye_opening_norm": 0.06457317266113208,
+        "brow_distance_norm": 0.40337747518552575,
+        "jaw_open_norm": 0.6824821584279953
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 9.186677248554181,
+      "raw_features": {
+        "mouth_width_norm": 0.9699901906198914,
+        "mouth_height_norm": 0.03796809781065179,
+        "eye_opening_norm": 0.06568739550207547,
+        "brow_distance_norm": 0.40494811853082213,
+        "jaw_open_norm": 0.6824169625299898
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 9.685953185975603,
+      "raw_features": {
+        "mouth_width_norm": 0.950109262612712,
+        "mouth_height_norm": 0.03452597912540469,
+        "eye_opening_norm": 0.06487140751304606,
+        "brow_distance_norm": 0.3985828697508668,
+        "jaw_open_norm": 0.6612777184757076
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 9.785808373459888,
+      "raw_features": {
+        "mouth_width_norm": 0.9427301180650045,
+        "mouth_height_norm": 0.031119270172029593,
+        "eye_opening_norm": 0.06439639152708343,
+        "brow_distance_norm": 0.40108936953362506,
+        "jaw_open_norm": 0.652508414745534
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.285084310881311,
+      "raw_features": {
+        "mouth_width_norm": 0.9398597240165352,
+        "mouth_height_norm": 0.03152211618883107,
+        "eye_opening_norm": 0.063535411456988,
+        "brow_distance_norm": 0.40525485769211134,
+        "jaw_open_norm": 0.655587676644066
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.384939498365595,
+      "raw_features": {
+        "mouth_width_norm": 0.9318006402670234,
+        "mouth_height_norm": 0.03051009495566604,
+        "eye_opening_norm": 0.06529231012697938,
+        "brow_distance_norm": 0.4106440543463009,
+        "jaw_open_norm": 0.6623400000326239
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.484794685849879,
+      "raw_features": {
+        "mouth_width_norm": 0.9222398636630248,
+        "mouth_height_norm": 0.0313102499941804,
+        "eye_opening_norm": 0.0662694800876742,
+        "brow_distance_norm": 0.4100495543562822,
+        "jaw_open_norm": 0.6594830807791013
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.584649873334165,
+      "raw_features": {
+        "mouth_width_norm": 0.9257632683217841,
+        "mouth_height_norm": 0.03172740629618501,
+        "eye_opening_norm": 0.06627658226037954,
+        "brow_distance_norm": 0.41579184999358343,
+        "jaw_open_norm": 0.673787208257358
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.784360248302734,
+      "raw_features": {
+        "mouth_width_norm": 0.9343222597366644,
+        "mouth_height_norm": 0.029404243282790517,
+        "eye_opening_norm": 0.06639688666174955,
+        "brow_distance_norm": 0.41882234196104595,
+        "jaw_open_norm": 0.6756181442435634
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 10.884215435787018,
+      "raw_features": {
+        "mouth_width_norm": 0.9414517710414416,
+        "mouth_height_norm": 0.02778098620777594,
+        "eye_opening_norm": 0.06819722550244794,
+        "brow_distance_norm": 0.4238551809987584,
+        "jaw_open_norm": 0.6837626744739886
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 11.283636185724156,
+      "raw_features": {
+        "mouth_width_norm": 0.9452018502930855,
+        "mouth_height_norm": 0.025191484362254324,
+        "eye_opening_norm": 0.06791584047591112,
+        "brow_distance_norm": 0.4187924563899438,
+        "jaw_open_norm": 0.6774120304573147
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 12.382043248051287,
+      "raw_features": {
+        "mouth_width_norm": 0.9433608517929347,
+        "mouth_height_norm": 0.025436064503412077,
+        "eye_opening_norm": 0.06496443378799766,
+        "brow_distance_norm": 0.414618624817029,
+        "jaw_open_norm": 0.6717460450585541
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 12.481898435535571,
+      "raw_features": {
+        "mouth_width_norm": 0.9361955470390434,
+        "mouth_height_norm": 0.0280003738057155,
+        "eye_opening_norm": 0.06436767285010697,
+        "brow_distance_norm": 0.41377484903561496,
+        "jaw_open_norm": 0.6644215422805457
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 12.581753623019855,
+      "raw_features": {
+        "mouth_width_norm": 0.9318331047369832,
+        "mouth_height_norm": 0.027211591974708342,
+        "eye_opening_norm": 0.06517482327053109,
+        "brow_distance_norm": 0.41629397836086973,
+        "jaw_open_norm": 0.6654741792715209
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 12.681608810504141,
+      "raw_features": {
+        "mouth_width_norm": 0.9327087863416564,
+        "mouth_height_norm": 0.02499472655658655,
+        "eye_opening_norm": 0.06672415489506608,
+        "brow_distance_norm": 0.41726916346971643,
+        "jaw_open_norm": 0.6596514199294561
+      },
+      "gaze": {
+        "x": 0.0,
+        "y": 0.0,
+        "direction": "center"
+      }
+    },
+    {
+      "timestamp": 12.781463997988425,
+      "raw_features": {
+        "mouth_width_norm": 0.9289659528416929,
+        "mouth_height_norm": 0.023971510811439955,
+        "eye_opening_norm": 0.06917034508701245,
+        "brow_distance_norm": 0.41853582452578014,
+        "jaw_open_norm": 0.6574195585017936
+      },
+      "gaze": {
+        "x": 0.7016283273696899,
+        "y": 2.0,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 12.881319185472709,
+      "raw_features": {
+        "mouth_width_norm": 0.9243858695814782,
+        "mouth_height_norm": 0.02271217569971846,
+        "eye_opening_norm": 0.07093135724136432,
+        "brow_distance_norm": 0.4173965336563256,
+        "jaw_open_norm": 0.6606076636658982
+      },
+      "gaze": {
+        "x": 0.5151068905125493,
+        "y": 2.0,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 12.981174372956994,
+      "raw_features": {
+        "mouth_width_norm": 0.9233634316158315,
+        "mouth_height_norm": 0.02095453046231339,
+        "eye_opening_norm": 0.07017002385200104,
+        "brow_distance_norm": 0.4177634167378585,
+        "jaw_open_norm": 0.66201481760184
+      },
+      "gaze": {
+        "x": 0.5151068905125493,
+        "y": 2.0,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 13.081029560441278,
+      "raw_features": {
+        "mouth_width_norm": 0.9236452327694855,
+        "mouth_height_norm": 0.019885804596475855,
+        "eye_opening_norm": 0.0695047307165336,
+        "brow_distance_norm": 0.4185752269595013,
+        "jaw_open_norm": 0.6678076389188702
+      },
+      "gaze": {
+        "x": 0.5151068905125493,
+        "y": 2.0,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 13.180884747925564,
+      "raw_features": {
+        "mouth_width_norm": 0.918909388470753,
+        "mouth_height_norm": 0.02051945984399549,
+        "eye_opening_norm": 0.07004978278728857,
+        "brow_distance_norm": 0.41680581837613756,
+        "jaw_open_norm": 0.6751976432016108
+      },
+      "gaze": {
+        "x": 0.5151068905125493,
+        "y": 2.0,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 13.380595122894132,
+      "raw_features": {
+        "mouth_width_norm": 0.9196699012784867,
+        "mouth_height_norm": 0.02615849596522779,
+        "eye_opening_norm": 0.0685528623845792,
+        "brow_distance_norm": 0.41459280349713523,
+        "jaw_open_norm": 0.6720930014205874
+      },
+      "gaze": {
+        "x": 0.5151068905125493,
+        "y": 2.0,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 13.480450310378417,
+      "raw_features": {
+        "mouth_width_norm": 0.9111426423866934,
+        "mouth_height_norm": 0.027008001206828315,
+        "eye_opening_norm": 0.0685632309557193,
+        "brow_distance_norm": 0.4135930513748185,
+        "jaw_open_norm": 0.6740546268402756
+      },
+      "gaze": {
+        "x": 0.5151068905125493,
+        "y": 2.0,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 13.580305497862701,
+      "raw_features": {
+        "mouth_width_norm": 0.9045821544798409,
+        "mouth_height_norm": 0.028640804485060994,
+        "eye_opening_norm": 0.06927622760981271,
+        "brow_distance_norm": 0.4138058526550153,
+        "jaw_open_norm": 0.6702543441487386
+      },
+      "gaze": {
+        "x": 0.5151068905125493,
+        "y": 2.0,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 13.680160685346985,
+      "raw_features": {
+        "mouth_width_norm": 0.9003884453919452,
+        "mouth_height_norm": 0.02793225097431207,
+        "eye_opening_norm": 0.07010114420381394,
+        "brow_distance_norm": 0.4148974726644899,
+        "jaw_open_norm": 0.674568499204251
+      },
+      "gaze": {
+        "x": 0.5151068905125493,
+        "y": 2.0,
+        "direction": "down"
+      }
+    },
+    {
+      "timestamp": 13.780015872831271,
+      "raw_features": {
+        "mouth_width_norm": 0.8992514826091931,
+        "mouth_height_norm": 0.026021422670419316,
+        "eye_opening_norm": 0.07000368873406854,
+        "brow_distance_norm": 0.4142700018499425,
+        "jaw_open_norm": 0.6750393418641231
+      },
+      "gaze": {
+        "x": 0.5151068905125493,
+        "y": 2.0,
+        "direction": "down"
+      }
+    }
+  ],
+  "frame_summary": {
+    "general_statistics": {
+      "average_features": {
+        "mouth_width_norm": 0.9368873460676457,
+        "mouth_height_norm": 0.03406414742602745,
+        "eye_opening_norm": 0.06755050005235394,
+        "brow_distance_norm": 0.4150248655881608,
+        "jaw_open_norm": 0.668516739647429
+      },
+      "gaze_center_percentage": 88.23529411764706,
+      "total_frames_analyzed": 85
+    },
+    "emotion_change_points": [
+      {
+        "timestamp": 0.09985518748428457,
+        "feature": "mouth_height_norm",
+        "previous_value": 0.004818139132112265,
+        "current_value": 0.009217354704449574,
+        "change_percentage": 91.30528305040248
+      },
+      {
+        "timestamp": 0.19971037496856914,
+        "feature": "mouth_height_norm",
+        "previous_value": 0.009217354704449574,
+        "current_value": 0.030964711516183442,
+        "change_percentage": 235.939241887215
+      },
+      {
+        "timestamp": 0.49927593742142284,
+        "feature": "mouth_height_norm",
+        "previous_value": 0.026740417031616958,
+        "current_value": 0.039219674450763006,
+        "change_percentage": 46.66814808606388
+      }
+    ],
+    "gaze_summary": {
+      "direction_counts": {
+        "center": 75,
+        "down": 10
+      },
+      "direction_percentages": {
+        "center": 88.23529411764706,
+        "down": 11.76470588235294
+      },
+      "total_frames": 85
+    },
+    "cognitive_load_score": {
+      "thinking_reading_count": 10,
+      "thinking_reading_percentage": 11.76470588235294,
+      "total_speaking_frames": 85,
+      "speaking_percentage": 100.0,
+      "jaw_open_threshold_used": 0.4
+    }
+  },
+  "voice_analysis": {
+    "speech_rate": {
+      "value": 8.393803349247685,
+      "unit": "relative_index_0_100"
+    },
+    "rms_energy": {
+      "mean": 0.06471129506826401,
+      "std": 0.04858514294028282,
+      "min": 0.0017782360082492232,
+      "max": 0.22980228066444397
+    },
+    "pitch_f0": {
+      "mean": 240.3787384033203,
+      "std": 95.18492889404297,
+      "min": 102.10458374023438,
+      "max": 400.984130859375
+    },
+    "pause_durations": [
+      0.704,
+      0.352,
+      1.216,
+      0.512
+    ],
+    "silence_ratio": 0.2013888888888889,
+    "spectral_centroid": {
+      "mean": 1186.7158922502117,
+      "std": 836.4501832673451
+    },
+    "zero_crossing_rate": {
+      "mean": 0.08393803349247685,
+      "std": 0.07704512329556999
+    },
+    "duration_seconds": 13.8026875
+  }
+}
