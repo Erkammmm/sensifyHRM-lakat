@@ -150,6 +150,7 @@ async def analyze_interview(
         # 2. Rafine verileri çıkar (terminaldeki özet gibi)
         frame_summary = full_report.get("frame_summary", {})
         voice_analysis = full_report.get("voice_analysis", {})
+        pyfeat_summary = full_report.get("pyfeat_analysis", {}).get("summary", {})
         video_info = full_report.get("video_info", {})
         duration_seconds = full_report.get("duration_seconds", 0.0)
         
@@ -165,6 +166,7 @@ async def analyze_interview(
                 frame_summary=frame_summary,
                 voice_analysis=voice_analysis,
                 ai_analysis=ai_analysis,
+                pyfeat_summary=pyfeat_summary,
                 video_info=video_info,
                 duration_seconds=duration_seconds,
             )
@@ -179,6 +181,7 @@ async def analyze_interview(
             "video_info": video_info,
             "frame_summary": frame_summary,
             "voice_analysis": voice_analysis,
+            "pyfeat_summary": pyfeat_summary,
             "ai_analysis": ai_analysis,
             "report_files": report_paths,
         }

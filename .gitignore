@@ -60,3 +60,7 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated reports
+reports/
+reports/*.json

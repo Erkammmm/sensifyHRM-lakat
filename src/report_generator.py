@@ -33,6 +33,7 @@ class ReportGenerator:
         frame_summary: Dict,
         voice_analysis: Dict,
         ai_analysis: Dict,
+        pyfeat_summary: Optional[Dict] = None,
         video_info: Dict,
         duration_seconds: float,
     ) -> Dict[str, str]:
@@ -45,6 +46,7 @@ class ReportGenerator:
             frame_summary: Frame özeti
             voice_analysis: Ses analizi
             ai_analysis: Gemini AI analizi
+            pyfeat_summary: Py-Feat özet (opsiyonel)
             video_info: Video bilgileri
             duration_seconds: Video süresi
 
@@ -74,6 +76,7 @@ class ReportGenerator:
             frame_summary=frame_summary,
             voice_analysis=voice_analysis,
             ai_analysis=ai_analysis,
+            pyfeat_summary=pyfeat_summary,
             video_info=video_info,
             duration_seconds=duration_seconds,
         )
@@ -455,6 +458,7 @@ class ReportGenerator:
         frame_summary: Dict,
         voice_analysis: Dict,
         ai_analysis: Dict,
+        pyfeat_summary: Optional[Dict],
         video_info: Dict,
         duration_seconds: float,
     ) -> str:
@@ -467,6 +471,7 @@ class ReportGenerator:
             "frame_summary": frame_summary,
             "voice_analysis": voice_analysis,
             "ai_analysis": ai_analysis,
+            "pyfeat_summary": pyfeat_summary if pyfeat_summary else {},
         }
 
         json_path = os.path.join(self.reports_dir, f"report_{interview_id}.json")

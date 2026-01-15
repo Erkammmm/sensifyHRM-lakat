@@ -11,6 +11,9 @@ Online iş görüşmelerinde aday davranışlarını analiz eden AI motoru.
 - **Ses Analizi**: Librosa ile ham ses özellikleri
   - Speech rate, RMS energy, Pitch (f0), Silence ratio
   - Spectral centroid, Zero crossing rate
+- **Py-Feat Analizi**: Duygu, kafa pozisyonu ve landmark çıktıları (CPU)
+  - Frame bazlı ham veriler rapora eklenir
+  - Terminal/Gemini özeti: duygu dağılımları, yüz tespit oranı, pose istatistikleri
 - **Frame Özetleme**: Detaylı frame analizlerini özetleyen modül
 - **Rapor Oluşturma**: JSON, HTML ve PDF formatında detaylı raporlar
 - **RESTful API**: FastAPI ile modern API arayüzü
@@ -108,6 +111,8 @@ sensifyHRMülakay/
 │   ├── mediapipe_face_gaze_analyzer.py  # MediaPipe yüz + gaze analizi
 │   ├── voice_analyzer.py            # Ses analizi (Librosa)
 │   ├── frame_summarizer.py          # Frame analiz özetleme
+│   ├── pyfeat_analyzer.py           # Py-Feat analizi (duygu/pose/landmark)
+│   ├── pyfeat_summarizer.py         # Py-Feat özetleme
 │   ├── report_generator.py          # Rapor oluşturma (JSON, HTML, PDF)
 │   └── pipeline.py                  # Ana pipeline
 ├── api/
@@ -140,6 +145,12 @@ Analiz sonuçları JSON formatında döner:
       "silence_ratio": 0.2
     }
   },
+  "pyfeat_summary": {
+    "emotion_distribution": {...},
+    "pose_summary": {...},
+    "face_detection_rate": 100.0,
+    "general_statistics": {...}
+  },
   "report_files": {
     "json": "reports/report_xxx.json",
     "html": "reports/report_xxx.html",
@@ -154,6 +165,7 @@ Detaylı format ve teknik bilgiler için `PROJE_DOKUMANTASYONU.md` dosyasına ba
 
 - **MediaPipe**: Yüz landmark ve iris tracking
 - **Librosa**: Ses analizi
+- **Py-Feat**: Duygu, pose ve landmark analizi
 - **FastAPI**: REST API
 - **Plotly**: Veri görselleştirme
 - **Jinja2**: HTML rapor şablonları

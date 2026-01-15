@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
 # Çalışma dizini
 WORKDIR /app
 
+# CPU-only çalıştırma (Py-Feat / Torch için)
+ENV CUDA_VISIBLE_DEVICES=""
+
 # Python bağımlılıklarını kopyala ve yükle
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

@@ -13,6 +13,8 @@ from .video_processor import VideoProcessor
 from .mediapipe_face_gaze_analyzer import MediapipeFaceGazeAnalyzer
 from .voice_analyzer import VoiceAnalyzer
 from .frame_summarizer import FrameAnalysisSummarizer
+from .pyfeat_analyzer import PyFeatAnalyzer
+from .pyfeat_summarizer import PyFeatSummarizer
 
 
 class InterviewAnalysisPipeline:
@@ -31,6 +33,12 @@ class InterviewAnalysisPipeline:
             frame_skip=3,  # FRAME_SKIP: her 3 karede bir analiz
         )
         self.voice_analyzer = VoiceAnalyzer()
+        # Py-Feat analizi (CPU, hız öncelikli)
+        self.pyfeat_analyzer = PyFeatAnalyzer(
+            frame_skip=5,
+            batch_size=8,
+            device="cpu",
+        )
     
     def process_interview(self, video_path: str, interview_id: Optional[str] = None) -> Dict:
         """
@@ -86,6 +94,43 @@ class InterviewAnalysisPipeline:
                 'message': str(e),
                 'raw_voice_features': {}
             }
+
+        # 4.5 Py-Feat analizi (duygu + pose + landmark + ham çıktılar)
+        print("[Pipeline] Py-Feat analizi yapılıyor...")
+        pyfeat_frame_analysis = []
+        pyfeat_summary = {}
+        pyfeat_metadata = {
+            "status": "not_available",
+            "message": "Py-Feat analizi yapılamadı",
+        }
+        try:
+            pyfeat_result = self.pyfeat_analyzer.analyze_video(
+                video_path,
+                fps=fps,
+                total_frames=video_info.get("frame_count", len(frames)),
+            )
+            pyfeat_frame_analysis = pyfeat_result.get("frame_analysis", [])
+            pyfeat_metadata = pyfeat_result.get("metadata", {})
+            pyfeat_summary = PyFeatSummarizer.summarize(
+                pyfeat_frame_analysis,
+                total_frames=video_info.get("frame_count", len(frames)),
+                fps=fps,
+                frame_skip=self.pyfeat_analyzer.frame_skip,
+            )
+            print("[Pipeline] Py-Feat analizi tamamlandı.")
+        except Exception as e:
+            print(f"[Pipeline] Py-Feat analizi hatası: {str(e)}")
+            pyfeat_summary = {
+                "status": "error",
+                "message": str(e),
+                "emotion_distribution": {},
+                "face_detection_rate": 0.0,
+                "general_statistics": {},
+            }
+            pyfeat_metadata = {
+                "status": "error",
+                "message": str(e),
+            }
         
         # 5. Frame analizini özetle
         print("[Pipeline] Frame analizi özetleniyor...")
@@ -98,7 +143,10 @@ class InterviewAnalysisPipeline:
             video_info=video_info,
             frame_analysis=frame_analysis,
             frame_summary=frame_summary,
-            voice_summary=voice_summary
+            voice_summary=voice_summary,
+            pyfeat_frame_analysis=pyfeat_frame_analysis,
+            pyfeat_summary=pyfeat_summary,
+            pyfeat_metadata=pyfeat_metadata,
         )
         
         print(f"[Pipeline] Analiz tamamlandı: {interview_id}")
@@ -112,6 +160,9 @@ class InterviewAnalysisPipeline:
         frame_analysis: List[Optional[Dict]],
         frame_summary: Dict,
         voice_summary: Optional[Dict] = None,
+        pyfeat_frame_analysis: Optional[List[Dict]] = None,
+        pyfeat_summary: Optional[Dict] = None,
+        pyfeat_metadata: Optional[Dict] = None,
     ) -> Dict:
         """
         Analiz sonuçlarından rapor oluşturur.
@@ -132,6 +183,9 @@ class InterviewAnalysisPipeline:
                     "gaze": {...}
                 }
             voice_summary: Ses analizi özeti (opsiyonel, raw voice features)
+            pyfeat_frame_analysis: Py-Feat frame bazlı detaylar (opsiyonel)
+            pyfeat_summary: Py-Feat özet (Gemini API için sadeleştirilmiş)
+            pyfeat_metadata: Py-Feat çalışma bilgileri
             
         Returns:
             Yapılandırılmış rapor
@@ -158,6 +212,12 @@ class InterviewAnalysisPipeline:
             "voice_analysis": voice_summary if voice_summary else {
                 "status": "not_available",
                 "note": "Ses analizi yapılamadı"
+            },
+            # Py-Feat analizi (ham frame bazlı + özet)
+            "pyfeat_analysis": {
+                "frame_analysis": pyfeat_frame_analysis or [],
+                "summary": pyfeat_summary or {},
+                "metadata": pyfeat_metadata or {},
             }
         }
         

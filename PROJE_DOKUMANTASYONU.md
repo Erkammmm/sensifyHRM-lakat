@@ -6,7 +6,8 @@ SensifyHR Mülakat Analiz Sistemi, video tabanlı mülakat kayıtlarını analiz
 
 1. **Yüz ve Gaze Analizi**: MediaPipe Face Mesh ile 478 landmark + iris tracking
 2. **Ses Analizi**: Librosa ile ham ses özellikleri analizi
-3. **Rapor Oluşturma**: JSON, HTML ve PDF formatında detaylı raporlar
+3. **Py-Feat Analizi**: Duygu, kafa pozisyonu ve landmark analizi (CPU)
+4. **Rapor Oluşturma**: JSON, HTML ve PDF formatında detaylı raporlar
 
 ---
 
@@ -20,6 +21,8 @@ sensifyHRMülakay/
 │   ├── mediapipe_face_gaze_analyzer.py   # MediaPipe yüz + gaze analizi
 │   ├── voice_analyzer.py                 # Ses analizi (Librosa - raw features)
 │   ├── frame_summarizer.py               # Frame analiz özetleme
+│   ├── pyfeat_analyzer.py                # Py-Feat analizi (duygu/pose/landmark)
+│   ├── pyfeat_summarizer.py              # Py-Feat özetleme
 │   ├── report_generator.py               # Rapor oluşturma (JSON, HTML, PDF)
 │   └── pipeline.py                       # Ana pipeline (tüm modülleri koordine eder)
 ├── api/                                  # FastAPI REST API
@@ -106,7 +109,27 @@ sensifyHRMülakay/
 
 ---
 
-### 3. Frame Özetleme (Frame Summarization)
+### 3. Py-Feat Analizi (Emotion & Pose)
+
+**Kütüphane**: py-feat  
+**Çalışma Modu**: CPU (hız öncelikli)
+
+**Ham Çıktılar**:
+- **emotions**: Duygu skorları
+- **pose**: Pitch, Yaw, Roll
+- **landmarks**: Yüz landmark koordinatları
+- **facebox / aus**: Ham yüz kutusu ve AU benzeri veriler
+
+**Özet Bileşenleri**:
+- **Emotion Distribution**: Ortalama, varyans, baskın duygu
+- **Face Detection Rate**: Yüz tespit oranı
+- **Pose Summary**: Pitch/Yaw/Roll mean/std/min/max
+
+**Modül**: `src/pyfeat_analyzer.py`, `src/pyfeat_summarizer.py`
+
+---
+
+### 4. Frame Özetleme (Frame Summarization)
 
 **Amaç**: Detaylı frame analizlerini özetleyerek daha yönetilebilir hale getirmek.
 
@@ -120,7 +143,7 @@ sensifyHRMülakay/
 
 ---
 
-### 4. Rapor Oluşturma (Report Generation)
+### 5. Rapor Oluşturma (Report Generation)
 
 **Formatlar**:
 - **JSON**: Ham ve özetlenmiş veriler
@@ -143,8 +166,9 @@ sensifyHRMülakay/
 1. **Video İşleme**: Frame'ler ve ses çıkarılır
 2. **MediaPipe Analizi**: Her 3 frame'de bir yüz + gaze analizi
 3. **Ses Analizi**: Librosa ile tüm ses dosyası analiz edilir
-4. **Frame Özetleme**: Detaylı frame analizleri özetlenir
-5. **Rapor Oluşturma**: JSON, HTML ve PDF formatında raporlar kaydedilir
+4. **Py-Feat Analizi**: Video üzerinde duygu/pose/landmark analizi
+5. **Frame Özetleme**: Detaylı frame analizleri özetlenir
+6. **Rapor Oluşturma**: JSON, HTML ve PDF formatında raporlar kaydedilir
 
 **Performans Optimizasyonları**:
 - Frame sampling: Her 3 frame'de bir analiz (frame_skip=3)
@@ -222,6 +246,29 @@ sensifyHRMülakay/
       "duration_seconds": 13.80
     }
   },
+  "pyfeat_analysis": {
+    "frame_analysis": [
+      {
+        "frame_index": 0,
+        "timestamp": 0.0,
+        "faces": [
+          {
+            "face_id": 0,
+            "emotions": {...},
+            "pose": {"Pitch": -2.1, "Yaw": 1.4, "Roll": 0.7},
+            "landmarks": [...]
+          }
+        ]
+      }
+    ],
+    "summary": {
+      "emotion_distribution": {...},
+      "pose_summary": {...},
+      "face_detection_rate": 100.0,
+      "general_statistics": {...}
+    },
+    "metadata": {...}
+  },
   "report_files": {
     "json": "reports/report_xxx.json",
     "html": "reports/report_xxx.html",
@@ -258,8 +305,10 @@ sensifyHRMülakay/
 - `mediapipe==0.10.9`: Yüz landmark ve iris tracking
 - `protobuf==3.20.3`: MediaPipe uyumluluğu için sabit versiyon
 - `librosa>=0.10.0`: Ses analizi
+- `py-feat>=0.7.0`: Duygu, pose, landmark analizi
 - `opencv-python>=4.8.0`: Video işleme
 - `numpy>=1.24.0,<2.0.0`: Numerik işlemler
+- `scipy>=1.10.0,<1.11.0`: Py-Feat uyumluluğu
 - `fastapi>=0.104.0`: REST API
 - `plotly>=5.18.0`: Veri görselleştirme
 - `jinja2>=3.1.2`: HTML şablonları
@@ -299,7 +348,7 @@ curl -X POST "http://localhost:8000/analyze" -F "file=@video.mp4"
 
 ## 📝 Notlar
 
-- **Performans**: Frame sampling (her 3 frame) performans için optimize edilmiştir
+- **Performans**: MediaPipe frame sampling (her 3 frame), Py-Feat CPU analiz
 - **Kalman Filtreleme**: Gürültü azaltma için kullanılır, daha stabil sonuçlar verir
 - **Baseline Calibration**: Gaze yönü için ilk 2 saniyede otomatik kalibrasyon yapılır
 - **Raporlar**: Tüm raporlar `reports/` klasörüne kaydedilir
@@ -339,4 +388,4 @@ curl -X POST "http://localhost:8000/analyze" -F "file=@video.mp4"
 
 ---
 
-**Son Güncelleme**: 2026-01-13
+**Son Güncelleme**: 2026-01-15
