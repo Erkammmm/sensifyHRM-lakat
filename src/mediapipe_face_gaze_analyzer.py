@@ -22,8 +22,8 @@ Mediapipe tabanlı yüz + iris + ham özellikler & bakış yönü analizi.
 
 from typing import List, Dict, Optional
 
+import os
 import cv2
-import mediapipe as mp
 import numpy as np
 
 
@@ -366,6 +366,10 @@ class MediapipeFaceGazeAnalyzer:
     def _ensure_face_mesh(self):
         """Mediapipe FaceMesh'i lazy loading ile başlatır."""
         if self._face_mesh is None:
+            # Protobuf uyumluluğu için Python implementation'a zorla
+            os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+            os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION_VERSION", "3")
+            import mediapipe as mp
             self._mp_face_mesh = mp.solutions.face_mesh
             # refine_landmarks=True -> iris noktalarını da içerir
             self._face_mesh = self._mp_face_mesh.FaceMesh(

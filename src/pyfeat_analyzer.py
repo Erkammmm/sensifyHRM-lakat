@@ -34,8 +34,11 @@ class PyFeatAnalyzer:
 
         # CPU-only ve hız öncelikli
         import os
+        import warnings
         os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
         os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
+        os.environ.setdefault("TQDM_DISABLE", "1")
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         try:
             from feat import Detector
@@ -230,6 +233,8 @@ class PyFeatAnalyzer:
         """
         Video dosyası üzerinden Py-Feat analizi yapar (doğrudan video girdi).
         """
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
         self._init_detector()
 
         try:

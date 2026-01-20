@@ -374,7 +374,8 @@ Yazım kuralları:
 - `scipy>=1.10.0,<1.11.0`: Py-Feat uyumluluğu
 - `fastapi>=0.104.0`: REST API
 - `google-genai>=0.6.0`: Gemini istemcisi
-- `plotly>=5.18.0`: Veri görselleştirme
+- `matplotlib>=3.8.0`: Veri görselleştirme
+- `seaborn>=0.13.0`: Veri görselleştirme
 - `jinja2>=3.1.2`: HTML şablonları
 - `xhtml2pdf>=0.2.11`: PDF oluşturma
 

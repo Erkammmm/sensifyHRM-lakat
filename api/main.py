@@ -6,8 +6,9 @@ Mülakat analiz API endpoint'leri.
 import os
 import sys
 import json
+import subprocess
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Body
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from typing import Optional, Dict, Any
 import uuid
@@ -157,30 +158,33 @@ async def analyze_interview(
         duration_seconds = full_report.get("duration_seconds", 0.0)
         
         # 3. AI analizi (Gemini - summary only)
-        ai_analysis = {"note": "Gemini analizi yapılamadı."}
-        try:
-            summary_payload = _build_summary_payload({
-                "interview_id": interview_id,
-                "duration_seconds": duration_seconds,
-                "video_info": video_info,
-                "frame_summary": frame_summary,
-                "voice_analysis": voice_analysis,
-                "pyfeat_summary": pyfeat_summary,
-            })
-            prompt_text = _load_prompt()
-            if not prompt_text:
-                raise RuntimeError("Prompt dosyası boş veya bulunamadı.")
-            full_prompt = f"{prompt_text}\n\nVERI:\n{json.dumps(summary_payload, ensure_ascii=False)}"
-            result = _call_gemini(full_prompt)
-            ai_analysis = {
-                "analysis": result.get("text", ""),
-                "model": result.get("model"),
-            }
-        except Exception as e:
-            ai_analysis = {
-                "status": "error",
-                "message": str(e),
-            }
+        def _strip_voice_series(data: Dict[str, Any]) -> Dict[str, Any]:
+            if not isinstance(data, dict):
+                return data
+            cleaned = dict(data)
+            raw = cleaned.get("raw_voice_features", cleaned)
+            if isinstance(raw, dict):
+                raw = dict(raw)
+                raw.pop("rms_energy_series", None)
+                raw.pop("pitch_series", None)
+                raw.pop("pitch_histogram", None)
+                if "raw_voice_features" in cleaned:
+                    cleaned["raw_voice_features"] = raw
+                else:
+                    cleaned = raw
+            return cleaned
+
+        voice_analysis_clean = _strip_voice_series(voice_analysis)
+
+        summary_payload = _build_summary_payload({
+            "interview_id": interview_id,
+            "duration_seconds": duration_seconds,
+            "video_info": video_info,
+            "frame_summary": frame_summary,
+            "voice_analysis": voice_analysis_clean,
+            "pyfeat_summary": pyfeat_summary,
+        })
+        ai_analysis = {}
         
         # 4. Rapor oluştur (JSON, HTML, PDF)
         if report_generator:
@@ -198,6 +202,57 @@ async def analyze_interview(
             )
         else:
             report_paths = {}
+
+        # 4.5 Gemini (ayrı process - protobuf çakışması için izolasyon)
+        gemini_text = ""
+        if report_paths.get("json"):
+            gemini_script = os.path.join(os.path.dirname(__file__), "..", "src", "gemini.py")
+            gemini_script = os.path.abspath(gemini_script)
+            result = subprocess.run(
+                [sys.executable, gemini_script, report_paths["json"]],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                gemini_text = result.stdout.strip()
+            else:
+                gemini_text = ""
+                ai_analysis = {"status": "error", "message": result.stderr.strip()}
+
+        if gemini_text:
+            ai_analysis = {"analysis": gemini_text}
+
+        # Gemini metnini HTML ve JSON rapora ekle
+        if report_paths.get("json"):
+            try:
+                with open(report_paths["json"], "r", encoding="utf-8") as f:
+                    report_data = json.load(f)
+                report_data["ai_analysis"] = ai_analysis
+                with open(report_paths["json"], "w", encoding="utf-8") as f:
+                    json.dump(report_data, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
+        if report_paths.get("html") and gemini_text:
+            try:
+                with open(report_paths["html"], "r", encoding="utf-8") as f:
+                    html_content = f.read()
+                escaped = (
+                    gemini_text.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                )
+                insertion = f"<h2>AI Destekli İK Değerlendirmesi</h2><p>{escaped}</p>"
+                if "<div class=\"footer\">" in html_content:
+                    html_content = html_content.replace("<div class=\"footer\">", f"{insertion}\n<div class=\"footer\">")
+                elif "</body>" in html_content:
+                    html_content = html_content.replace("</body>", f"{insertion}\n</body>")
+                else:
+                    html_content += insertion
+                with open(report_paths["html"], "w", encoding="utf-8") as f:
+                    f.write(html_content)
+            except Exception:
+                pass
         
         # 5. Rafine JSON yanıtı oluştur (ham frame_analysis olmadan)
         refined_response = {
@@ -206,10 +261,8 @@ async def analyze_interview(
             "analysis_timestamp": datetime.utcnow().isoformat() + "Z",
             "video_info": video_info,
             "frame_summary": frame_summary,
-            "voice_analysis": voice_analysis,
+            "voice_analysis": voice_analysis_clean,
             "pyfeat_summary": pyfeat_summary,
-            "ai_analysis": ai_analysis,
-            "report_files": report_paths,
         }
         
         # Analiz durumunu güncelle
@@ -257,19 +310,6 @@ async def get_analysis_status(interview_id: str):
     return status
 
 
-def _load_prompt() -> str:
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    candidates = [
-        os.path.join(base_dir, "src", "prompt.txt"),
-        os.path.join(base_dir, "src", "prompt"),
-    ]
-    for path in candidates:
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                return f.read().strip()
-    return ""
-
-
 def _build_summary_payload(report: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "interview_id": report.get("interview_id"),
@@ -281,22 +321,6 @@ def _build_summary_payload(report: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _call_gemini(prompt: str) -> Dict[str, Any]:
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY bulunamadı.")
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-pro").strip()
-    try:
-        from google import genai
-    except Exception as exc:
-        raise RuntimeError("google-genai kütüphanesi bulunamadı.") from exc
-
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-    )
-    return {"model": model, "text": getattr(response, "text", "")}
 
 
 

@@ -234,7 +234,7 @@ Yazım kuralları:
 - **Librosa**: Ses analizi
 - **Py-Feat**: Duygu, pose ve landmark analizi
 - **FastAPI**: REST API
-- **Plotly**: Veri görselleştirme
+- **Matplotlib/Seaborn**: Veri görselleştirme
 - **Jinja2**: HTML rapor şablonları
 - **xhtml2pdf**: PDF oluşturma
 - **Google GenAI**: Gemini istemcisi

@@ -122,47 +122,7 @@ def test_pipeline(video_path: str):
         else:
             print("  - Ses analizi mevcut değil")
 
-        # Py-Feat Özeti (Gemini API için)
-        pyfeat_summary = report.get("pyfeat_analysis", {}).get("summary", {})
-        print(f"\nPy-Feat Özeti (Gemini API için):")
-        if pyfeat_summary:
-            emo_dist = pyfeat_summary.get("emotion_distribution", {})
-            means = emo_dist.get("mean", {})
-            variances = emo_dist.get("variance", {})
-            dominant = emo_dist.get("dominant_emotion", None)
-            dominant_score = emo_dist.get("dominant_emotion_score", 0.0)
-            face_rate = pyfeat_summary.get("face_detection_rate", 0.0)
-            gen_stats = pyfeat_summary.get("general_statistics", {})
-            pose_summary = pyfeat_summary.get("pose_summary", {})
-
-            print(f"  - Yüz tespit oranı: {face_rate:.1f}%")
-            if dominant:
-                print(f"  - Baskın duygu (ortalama skor): {dominant} ({dominant_score:.3f})")
-            if means:
-                print("  - Duygu Ortalamaları:")
-                for emo, val in means.items():
-                    print(f"    * {emo}: {val:.3f}")
-            if variances:
-                print("  - Duygu Varyansları:")
-                for emo, val in variances.items():
-                    print(f"    * {emo}: {val:.3f}")
-            if gen_stats:
-                print(f"  - Analiz edilen frame: {gen_stats.get('frames_analyzed', 0)} / {gen_stats.get('total_frames', 0)}")
-            if pose_summary:
-                print("  - Py-Feat Baş & Poz (ham):")
-                for key in ("Pitch", "Yaw", "Roll"):
-                    stats = pose_summary.get(key, {})
-                    if not stats:
-                        continue
-                    print(
-                        f"    * {key} mean/std/min/max: "
-                        f"{stats.get('mean', 0.0):.3f} / "
-                        f"{stats.get('std', 0.0):.3f} / "
-                        f"{stats.get('min', 0.0):.3f} / "
-                        f"{stats.get('max', 0.0):.3f}"
-                    )
-        else:
-            print("  - Py-Feat özeti mevcut değil")
+        # Py-Feat özeti terminalde gösterilmez (terminal şişmesini önlemek için)
         print("-" * 60)
         
         # JSON çıktısı (raporlar klasörüne kaydet)
