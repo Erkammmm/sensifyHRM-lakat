@@ -29,6 +29,7 @@ scipy>=1.10.0,<1.11.0
 python-dotenv>=1.0.0
 pydantic>=2.5.0
 aiofiles>=23.2.1
+google-genai>=0.6.0
 
 # Image Processing
 Pillow>=10.1.0

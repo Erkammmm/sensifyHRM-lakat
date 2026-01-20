@@ -153,6 +153,7 @@ sensifyHRMülakay/
 **Görselleştirmeler**:
 - **Time-series Grafikler**: Ağız ve göz hareketleri zaman içinde
 - **Gaze Distribution**: Pasta grafiği ile gaze yönleri dağılımı
+**Not**: Grafikler `frame_analysis` (ham frame verisi) üzerinden Python/Plotly ile üretilir.
 
 **Modül**: `src/report_generator.py`
 
@@ -279,6 +280,68 @@ sensifyHRMülakay/
 
 ---
 
+## 🧠 İK Raporlama (Gemini Prompt)
+
+- **Ham veri gönderilmez**: `frame_analysis` ve Py-Feat frame detayları Gemini'ye dahil edilmez.
+- **Sadece özet kullanılır**: `frame_summary`, `voice_analysis`, `pyfeat_summary`.
+
+**Prompt şablonu**:
+```
+Sen, video mülakatlar üzerinden aday değerlendirmesi yapan
+kıdemli bir İK analisti ve davranış bilimcisin.
+
+Sana verilen veriler:
+- Adayın video mülakatı boyunca çıkarılmış
+  multimodal analiz çıktılarıdır.
+- Bu çıktılar; ses, konuşma akıcılığı, yüz ifadeleri,
+  bakış yönü, duygusal durum ve zaman içindeki değişimleri içerir.
+- Veriler sayısal ve objektiftir, ancak yorumlanmaya ihtiyaç duyar.
+
+Görevin:
+Bu multimodal çıktıları bir İK uzmanı bakış açısıyla,
+kısa, net ve yorumlayıcı bir rapora dönüştürmek.
+
+Aşağıdaki başlıklar altında yaz:
+
+1) Genel İzlenim
+   - Özellikle ilk 10 saniyeye odaklan
+   - Aday ilk bakışta nasıl algılanıyor?
+
+2) İletişim ve Akıcılık
+   - Konuşma temposu
+   - Duraksamalar
+   - Artikülasyon ve ritim
+
+3) Duygusal Durum
+   - Stres / rahatlık sinyalleri
+   - Duygusal stabilite
+   - Zaman içindeki değişim
+
+4) Güven ve Beden Dili
+   - Göz teması
+   - Yüz açıklığı
+   - Genel beden dili tutarlılığı
+
+5) Olası Risk Sinyalleri
+   - Aşırı stres
+   - Kaçamak bakış
+   - Tutarsızlıklar
+   (Varsa belirt, yoksa “belirgin risk sinyali yok” de)
+
+6) Genel Değerlendirme
+   - Bu aday mülakatta nasıl bir izlenim bırakır?
+   - Kısa, profesyonel bir İK yorumu ile bitir.
+
+Yazım kuralları:
+- Teknik terimleri sadeleştir
+- İK uzmanına hitap et
+- Abartma, varsayım yapma
+- Kısa paragraflar kullan
+- Yorum yap, veri tekrar etme
+```
+
+---
+
 ## 🛠️ Kullanılan Yöntemler
 
 ### Veri Ön İşleme
@@ -310,6 +373,7 @@ sensifyHRMülakay/
 - `numpy>=1.24.0,<2.0.0`: Numerik işlemler
 - `scipy>=1.10.0,<1.11.0`: Py-Feat uyumluluğu
 - `fastapi>=0.104.0`: REST API
+- `google-genai>=0.6.0`: Gemini istemcisi
 - `plotly>=5.18.0`: Veri görselleştirme
 - `jinja2>=3.1.2`: HTML şablonları
 - `xhtml2pdf>=0.2.11`: PDF oluşturma
@@ -343,6 +407,11 @@ python api/main.py
 # Video yükle ve analiz et
 curl -X POST "http://localhost:8000/analyze" -F "file=@video.mp4"
 ```
+
+**Gemini entegrasyonu**: `/analyze` çağrısı sonrası otomatik çalışır ve
+çıktı `ai_analysis` alanına yazılır (ham veriler gönderilmez).
+**Gerekli env**: `GEMINI_API_KEY` (opsiyonel: `GEMINI_MODEL`)
+**Prompt dosyası**: `src/prompt.txt` (yoksa `src/prompt`)
 
 ---
 

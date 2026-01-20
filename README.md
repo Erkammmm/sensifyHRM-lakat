@@ -81,6 +81,10 @@ uvicorn api.main:app --reload
 
 API `http://localhost:8000` adresinde çalışacaktır.
 
+**Gemini entegrasyonu**: `/analyze` çağrısı sonrasında Gemini otomatik çalışır ve
+çıktı `ai_analysis` alanına yazılır (ham veriler gönderilmez).
+Gerekli env: `GEMINI_API_KEY` (opsiyonel: `GEMINI_MODEL`).
+
 ### API Endpoints
 
 #### 1. Video Analizi
@@ -159,7 +163,70 @@ Analiz sonuçları JSON formatında döner:
 }
 ```
 
+Not: HTML/PDF grafikler `frame_analysis` ve `voice_analysis` ham serileri üzerinden Python/Plotly ile üretilir.
+
 Detaylı format ve teknik bilgiler için `PROJE_DOKUMANTASYONU.md` dosyasına bakın.
+
+## İK Raporu (Gemini için)
+
+- **Ham veri gönderme**: `frame_analysis` ve Py-Feat frame detayları Gemini'ye gönderilmez.
+- **Özet üzerinden yorum**: `frame_summary`, `voice_analysis` ve `pyfeat_summary` kullanılır.
+- **Prompt dosyası**: `src/prompt.txt` (yoksa `src/prompt`)
+
+Önerilen prompt şablonu:
+```
+Sen, video mülakatlar üzerinden aday değerlendirmesi yapan
+kıdemli bir İK analisti ve davranış bilimcisin.
+
+Sana verilen veriler:
+- Adayın video mülakatı boyunca çıkarılmış
+  multimodal analiz çıktılarıdır.
+- Bu çıktılar; ses, konuşma akıcılığı, yüz ifadeleri,
+  bakış yönü, duygusal durum ve zaman içindeki değişimleri içerir.
+- Veriler sayısal ve objektiftir, ancak yorumlanmaya ihtiyaç duyar.
+
+Görevin:
+Bu multimodal çıktıları bir İK uzmanı bakış açısıyla,
+kısa, net ve yorumlayıcı bir rapora dönüştürmek.
+
+Aşağıdaki başlıklar altında yaz:
+
+1) Genel İzlenim
+   - Özellikle ilk 10 saniyeye odaklan
+   - Aday ilk bakışta nasıl algılanıyor?
+
+2) İletişim ve Akıcılık
+   - Konuşma temposu
+   - Duraksamalar
+   - Artikülasyon ve ritim
+
+3) Duygusal Durum
+   - Stres / rahatlık sinyalleri
+   - Duygusal stabilite
+   - Zaman içindeki değişim
+
+4) Güven ve Beden Dili
+   - Göz teması
+   - Yüz açıklığı
+   - Genel beden dili tutarlılığı
+
+5) Olası Risk Sinyalleri
+   - Aşırı stres
+   - Kaçamak bakış
+   - Tutarsızlıklar
+   (Varsa belirt, yoksa “belirgin risk sinyali yok” de)
+
+6) Genel Değerlendirme
+   - Bu aday mülakatta nasıl bir izlenim bırakır?
+   - Kısa, profesyonel bir İK yorumu ile bitir.
+
+Yazım kuralları:
+- Teknik terimleri sadeleştir
+- İK uzmanına hitap et
+- Abartma, varsayım yapma
+- Kısa paragraflar kullan
+- Yorum yap, veri tekrar etme
+```
 
 ## Teknoloji Stack
 
@@ -170,6 +237,7 @@ Detaylı format ve teknik bilgiler için `PROJE_DOKUMANTASYONU.md` dosyasına ba
 - **Plotly**: Veri görselleştirme
 - **Jinja2**: HTML rapor şablonları
 - **xhtml2pdf**: PDF oluşturma
+- **Google GenAI**: Gemini istemcisi
 
 ## Lisans
 

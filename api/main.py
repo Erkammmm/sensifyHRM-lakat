@@ -5,10 +5,11 @@ Mülakat analiz API endpoint'leri.
 
 import os
 import sys
+import json
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Body
 from fastapi.responses import JSONResponse
-from typing import Optional
+from typing import Optional, Dict, Any
 import uuid
 import aiofiles
 from datetime import datetime
@@ -70,7 +71,7 @@ async def root():
         "version": "1.0.0",
         "status": "running",
         "endpoints": {
-            "analyze": "POST /analyze - Video yükleme ve analiz başlatma",
+            "analyze": "POST /analyze - Video yükleme ve analiz + Gemini yorumu",
             "status": "GET /status/{interview_id} - Analiz durumu",
             "health": "GET /health - Sistem sağlık kontrolü"
         }
@@ -150,12 +151,36 @@ async def analyze_interview(
         # 2. Rafine verileri çıkar (terminaldeki özet gibi)
         frame_summary = full_report.get("frame_summary", {})
         voice_analysis = full_report.get("voice_analysis", {})
-        pyfeat_summary = full_report.get("pyfeat_analysis", {}).get("summary", {})
+        pyfeat_analysis = full_report.get("pyfeat_analysis", {})
+        pyfeat_summary = pyfeat_analysis.get("summary", {})
         video_info = full_report.get("video_info", {})
         duration_seconds = full_report.get("duration_seconds", 0.0)
         
-        # 3. AI analizi (şu an yok, ileride eklenebilir)
-        ai_analysis = {"note": "AI analizi şu an aktif değil."}
+        # 3. AI analizi (Gemini - summary only)
+        ai_analysis = {"note": "Gemini analizi yapılamadı."}
+        try:
+            summary_payload = _build_summary_payload({
+                "interview_id": interview_id,
+                "duration_seconds": duration_seconds,
+                "video_info": video_info,
+                "frame_summary": frame_summary,
+                "voice_analysis": voice_analysis,
+                "pyfeat_summary": pyfeat_summary,
+            })
+            prompt_text = _load_prompt()
+            if not prompt_text:
+                raise RuntimeError("Prompt dosyası boş veya bulunamadı.")
+            full_prompt = f"{prompt_text}\n\nVERI:\n{json.dumps(summary_payload, ensure_ascii=False)}"
+            result = _call_gemini(full_prompt)
+            ai_analysis = {
+                "analysis": result.get("text", ""),
+                "model": result.get("model"),
+            }
+        except Exception as e:
+            ai_analysis = {
+                "status": "error",
+                "message": str(e),
+            }
         
         # 4. Rapor oluştur (JSON, HTML, PDF)
         if report_generator:
@@ -167,6 +192,7 @@ async def analyze_interview(
                 voice_analysis=voice_analysis,
                 ai_analysis=ai_analysis,
                 pyfeat_summary=pyfeat_summary,
+                pyfeat_frame_analysis=pyfeat_analysis.get("frame_analysis", []),
                 video_info=video_info,
                 duration_seconds=duration_seconds,
             )
@@ -229,6 +255,50 @@ async def get_analysis_status(interview_id: str):
         raise HTTPException(status_code=404, detail="Mülakat bulunamadı")
     
     return status
+
+
+def _load_prompt() -> str:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates = [
+        os.path.join(base_dir, "src", "prompt.txt"),
+        os.path.join(base_dir, "src", "prompt"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read().strip()
+    return ""
+
+
+def _build_summary_payload(report: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "interview_id": report.get("interview_id"),
+        "duration_seconds": report.get("duration_seconds"),
+        "video_info": report.get("video_info", {}),
+        "frame_summary": report.get("frame_summary", {}),
+        "voice_analysis": report.get("voice_analysis", {}),
+        "pyfeat_summary": report.get("pyfeat_summary", {}),
+    }
+
+
+def _call_gemini(prompt: str) -> Dict[str, Any]:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY bulunamadı.")
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-pro").strip()
+    try:
+        from google import genai
+    except Exception as exc:
+        raise RuntimeError("google-genai kütüphanesi bulunamadı.") from exc
+
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt,
+    )
+    return {"model": model, "text": getattr(response, "text", "")}
+
+
 
 
 if __name__ == "__main__":

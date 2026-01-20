@@ -283,6 +283,36 @@ class VoiceAnalyzer:
         spectral_centroid_mean = float(np.mean(spectral_centroid))
         spectral_centroid_std = float(np.std(spectral_centroid))
 
+        # RMS enerji zaman serisi
+        rms_series = librosa.feature.rms(
+            y=audio,
+            frame_length=self.frame_length,
+            hop_length=self.hop_length
+        )[0]
+        rms_times = librosa.frames_to_time(
+            np.arange(len(rms_series)),
+            sr=self.sample_rate,
+            hop_length=self.hop_length
+        )
+
+        # Pitch zaman serisi (piptrack)
+        pitches, magnitudes = librosa.piptrack(
+            y=audio,
+            sr=self.sample_rate,
+            fmin=50,
+            fmax=400
+        )
+        pitch_series = []
+        for t in range(pitches.shape[1]):
+            index = magnitudes[:, t].argmax()
+            pitch = pitches[index, t]
+            pitch_series.append(float(pitch) if pitch > 0 else 0.0)
+        pitch_times = librosa.frames_to_time(
+            np.arange(len(pitch_series)),
+            sr=self.sample_rate,
+            hop_length=self.hop_length
+        )
+
         # RAW VOICE FEATURES (yorum içermeyen, ham özellikler)
         raw_voice_features = {
             "speech_rate": {
@@ -295,12 +325,21 @@ class VoiceAnalyzer:
                 "min": float(energy_features.get("min_energy", 0.0)),
                 "max": float(energy_features.get("max_energy", 0.0))
             },
+            "rms_energy_series": {
+                "times": rms_times.tolist(),
+                "values": rms_series.tolist()
+            },
             "pitch_f0": {
                 "mean": float(pitch_features.get("mean_pitch", 0.0)),
                 "std": float(pitch_features.get("std_pitch", 0.0)),
                 "min": float(pitch_features.get("min_pitch", 0.0)),
                 "max": float(pitch_features.get("max_pitch", 0.0))
             },
+            "pitch_series": {
+                "times": pitch_times.tolist(),
+                "values": pitch_series
+            },
+            "pitch_histogram": pitch_features.get("pitch_values", []),
             "pause_durations": prosodic_features.get("pause_durations", []),
             "silence_ratio": float(prosodic_features.get("pause_ratio", 0.0)),
             "spectral_centroid": {
