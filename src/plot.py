@@ -85,6 +85,109 @@ def generate_report_charts(
     analyzed_frames = len(valid_frames)
     frame_skip = int(round(total_frames / analyzed_frames)) if analyzed_frames else 0
 
+    # --- NEW: İlk 5 kritik grafik en başta ---
+    # 1) Zaman–Duygu Değişimi (Py-Feat)
+    if pyfeat_frame_analysis:
+        emo_times = []
+        emo_happiness = []
+        emo_surprise = []
+        emo_neutral = []
+        for frame in pyfeat_frame_analysis:
+            faces = frame.get("faces", [])
+            if not faces:
+                continue
+            emotions = faces[0].get("emotions", {})
+            if not emotions:
+                continue
+            emo_times.append(frame.get("timestamp", 0.0))
+            emo_happiness.append(float(emotions.get("happiness", 0.0)))
+            emo_surprise.append(float(emotions.get("surprise", 0.0)))
+            emo_neutral.append(float(emotions.get("neutral", 0.0)))
+        if emo_times:
+            fig, ax = plt.subplots(figsize=(8, 3))
+            ax.plot(emo_times, emo_happiness, label="happiness")
+            ax.plot(emo_times, emo_surprise, label="surprise")
+            ax.plot(emo_times, emo_neutral, label="neutral")
+            ax.set_title("Zaman–Duygu Değişimi")
+            ax.set_xlabel("Zaman (s)")
+            ax.set_ylabel("Skor")
+            ax.legend()
+            charts.append({"title": "Zaman–Duygu Değişimi", "path": _save_fig(fig, os.path.join(output_dir, "emotion_timeseries.png"))})
+
+    # 2) Gaze Direction Dağılımı (Bar / Pie)
+    gaze_summary = frame_summary.get("gaze_summary", {})
+    dir_perc = gaze_summary.get("direction_percentages", {})
+    added_gaze_distribution = False
+    if dir_perc:
+        fig, ax = plt.subplots(figsize=(5, 3))
+        sns.barplot(x=list(dir_perc.keys()), y=list(dir_perc.values()), ax=ax, palette="muted")
+        ax.set_title("Gaze Direction Dağılımı")
+        ax.set_ylabel("%")
+        charts.append({"title": "Gaze Direction Dağılımı", "path": _save_fig(fig, os.path.join(output_dir, "gaze_distribution_bar.png"))})
+        added_gaze_distribution = True
+
+    # 3) Pitch & Energy Zaman Serisi
+    rv = voice_analysis.get("raw_voice_features", voice_analysis)
+    rms_series = rv.get("rms_energy_series", {})
+    pitch_series = rv.get("pitch_series", {})
+    added_pitch_energy = False
+    if rms_series.get("values") or pitch_series.get("values"):
+        fig, ax1 = plt.subplots(figsize=(8, 3))
+        if rms_series.get("values"):
+            ax1.plot(rms_series.get("times", []), rms_series.get("values", []), color="#1f77b4", label="RMS Energy")
+            ax1.set_ylabel("Energy")
+        ax2 = ax1.twinx()
+        if pitch_series.get("values"):
+            ax2.plot(pitch_series.get("times", []), pitch_series.get("values", []), color="#ff7f0e", label="Pitch (F0)")
+            ax2.set_ylabel("Hz")
+        ax1.set_title("Pitch & Energy Zaman Serisi")
+        ax1.set_xlabel("Zaman (s)")
+        charts.append({"title": "Pitch & Energy Zaman Serisi", "path": _save_fig(fig, os.path.join(output_dir, "pitch_energy_ts.png"))})
+        added_pitch_energy = True
+
+    # 4) Pause Timeline (Stem / Event Plot)
+    pause_durations = rv.get("pause_durations", [])
+    added_pause_timeline = False
+    if pause_durations:
+        fig, ax = plt.subplots(figsize=(7, 2.5))
+        x = list(range(len(pause_durations)))
+        y = pause_durations
+        ax.stem(x, y, basefmt=" ")
+        long_idx = [i for i, v in enumerate(y) if v >= 0.7]
+        if long_idx:
+            ax.scatter(long_idx, [y[i] for i in long_idx], color="red", label="Uzun duraksama")
+            ax.legend()
+        ax.set_title("Pause Timeline")
+        ax.set_xlabel("Duraksama index")
+        ax.set_ylabel("Süre (s)")
+        charts.append({"title": "Pause Timeline", "path": _save_fig(fig, os.path.join(output_dir, "pause_timeline.png"))})
+        added_pause_timeline = True
+
+    # 5) Pose (Yaw–Pitch) Yoğunluk
+    added_pose_density = False
+    if pyfeat_frame_analysis:
+        yaw_vals = []
+        pitch_vals = []
+        for frame in pyfeat_frame_analysis:
+            faces = frame.get("faces", [])
+            if not faces:
+                continue
+            pose = faces[0].get("pose", {})
+            if not pose:
+                continue
+            yaw_vals.append(float(pose.get("Yaw", 0.0)))
+            pitch_vals.append(float(pose.get("Pitch", 0.0)))
+        if yaw_vals and pitch_vals:
+            fig, ax = plt.subplots(figsize=(5, 4))
+            if len(yaw_vals) > 10:
+                sns.kdeplot(x=yaw_vals, y=pitch_vals, fill=True, thresh=0.05, levels=30, ax=ax)
+            ax.scatter(yaw_vals, pitch_vals, s=10, alpha=0.4)
+            ax.set_title("Pose (Yaw–Pitch) Yoğunluk")
+            ax.set_xlabel("Yaw")
+            ax.set_ylabel("Pitch")
+            charts.append({"title": "Pose (Yaw–Pitch) Yoğunluk", "path": _save_fig(fig, os.path.join(output_dir, "pose_yaw_pitch_density.png"))})
+            added_pose_density = True
+
     # 1.1 Analiz Kapsamı Özeti
     fig, ax = plt.subplots(figsize=(6, 4))
     labels = ["Video Süresi (s)", "FPS", "Analiz Edilen Frame", "Frame Skip"]
@@ -129,10 +232,8 @@ def generate_report_charts(
         ax.set_xlabel("Zaman (s)")
         charts.append({"title": "Emotion Change Points", "path": _save_fig(fig, os.path.join(output_dir, "emotion_change_points.png"))})
 
-    # 3.1 Gaze Dağılımı
-    gaze_summary = frame_summary.get("gaze_summary", {})
-    dir_perc = gaze_summary.get("direction_percentages", {})
-    if dir_perc:
+    # 3.1 Gaze Dağılımı (önceden eklendiyse tekrar ekleme)
+    if dir_perc and not added_gaze_distribution:
         fig, ax = plt.subplots(figsize=(5, 4))
         ax.pie(dir_perc.values(), labels=dir_perc.keys(), autopct="%1.1f%%")
         ax.set_title("Göz Bakış Dağılımı")
@@ -180,7 +281,7 @@ def generate_report_charts(
     # 5. Ses Analizi
     rv = voice_analysis.get("raw_voice_features", voice_analysis)
     rms_series = rv.get("rms_energy_series", {})
-    if rms_series.get("values"):
+    if rms_series.get("values") and not added_pitch_energy:
         fig, ax = plt.subplots(figsize=(8, 3))
         ax.plot(rms_series.get("times", []), rms_series.get("values", []))
         ax.set_title("RMS Energy Zaman Serisi")
@@ -196,7 +297,7 @@ def generate_report_charts(
         charts.append({"title": "RMS Energy İstatistikleri", "path": _save_fig(fig, os.path.join(output_dir, "rms_stats.png"))})
 
     pitch_series = rv.get("pitch_series", {})
-    if pitch_series.get("values"):
+    if pitch_series.get("values") and not added_pitch_energy:
         fig, ax = plt.subplots(figsize=(8, 3))
         ax.plot(pitch_series.get("times", []), pitch_series.get("values", []))
         ax.set_title("Pitch (F0) Zaman Serisi")
@@ -211,7 +312,7 @@ def generate_report_charts(
         charts.append({"title": "Pitch Dağılımı", "path": _save_fig(fig, os.path.join(output_dir, "pitch_hist.png"))})
 
     pause_durations = rv.get("pause_durations", [])
-    if pause_durations:
+    if pause_durations and not added_pause_timeline:
         fig, ax = plt.subplots(figsize=(5, 3))
         sns.histplot(pause_durations, bins=20, ax=ax)
         ax.set_title("Pause Durations")
@@ -266,7 +367,7 @@ def generate_report_charts(
         charts.append({"title": "Dominant Emotion Frequency", "path": _save_fig(fig, os.path.join(output_dir, "emotion_dom_freq.png"))})
 
     # 7. Head Pose & Beden Dili
-    if pyfeat_frame_analysis:
+    if pyfeat_frame_analysis and not added_pose_density:
         pose_times = []
         pitch_vals = []
         yaw_vals = []

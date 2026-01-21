@@ -6,6 +6,7 @@ Prompt dosyasını okuyup summary metni ile birleştirir ve metin üretir.
 import os
 import json
 import sys
+import warnings
 
 
 def _load_prompt() -> str:
@@ -50,6 +51,7 @@ def _build_summary_payload(report: dict) -> dict:
 
 def generate_gemini_text(summary_text: str) -> str:
     _load_env_from_file()
+    warnings.simplefilter("ignore", FutureWarning)
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY bulunamadı.")
@@ -60,6 +62,12 @@ def generate_gemini_text(summary_text: str) -> str:
 
     model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-pro").strip()
     full_prompt = f"{prompt}\n\n{summary_text}"
+
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
     import google.generativeai as genai
     genai.configure(api_key=api_key)

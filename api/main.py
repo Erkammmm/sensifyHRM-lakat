@@ -208,10 +208,16 @@ async def analyze_interview(
         if report_paths.get("json"):
             gemini_script = os.path.join(os.path.dirname(__file__), "..", "src", "gemini.py")
             gemini_script = os.path.abspath(gemini_script)
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUTF8"] = "1"
             result = subprocess.run(
                 [sys.executable, gemini_script, report_paths["json"]],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
             )
             if result.returncode == 0:
                 gemini_text = result.stdout.strip()
