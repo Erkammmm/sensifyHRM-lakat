@@ -104,13 +104,14 @@ class InterviewAnalysisPipeline:
             "message": "Py-Feat analizi yapılamadı",
         }
         try:
-            pyfeat_result = self.pyfeat_analyzer.analyze_video(
-                video_path,
-                fps=fps,
-                total_frames=video_info.get("frame_count", len(frames)),
-            )
+            # Py-Feat düşük frekanslı çalıştır (örn. 1 fps)
+            target_hz = 1.0
+            if fps and fps == fps:
+                self.pyfeat_analyzer.frame_skip = max(1, int(round(fps / target_hz)))
+            pyfeat_result = self.pyfeat_analyzer.analyze_frames(frames, fps=fps)
             pyfeat_frame_analysis = pyfeat_result.get("frame_analysis", [])
             pyfeat_metadata = pyfeat_result.get("metadata", {})
+            pyfeat_metadata["sample_rate_hz"] = target_hz
             pyfeat_summary = PyFeatSummarizer.summarize(
                 pyfeat_frame_analysis,
                 total_frames=video_info.get("frame_count", len(frames)),

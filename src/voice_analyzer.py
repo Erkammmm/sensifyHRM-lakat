@@ -283,6 +283,16 @@ class VoiceAnalyzer:
         spectral_centroid_mean = float(np.mean(spectral_centroid))
         spectral_centroid_std = float(np.std(spectral_centroid))
 
+        # ZCR zaman serisi
+        zcr_series = librosa.feature.zero_crossing_rate(
+            audio, frame_length=self.frame_length, hop_length=self.hop_length
+        )[0]
+        zcr_times = librosa.frames_to_time(
+            np.arange(len(zcr_series)),
+            sr=self.sample_rate,
+            hop_length=self.hop_length
+        )
+
         # RMS enerji zaman serisi
         rms_series = librosa.feature.rms(
             y=audio,
@@ -346,9 +356,21 @@ class VoiceAnalyzer:
                 "mean": spectral_centroid_mean,
                 "std": spectral_centroid_std
             },
+            "spectral_centroid_series": {
+                "times": librosa.frames_to_time(
+                    np.arange(len(spectral_centroid)),
+                    sr=self.sample_rate,
+                    hop_length=self.hop_length
+                ).tolist(),
+                "values": spectral_centroid.tolist()
+            },
             "zero_crossing_rate": {
                 "mean": float(prosodic_features.get("zero_crossing_rate_mean", 0.0)),
                 "std": float(prosodic_features.get("zero_crossing_rate_std", 0.0))
+            },
+            "zero_crossing_rate_series": {
+                "times": zcr_times.tolist(),
+                "values": zcr_series.tolist()
             },
             "duration_seconds": float(vad_features.get("total_duration_seconds", 0.0))
         }

@@ -3,7 +3,7 @@ Py-Feat Summary Builder
 Frame bazlı Py-Feat çıktılarından sadeleştirilmiş özet üretir.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from collections import Counter
 import numpy as np
 
@@ -16,7 +16,8 @@ class PyFeatSummarizer:
 
     @staticmethod
     def summarize(frame_analysis: List[Dict[str, Any]], total_frames: int, fps: float, frame_skip: int) -> Dict[str, Any]:
-        frames_analyzed = len(frame_analysis)
+        valid_frames = [f for f in frame_analysis if f is not None]
+        frames_analyzed = len(valid_frames)
         frames_with_faces = 0
         faces_detected = 0
 
@@ -24,7 +25,7 @@ class PyFeatSummarizer:
         dominant_counter = Counter()
         pose_values: Dict[str, List[float]] = {}
 
-        for frame in frame_analysis:
+        for frame in valid_frames:
             faces = frame.get("faces", [])
             if faces:
                 frames_with_faces += 1
@@ -74,35 +75,97 @@ class PyFeatSummarizer:
         pose_stats = {}
         if pose_values:
             for key, vals in pose_values.items():
-                if vals:
-                    pose_stats[key] = {
-                        "mean": float(np.mean(vals)),
-                        "std": float(np.std(vals)),
-                        "min": float(np.min(vals)),
-                        "max": float(np.max(vals)),
-                    }
+                if not vals:
+                    continue
+                arr = np.array(vals, dtype=float)
+                if arr.size == 0:
+                    continue
+                mean_val = float(np.nanmean(arr))
+                std_val = float(np.nanstd(arr))
+                min_val = float(np.nanmin(arr))
+                max_val = float(np.nanmax(arr))
+                if not np.isfinite(mean_val):
+                    mean_val = 0.0
+                if not np.isfinite(std_val):
+                    std_val = 0.0
+                if not np.isfinite(min_val):
+                    min_val = 0.0
+                if not np.isfinite(max_val):
+                    max_val = 0.0
+                pose_stats[key] = {
+                    "mean": mean_val,
+                    "std": std_val,
+                    "min": min_val,
+                    "max": max_val,
+                }
+
+        def _safe_int(value: Any, default: int = 0) -> int:
+            try:
+                v = float(value)
+                return int(v) if np.isfinite(v) else default
+            except Exception:
+                return default
+
+        def _safe_float(value: Any, default: Optional[float] = None) -> Optional[float]:
+            try:
+                v = float(value)
+                return v if np.isfinite(v) else default
+            except Exception:
+                return default
+
+        def _safe_mean(values: List[float]) -> Optional[float]:
+            if not values:
+                return None
+            arr = np.array(values, dtype=float)
+            if arr.size == 0:
+                return None
+            val = float(np.nanmean(arr))
+            return val if np.isfinite(val) else None
+
+        def _safe_std(values: List[float]) -> Optional[float]:
+            if not values:
+                return None
+            arr = np.array(values, dtype=float)
+            if arr.size == 0:
+                return None
+            val = float(np.nanstd(arr))
+            return val if np.isfinite(val) else None
+
+        def _safe_div(numerator: float, denominator: float) -> Optional[float]:
+            if denominator == 0:
+                return None
+            try:
+                val = numerator / denominator
+                return val if np.isfinite(val) else None
+            except Exception:
+                return None
+
+        face_detection_rate = _safe_div(frames_with_faces, frames_analyzed)
+        face_detection_rate = (face_detection_rate * 100.0) if face_detection_rate is not None else None
+
+        avg_faces_per_frame = _safe_div(faces_detected, frames_analyzed)
 
         return {
             "emotion_distribution": {
-                "mean": emotion_means,
-                "variance": emotion_variances,
+                "mean": {k: _safe_float(v) for k, v in emotion_means.items()},
+                "variance": {k: _safe_float(v) for k, v in emotion_variances.items()},
                 "dominant_emotion": dominant_emotion,
-                "dominant_emotion_score": float(dominant_emotion_score),
+                "dominant_emotion_score": _safe_float(dominant_emotion_score),
                 "dominant_emotion_by_frequency": {
                     "emotion": dominant_freq,
-                    "count": int(dominant_freq_count),
+                    "count": _safe_int(dominant_freq_count),
                 },
             },
             "pose_summary": pose_stats,
-            "face_detection_rate": float(face_detection_rate),
+            "face_detection_rate": _safe_float(face_detection_rate),
             "general_statistics": {
-                "total_frames": int(total_frames),
-                "frames_analyzed": int(frames_analyzed),
-                "frames_with_faces": int(frames_with_faces),
-                "faces_detected": int(faces_detected),
-                "avg_faces_per_frame": float(avg_faces_per_frame),
-                "frame_skip": int(frame_skip),
-                "fps": float(fps),
+                "total_frames": _safe_int(total_frames),
+                "frames_analyzed": _safe_int(frames_analyzed),
+                "frames_with_faces": _safe_int(frames_with_faces),
+                "faces_detected": _safe_int(faces_detected),
+                "avg_faces_per_frame": _safe_float(avg_faces_per_frame),
+                "frame_skip": _safe_int(frame_skip),
+                "fps": _safe_float(fps),
             },
         }
 

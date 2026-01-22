@@ -77,10 +77,7 @@ class ReportGenerator:
             charts_html=charts_html,
         )
 
-        # 3. PDF'e dönüştür
-        pdf_path = self._html_to_pdf(html_path, interview_id)
-
-        # 4. JSON raporu kaydet (rafine versiyon)
+        # 3. JSON raporu kaydet (rafine versiyon)
         json_path = self._save_json_report(
             interview_id=interview_id,
             frame_summary=frame_summary,
@@ -94,7 +91,6 @@ class ReportGenerator:
         return {
             "json": json_path,
             "html": html_path,
-            "pdf": pdf_path,
         }
 
     def _create_charts(
@@ -290,6 +286,7 @@ class ReportGenerator:
         <div class="section">
             <h2>Görselleştirmeler</h2>
             {{ charts_html | safe }}
+            <p>Baş pozisyonu metrikleri teknik sınırlamalar nedeniyle yorumlanabilir bulunmadı.</p>
         </div>
 
         {% if ai_hr_text %}
@@ -321,12 +318,24 @@ class ReportGenerator:
                 .replace(">", "&gt;")
             )
 
+        def _format_ai_text(text: str) -> str:
+            escaped = _escape_html(text)
+            if not escaped:
+                return ""
+            # Paragrafları koru
+            escaped = escaped.replace("\r\n", "\n")
+            paragraphs = [p.strip() for p in escaped.split("\n\n") if p.strip()]
+            if not paragraphs:
+                return ""
+            return "</p><p>".join(p.replace("\n", "<br>") for p in paragraphs)
+
         ai_text = ""
         if isinstance(ai_analysis, dict):
             ai_text = str(ai_analysis.get("analysis", "")).strip() if ai_analysis else ""
         else:
             ai_text = str(ai_analysis).strip() if ai_analysis else ""
 
+        formatted_ai = _format_ai_text(ai_text)
         template = Template(html_template)
         html_content = template.render(
             interview_id=interview_id,
@@ -337,7 +346,7 @@ class ReportGenerator:
             thinking_reading_percentage=f"{cog_load.get('thinking_reading_percentage', 0.0):.1f}",
             speech_rate=f"{voice_data.get('speech_rate', {}).get('value', 0.0):.2f}",
             charts_html=charts_html,
-            ai_hr_text=_escape_html(ai_text) if ai_text else "",
+            ai_hr_text=formatted_ai,
         )
 
         # HTML dosyasını kaydet
@@ -375,6 +384,26 @@ class ReportGenerator:
         duration_seconds: float,
     ) -> str:
         """Rafine JSON raporu kaydeder (ham frame_analysis olmadan)."""
+        def _sanitize_for_json(obj):
+            try:
+                import numpy as np
+            except Exception:
+                np = None
+
+            if isinstance(obj, dict):
+                return {k: _sanitize_for_json(v) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple, set)):
+                return [_sanitize_for_json(v) for v in obj]
+            if np is not None:
+                if isinstance(obj, np.ndarray):
+                    return [_sanitize_for_json(v) for v in obj.tolist()]
+                if isinstance(obj, np.generic):
+                    obj = obj.item()
+            if isinstance(obj, float):
+                return obj if np is None or np.isfinite(obj) else None
+            if obj is None or isinstance(obj, (int, str, bool)):
+                return obj
+            return str(obj)
         def _strip_voice_series(data: Dict) -> Dict:
             if not isinstance(data, dict):
                 return data
@@ -385,6 +414,8 @@ class ReportGenerator:
                 raw.pop("rms_energy_series", None)
                 raw.pop("pitch_series", None)
                 raw.pop("pitch_histogram", None)
+                raw.pop("spectral_centroid_series", None)
+                raw.pop("zero_crossing_rate_series", None)
                 if "raw_voice_features" in cleaned:
                     cleaned["raw_voice_features"] = raw
                 else:
@@ -404,7 +435,7 @@ class ReportGenerator:
 
         json_path = os.path.join(self.reports_dir, f"report_{interview_id}.json")
         with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(report, f, indent=2, ensure_ascii=False)
+            json.dump(_sanitize_for_json(report), f, indent=2, ensure_ascii=False)
 
         return json_path
 

@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import subprocess
+import math
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
@@ -168,6 +169,8 @@ async def analyze_interview(
                 raw.pop("rms_energy_series", None)
                 raw.pop("pitch_series", None)
                 raw.pop("pitch_histogram", None)
+                raw.pop("spectral_centroid_series", None)
+                raw.pop("zero_crossing_rate_series", None)
                 if "raw_voice_features" in cleaned:
                     cleaned["raw_voice_features"] = raw
                 else:
@@ -187,19 +190,24 @@ async def analyze_interview(
         ai_analysis = {}
         
         # 4. Rapor oluştur (JSON, HTML, PDF)
+        warnings = []
         if report_generator:
             frame_analysis = full_report.get("frame_analysis", [])
-            report_paths = report_generator.generate_report(
-                interview_id=interview_id,
-                frame_analysis=frame_analysis,
-                frame_summary=frame_summary,
-                voice_analysis=voice_analysis,
-                ai_analysis=ai_analysis,
-                pyfeat_summary=pyfeat_summary,
-                pyfeat_frame_analysis=pyfeat_analysis.get("frame_analysis", []),
-                video_info=video_info,
-                duration_seconds=duration_seconds,
-            )
+            try:
+                report_paths = report_generator.generate_report(
+                    interview_id=interview_id,
+                    frame_analysis=frame_analysis,
+                    frame_summary=frame_summary,
+                    voice_analysis=voice_analysis,
+                    ai_analysis=ai_analysis,
+                    pyfeat_summary=pyfeat_summary,
+                    pyfeat_frame_analysis=pyfeat_analysis.get("frame_analysis", []),
+                    video_info=video_info,
+                    duration_seconds=duration_seconds,
+                )
+            except Exception as e:
+                warnings.append(f"report_generation_failed: {str(e)}")
+                report_paths = {}
         else:
             report_paths = {}
 
@@ -237,7 +245,7 @@ async def analyze_interview(
                 with open(report_paths["json"], "w", encoding="utf-8") as f:
                     json.dump(report_data, f, indent=2, ensure_ascii=False)
             except Exception:
-                pass
+                warnings.append("gemini_json_write_failed")
 
         if report_paths.get("html") and gemini_text:
             try:
@@ -258,17 +266,25 @@ async def analyze_interview(
                 with open(report_paths["html"], "w", encoding="utf-8") as f:
                     f.write(html_content)
             except Exception:
-                pass
+                warnings.append("gemini_html_write_failed")
         
         # 5. Rafine JSON yanıtı oluştur (ham frame_analysis olmadan)
+        frame_summary_response = dict(frame_summary) if isinstance(frame_summary, dict) else frame_summary
+        if isinstance(frame_summary_response, dict):
+            change_points = frame_summary_response.get("emotion_change_points")
+            if isinstance(change_points, list) and len(change_points) > 5:
+                frame_summary_response = dict(frame_summary_response)
+                frame_summary_response["emotion_change_points"] = change_points[:5]
         refined_response = {
             "interview_id": interview_id,
             "duration_seconds": duration_seconds,
             "analysis_timestamp": datetime.utcnow().isoformat() + "Z",
             "video_info": video_info,
-            "frame_summary": frame_summary,
+            "frame_summary": frame_summary_response,
             "voice_analysis": voice_analysis_clean,
             "pyfeat_summary": pyfeat_summary,
+            "partial_success": True if warnings else False,
+            "warnings": warnings,
         }
         
         # Analiz durumunu güncelle
@@ -279,22 +295,39 @@ async def analyze_interview(
             "report_files": report_paths,
         }
         
-        return JSONResponse(content=refined_response)
+        try:
+            return JSONResponse(content=_sanitize_for_json(refined_response))
+        except Exception:
+            return JSONResponse(content=_sanitize_for_json(refined_response), allow_nan=True)
         
     except Exception as e:
-        # Hata durumunda durumu güncelle
+        # Hata durumunda durumu güncelle (partial success)
         analysis_status[interview_id] = {
-            "status": "failed",
+            "status": "completed_with_warnings",
             "error": str(e),
             "started_at": analysis_status.get(interview_id, {}).get("started_at"),
-            "failed_at": datetime.utcnow().isoformat() + "Z"
+            "completed_at": datetime.utcnow().isoformat() + "Z"
         }
-        
+
         # Video dosyasını temizle (hata durumunda)
         if os.path.exists(video_file_path):
-            os.remove(video_file_path)
-        
-        raise HTTPException(status_code=500, detail=f"Analiz hatası: {str(e)}")
+            try:
+                os.remove(video_file_path)
+            except Exception:
+                pass
+
+        # Partial response döndür
+        fallback_response = {
+            "interview_id": locals().get("interview_id"),
+            "analysis_timestamp": datetime.utcnow().isoformat() + "Z",
+            "video_info": locals().get("video_info", {}),
+            "frame_summary": locals().get("frame_summary", {}),
+            "voice_analysis": locals().get("voice_analysis_clean", locals().get("voice_analysis", {})),
+            "pyfeat_summary": locals().get("pyfeat_summary", {}),
+            "partial_success": True,
+            "warnings": [f"analysis_error: {str(e)}"],
+        }
+        return JSONResponse(content=_sanitize_for_json(fallback_response))
 
 
 @app.get("/status/{interview_id}")
@@ -325,6 +358,28 @@ def _build_summary_payload(report: Dict[str, Any]) -> Dict[str, Any]:
         "voice_analysis": report.get("voice_analysis", {}),
         "pyfeat_summary": report.get("pyfeat_summary", {}),
     }
+
+
+def _sanitize_for_json(obj: Any) -> Any:
+    try:
+        import numpy as np
+    except Exception:
+        np = None
+
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_sanitize_for_json(v) for v in obj]
+    if np is not None:
+        if isinstance(obj, np.ndarray):
+            return [_sanitize_for_json(v) for v in obj.tolist()]
+        if isinstance(obj, np.generic):
+            obj = obj.item()
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, (int, str, bool)) or obj is None:
+        return obj
+    return str(obj)
 
 
 

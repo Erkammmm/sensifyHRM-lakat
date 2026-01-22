@@ -8,7 +8,9 @@ from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict
 import numpy as np
 import cv2
-from PIL import Image
+import tempfile
+import os
+import math
 
 
 class PyFeatAnalyzer:
@@ -76,11 +78,13 @@ class PyFeatAnalyzer:
         frame = record.get("frame", record.get("Frame", record.get("frame_idx", default_frame)))
         face = record.get("face", record.get("face_id", record.get("Face", default_face)))
         try:
-            frame = int(frame)
+            frame_val = float(frame)
+            frame = int(frame_val) if math.isfinite(frame_val) else int(default_frame)
         except Exception:
             frame = int(default_frame)
         try:
-            face = int(face)
+            face_val = float(face)
+            face = int(face_val) if math.isfinite(face_val) else int(default_face)
         except Exception:
             face = int(default_face)
         return frame, face
@@ -127,12 +131,21 @@ class PyFeatAnalyzer:
         frame_indices = list(range(0, len(frames), self.frame_skip))
         sampled_frames = [frames[i] for i in frame_indices]
         rgb_frames = [cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) for frame in sampled_frames]
-        pil_frames = [Image.fromarray(frame) for frame in rgb_frames]
 
+        # Önce direkt numpy array ile dene, olmazsa dosya path fallback kullan
         try:
-            fex = self._detector.detect_image(pil_frames, batch_size=self.batch_size)
-        except TypeError:
-            fex = self._detector.detect_image(pil_frames)
+            fex = self._detector.detect_image(rgb_frames, batch_size=self.batch_size)
+        except Exception:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                image_paths = []
+                for idx, frame in enumerate(sampled_frames):
+                    path = os.path.join(tmpdir, f"frame_{idx}.png")
+                    cv2.imwrite(path, frame)
+                    image_paths.append(path)
+                try:
+                    fex = self._detector.detect_image(image_paths, batch_size=self.batch_size)
+                except TypeError:
+                    fex = self._detector.detect_image(image_paths)
 
         # Bileşenleri ayıkla
         emotions_df = getattr(fex, "emotions", None)
@@ -205,6 +218,10 @@ class PyFeatAnalyzer:
                 face_entry = {"face_id": int(face_idx)}
                 face_entry.update(payload)
                 faces.append(face_entry)
+            if not faces:
+                # Yüz yoksa bu frame'i boş bırak
+                frame_analysis.append(None)
+                continue
             frame_analysis.append(
                 {
                     "frame_index": int(original_idx),
@@ -214,12 +231,12 @@ class PyFeatAnalyzer:
             )
 
         return {
-            "frame_analysis": frame_analysis,
+            "frame_analysis": [f for f in frame_analysis if f is not None],
             "metadata": {
                 "status": "ok",
                 "frame_skip": self.frame_skip,
                 "fps": float(fps),
-                "frames_analyzed": len(frame_analysis),
+                "frames_analyzed": len([f for f in frame_analysis if f is not None]),
                 "total_frames": len(frames),
             },
         }
@@ -319,6 +336,9 @@ class PyFeatAnalyzer:
                 face_entry = {"face_id": int(face_idx)}
                 face_entry.update(payload)
                 faces.append(face_entry)
+            if not faces:
+                frame_analysis.append(None)
+                continue
             frame_analysis.append(
                 {
                     "frame_index": int(frame_idx),
@@ -328,12 +348,12 @@ class PyFeatAnalyzer:
             )
 
         return {
-            "frame_analysis": frame_analysis,
+            "frame_analysis": [f for f in frame_analysis if f is not None],
             "metadata": {
                 "status": "ok",
                 "frame_skip": self.frame_skip,
                 "fps": float(fps),
-                "frames_analyzed": len(frame_analysis),
+                "frames_analyzed": len([f for f in frame_analysis if f is not None]),
                 "total_frames": int(total_frames),
             },
         }
