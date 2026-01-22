@@ -36,8 +36,12 @@ class InterviewAnalysisPipeline:
         # Py-Feat analizi (CPU, hız öncelikli)
         self.pyfeat_analyzer = PyFeatAnalyzer(
             frame_skip=5,
-            batch_size=8,
+            batch_size=4,
             device="cpu",
+            window_size_seconds=5.0,
+            silence_sampling_seconds=12.0,
+            speech_sampling_seconds=5.0,
+            face_confidence_threshold=0.0,
         )
     
     def process_interview(self, video_path: str, interview_id: Optional[str] = None) -> Dict:
@@ -104,19 +108,21 @@ class InterviewAnalysisPipeline:
             "message": "Py-Feat analizi yapılamadı",
         }
         try:
-            # Py-Feat düşük frekanslı çalıştır (örn. 1 fps)
-            target_hz = 1.0
-            if fps and fps == fps:
-                self.pyfeat_analyzer.frame_skip = max(1, int(round(fps / target_hz)))
-            pyfeat_result = self.pyfeat_analyzer.analyze_frames(frames, fps=fps)
+            # Zaman pencereli Py-Feat (semantik olarak güvenli örnekleme)
+            pyfeat_result = self.pyfeat_analyzer.analyze_frames_windowed(
+                frames,
+                fps=fps,
+                voice_summary=voice_summary if isinstance(voice_summary, dict) else None,
+                face_presence_frames=frame_analysis,
+                cache_key=video_path,
+            )
             pyfeat_frame_analysis = pyfeat_result.get("frame_analysis", [])
             pyfeat_metadata = pyfeat_result.get("metadata", {})
-            pyfeat_metadata["sample_rate_hz"] = target_hz
             pyfeat_summary = PyFeatSummarizer.summarize(
                 pyfeat_frame_analysis,
                 total_frames=video_info.get("frame_count", len(frames)),
                 fps=fps,
-                frame_skip=self.pyfeat_analyzer.frame_skip,
+                frame_skip=max(1, int(round(self.pyfeat_analyzer.window_size_seconds * fps))) if fps else self.pyfeat_analyzer.frame_skip,
             )
             print("[Pipeline] Py-Feat analizi tamamlandı.")
         except Exception as e:

@@ -12,11 +12,13 @@ Online iş görüşmelerinde aday davranışlarını analiz eden AI motoru.
   - Speech rate, RMS energy, Pitch (f0), Silence ratio
   - Spectral centroid, Zero crossing rate
 - **Py-Feat Analizi**: Duygu, kafa pozisyonu ve landmark çıktıları (CPU)
-  - Frame bazlı ham veriler rapora eklenir
+  - Zaman pencereli örnekleme (performans için)
+  - Frame bazlı ham veriler rapora eklenir (seçili frame'ler)
   - Terminal/Gemini özeti: duygu dağılımları, yüz tespit oranı, pose istatistikleri
 - **Frame Özetleme**: Detaylı frame analizlerini özetleyen modül
-- **Rapor Oluşturma**: JSON, HTML ve PDF formatında detaylı raporlar
+- **Rapor Oluşturma**: JSON ve HTML formatında detaylı raporlar
 - **RESTful API**: FastAPI ile modern API arayüzü
+- **Dayanıklılık**: Yüz yoksa hata atmaz, NaN/inf veriler JSON uyumlu hale getirilir
 
 ## Kurulum
 
@@ -117,7 +119,7 @@ sensifyHRMülakay/
 │   ├── frame_summarizer.py          # Frame analiz özetleme
 │   ├── pyfeat_analyzer.py           # Py-Feat analizi (duygu/pose/landmark)
 │   ├── pyfeat_summarizer.py         # Py-Feat özetleme
-│   ├── report_generator.py          # Rapor oluşturma (JSON, HTML, PDF)
+│   ├── report_generator.py          # Rapor oluşturma (JSON, HTML)
 │   └── pipeline.py                  # Ana pipeline
 ├── api/
 │   └── main.py                      # FastAPI endpoints
@@ -157,21 +159,28 @@ Analiz sonuçları JSON formatında döner:
   },
   "report_files": {
     "json": "reports/report_xxx.json",
-    "html": "reports/report_xxx.html",
-    "pdf": "reports/report_xxx.pdf"
+    "html": "reports/report_xxx.html"
   }
 }
 ```
 
-Not: HTML/PDF grafikler `frame_analysis` ve `voice_analysis` ham serileri üzerinden Python/Plotly ile üretilir.
+Not: HTML grafikler `frame_analysis` ve `voice_analysis` ham serileri üzerinden Python/Matplotlib ile üretilir (uzun videolarda örneklenir).
 
 Detaylı format ve teknik bilgiler için `PROJE_DOKUMANTASYONU.md` dosyasına bakın.
+
+## Performans Ayarları (Py-Feat)
+
+`src/pipeline.py` içinde ayarlanabilir:
+- `window_size_seconds`
+- `speech_sampling_seconds`
+- `silence_sampling_seconds`
+- `batch_size`
 
 ## İK Raporu (Gemini için)
 
 - **Ham veri gönderme**: `frame_analysis` ve Py-Feat frame detayları Gemini'ye gönderilmez.
 - **Özet üzerinden yorum**: `frame_summary`, `voice_analysis` ve `pyfeat_summary` kullanılır.
-- **Prompt dosyası**: `src/prompt.txt` (yoksa `src/prompt`)
+- **Prompt dosyası**: `src/prompt.txt`
 
 Önerilen prompt şablonu:
 ```
@@ -236,7 +245,6 @@ Yazım kuralları:
 - **FastAPI**: REST API
 - **Matplotlib/Seaborn**: Veri görselleştirme
 - **Jinja2**: HTML rapor şablonları
-- **xhtml2pdf**: PDF oluşturma
 - **Google GenAI**: Gemini istemcisi
 
 ## Lisans

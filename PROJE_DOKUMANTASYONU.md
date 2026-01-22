@@ -7,7 +7,7 @@ SensifyHR Mülakat Analiz Sistemi, video tabanlı mülakat kayıtlarını analiz
 1. **Yüz ve Gaze Analizi**: MediaPipe Face Mesh ile 478 landmark + iris tracking
 2. **Ses Analizi**: Librosa ile ham ses özellikleri analizi
 3. **Py-Feat Analizi**: Duygu, kafa pozisyonu ve landmark analizi (CPU)
-4. **Rapor Oluşturma**: JSON, HTML ve PDF formatında detaylı raporlar
+4. **Rapor Oluşturma**: JSON ve HTML formatında detaylı raporlar
 
 ---
 
@@ -23,11 +23,11 @@ sensifyHRMülakay/
 │   ├── frame_summarizer.py               # Frame analiz özetleme
 │   ├── pyfeat_analyzer.py                # Py-Feat analizi (duygu/pose/landmark)
 │   ├── pyfeat_summarizer.py              # Py-Feat özetleme
-│   ├── report_generator.py               # Rapor oluşturma (JSON, HTML, PDF)
+│   ├── report_generator.py               # Rapor oluşturma (JSON, HTML)
 │   └── pipeline.py                       # Ana pipeline (tüm modülleri koordine eder)
 ├── api/                                  # FastAPI REST API
 │   └── main.py
-├── reports/                              # Analiz raporları (JSON, HTML, PDF)
+├── reports/                              # Analiz raporları (JSON, HTML)
 ├── uploads/                              # Yüklenen videolar
 ├── test_example.py                       # Test scripti (video analizi için)
 ├── test_webcam_mediapipe.py              # Canlı kamera testi
@@ -120,6 +120,13 @@ sensifyHRMülakay/
 - **landmarks**: Yüz landmark koordinatları
 - **facebox / aus**: Ham yüz kutusu ve AU benzeri veriler
 
+**Örnekleme ve Hız Optimizasyonu**:
+- Zaman pencereli çalışma (varsayılan: 5 sn)
+- Her pencere için yalnızca 1 temsilci frame seçilir
+- Konuşma yoksa daha seyrek örnekleme (ses analizi RMS üzerinden)
+- Yüz yoksa py-feat çalıştırılmaz (normal durum)
+- CPU batch (2–4) desteklenirse otomatik kullanılır
+
 **Özet Bileşenleri**:
 - **Emotion Distribution**: Ortalama, varyans, baskın duygu
 - **Face Detection Rate**: Yüz tespit oranı
@@ -148,12 +155,11 @@ sensifyHRMülakay/
 **Formatlar**:
 - **JSON**: Ham ve özetlenmiş veriler
 - **HTML**: Jinja2 template ile görsel rapor
-- **PDF**: xhtml2pdf ile HTML'den PDF oluşturma
 
 **Görselleştirmeler**:
 - **Time-series Grafikler**: Ağız ve göz hareketleri zaman içinde
 - **Gaze Distribution**: Pasta grafiği ile gaze yönleri dağılımı
-**Not**: Grafikler `frame_analysis` (ham frame verisi) üzerinden Python/Plotly ile üretilir.
+**Not**: Grafikler `frame_analysis` (ham frame verisi) üzerinden Python/Matplotlib ile üretilir (uzun videolarda örneklenir).
 
 **Modül**: `src/report_generator.py`
 
@@ -167,12 +173,14 @@ sensifyHRMülakay/
 1. **Video İşleme**: Frame'ler ve ses çıkarılır
 2. **MediaPipe Analizi**: Her 3 frame'de bir yüz + gaze analizi
 3. **Ses Analizi**: Librosa ile tüm ses dosyası analiz edilir
-4. **Py-Feat Analizi**: Video üzerinde duygu/pose/landmark analizi
+4. **Py-Feat Analizi**: Zaman pencereli duygu/pose/landmark analizi
 5. **Frame Özetleme**: Detaylı frame analizleri özetlenir
-6. **Rapor Oluşturma**: JSON, HTML ve PDF formatında raporlar kaydedilir
+6. **Rapor Oluşturma**: JSON ve HTML formatında raporlar kaydedilir
 
 **Performans Optimizasyonları**:
-- Frame sampling: Her 3 frame'de bir analiz (frame_skip=3)
+- Frame sampling: MediaPipe her 3 frame'de bir analiz (frame_skip=3)
+- Py-Feat zaman pencereli örnekleme (pencere başına 1 frame)
+- Sessiz bölgelerde daha seyrek py-feat örnekleme
 - Lazy loading: MediaPipe ilk kullanımda başlatılır
 - Kalman filtreleme: Gürültü azaltma ve daha stabil sonuçlar
 
@@ -272,8 +280,7 @@ sensifyHRMülakay/
   },
   "report_files": {
     "json": "reports/report_xxx.json",
-    "html": "reports/report_xxx.html",
-    "pdf": "reports/report_xxx.pdf"
+    "html": "reports/report_xxx.html"
   }
 }
 ```
@@ -359,6 +366,10 @@ Yazım kuralları:
 - **Gaze Threshold**: Baseline'dan standart sapma bazlı
 - **Kalman Filter**: Process variance=5e-2, Measurement variance=1e-1
 - **Audio Sample Rate**: 16 kHz
+- **Py-Feat Window Size**: 5 sn (pencere bazlı örnekleme)
+- **Py-Feat Speech Sampling**: 5 sn
+- **Py-Feat Silence Sampling**: 12 sn
+- **Py-Feat Batch Size**: 2–4 (CPU için)
 
 ---
 
@@ -377,7 +388,6 @@ Yazım kuralları:
 - `matplotlib>=3.8.0`: Veri görselleştirme
 - `seaborn>=0.13.0`: Veri görselleştirme
 - `jinja2>=3.1.2`: HTML şablonları
-- `xhtml2pdf>=0.2.11`: PDF oluşturma
 
 **Tam liste**: `requirements.txt`
 
@@ -391,7 +401,7 @@ Yazım kuralları:
 python test_example.py video_dosyasi.mp4
 ```
 
-**Çıktı**: `reports/report_<uuid>.json`, `reports/report_<uuid>.html`, `reports/report_<uuid>.pdf`
+**Çıktı**: `reports/report_<uuid>.json`, `reports/report_<uuid>.html`
 
 ### Canlı Kamera Testi
 
@@ -412,17 +422,18 @@ curl -X POST "http://localhost:8000/analyze" -F "file=@video.mp4"
 **Gemini entegrasyonu**: `/analyze` çağrısı sonrası otomatik çalışır ve
 çıktı `ai_analysis` alanına yazılır (ham veriler gönderilmez).
 **Gerekli env**: `GEMINI_API_KEY` (opsiyonel: `GEMINI_MODEL`)
-**Prompt dosyası**: `src/prompt.txt` (yoksa `src/prompt`)
+**Prompt dosyası**: `src/prompt.txt`
 
 ---
 
 ## 📝 Notlar
 
-- **Performans**: MediaPipe frame sampling (her 3 frame), Py-Feat CPU analiz
+- **Performans**: MediaPipe frame sampling (her 3 frame), Py-Feat pencere bazlı örnekleme
 - **Kalman Filtreleme**: Gürültü azaltma için kullanılır, daha stabil sonuçlar verir
 - **Baseline Calibration**: Gaze yönü için ilk 2 saniyede otomatik kalibrasyon yapılır
 - **Raporlar**: Tüm raporlar `reports/` klasörüne kaydedilir
 - **Uploads**: Yüklenen videolar `uploads/` klasörüne kaydedilir
+- **Dayanıklılık**: Yüz yoksa hata atılmaz; NaN/inf değerler JSON uyumlu hale getirilir
 
 ---
 
@@ -454,8 +465,8 @@ curl -X POST "http://localhost:8000/analyze" -F "file=@video.mp4"
 - **MediaPipe**: https://mediapipe.dev/
 - **Librosa**: https://librosa.org/
 - **FastAPI**: https://fastapi.tiangolo.com/
-- **Plotly**: https://plotly.com/python/
+- **Matplotlib**: https://matplotlib.org/
 
 ---
 
-**Son Güncelleme**: 2026-01-15
+**Son Güncelleme**: 2026-01-22
