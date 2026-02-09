@@ -46,12 +46,15 @@ uploads/
 *.webm
 *.wav
 
-# Models cache
-models/
+# Models / Weights (büyük dosyalar)
 *.h5
 *.pkl
 *.pt
 *.pth
+*.onnx
+# face_landmarker.task weights/ içinde -> gitignore'dan hariç tut
+weights/*
+!weights/face_landmarker.task
 
 # Logs
 *.log
@@ -63,4 +66,11 @@ Thumbs.db
 
 # Generated reports
 reports/
-reports/*.json
+
+# Eski / silinmiş klasörler
+colab_bundle/
+best_mode_from_colab/
+SestenDuyguVeriSeti/
+tools/
+medipipe_ile_duygu/
+test_duygu_mg/

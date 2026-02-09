@@ -1,12 +1,16 @@
 """
 FastAPI Ana Uygulama
-Mülakat analiz API endpoint'leri.
+SensifyHR Mülakat Analiz API endpoint'leri.
 """
+
+from dotenv import load_dotenv
+load_dotenv()
 
 import os
 import sys
 import json
 import subprocess
+import math
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
@@ -18,64 +22,243 @@ from datetime import datetime
 # Proje root'unu path'e ekle
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# MediaPipe'u temiz bir ortamda import et
 from src.pipeline import InterviewAnalysisPipeline
 from src.report_generator import ReportGenerator
 
-# FastAPI uygulamasını oluştur
+# FastAPI uygulaması
 app = FastAPI(
     title="SensifyHR Mülakat Analiz API",
-    description="Online iş görüşmelerinde aday davranışlarını analiz eden AI motoru",
-    version="1.0.0"
+    description="Multimodal AI Mülakat Değerlendirme Sistemi (Metin + Ses + Yüz)",
+    version="2.0.0",
 )
 
-# Pipeline instance (global, tek seferlik yükleme)
+# Global instance'lar
 pipeline = None
 report_generator = None
-
-# Analiz durumlarını saklamak için (production'da database kullanılmalı)
 analysis_status = {}
 
 
+# =====================================================================
+# Yardımcılar
+# =====================================================================
+def _save_upload(file: UploadFile, interview_id: str) -> str:
+    """Yüklenen videoyu uploads klasörüne kaydeder."""
+    allowed_ext = [".mp4", ".avi", ".mov", ".mkv", ".webm"]
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_ext:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Desteklenmeyen format. İzin: {', '.join(allowed_ext)}",
+        )
+    uploads_dir = "uploads"
+    os.makedirs(uploads_dir, exist_ok=True)
+    return os.path.join(uploads_dir, f"{interview_id}{ext}")
+
+
+def _update_status(interview_id: str, status: str, **extra: Any) -> None:
+    """Analiz durumunu günceller."""
+    analysis_status[interview_id] = {"status": status, **extra}
+
+
+def _sanitize_for_json(obj: Any) -> Any:
+    """NumPy/NaN temizleyici."""
+    try:
+        import numpy as np
+    except Exception:
+        np = None
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_sanitize_for_json(v) for v in obj]
+    if np is not None:
+        if isinstance(obj, np.ndarray):
+            return [_sanitize_for_json(v) for v in obj.tolist()]
+        if isinstance(obj, np.generic):
+            obj = obj.item()
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, (int, str, bool)) or obj is None:
+        return obj
+    return str(obj)
+
+
+def _strip_voice_series(data: Dict) -> Dict:
+    """Gemini ve API yanıtı için büyük zaman serilerini kaldırır."""
+    if not isinstance(data, dict):
+        return data
+    cleaned = dict(data)
+    raw = cleaned.get("raw_voice_features", cleaned)
+    if isinstance(raw, dict):
+        raw = dict(raw)
+        raw.pop("waveform", None)
+        raw.pop("mel_spectrogram", None)
+        raw.pop("windowed_features", None)
+        for key in ("energy_rms", "pitch_f0"):
+            sub = raw.get(key)
+            if isinstance(sub, dict):
+                sub = dict(sub)
+                sub.pop("series", None)
+                raw[key] = sub
+        ss = raw.get("speech_silence")
+        if isinstance(ss, dict):
+            ss = dict(ss)
+            ss.pop("speech_segments", None)
+            raw["speech_silence"] = ss
+        if "raw_voice_features" in cleaned:
+            cleaned["raw_voice_features"] = raw
+        else:
+            cleaned = raw
+    return cleaned
+
+
+def _run_gemini(report_paths: Dict[str, str]) -> Dict[str, Any]:
+    """Gemini'yi ayrı process ile çalıştırır (protobuf izolasyonu)."""
+    if not report_paths.get("json"):
+        return {}
+
+    gemini_script = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "src", "gemini.py")
+    )
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+
+    result = subprocess.run(
+        [sys.executable, gemini_script, report_paths["json"]],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
+    )
+    if result.returncode == 0:
+        gemini_text = result.stdout.strip()
+        return {"analysis": gemini_text, "provider": "gemini"} if gemini_text else {}
+    return {"status": "error", "message": result.stderr.strip(), "provider": "gemini"}
+
+
+def _run_ollama(full_report: Dict[str, Any]) -> Dict[str, Any]:
+    """Yerel Ollama/Gemma ile değerlendirme yapar (Gemini alternatifi/fallback)."""
+    try:
+        from src.ollama_ai import OllamaAI
+
+        ai = OllamaAI()  # default: gemma3:12b
+
+        # FAZ-3: segment signal packages üzerinden reasoning
+        if (full_report.get("phase") or "").lower() == "v3":
+            packages = full_report.get("segment_signal_packages", [])
+            result_text = ai.evaluate_phase3(segment_signal_packages=packages)
+        else:
+            text_segments = full_report.get("text_analysis", {}).get("segments", [])
+            audio_timeline = full_report.get("audio_emotion_analysis", {}).get("timeline", [])
+            face_summary = full_report.get("face_analysis", {}).get("summary", {})
+            anomalies = full_report.get("anomalies", [])
+            result_text = ai.evaluate_candidate(
+                text_data=text_segments,
+                audio_data=audio_timeline,
+                face_summary=face_summary,
+                anomalies=anomalies,
+            )
+        result_text = (result_text or "").strip()
+        return {"analysis": result_text, "provider": "ollama"} if result_text else {}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc), "provider": "ollama"}
+
+
+def _write_ai_to_reports(report_paths: Dict[str, str], ai_analysis: Dict) -> list:
+    """AI metnini JSON ve HTML raporlara ekler."""
+    warns = []
+    gemini_text = ai_analysis.get("analysis", "") if isinstance(ai_analysis, dict) else ""
+
+    # JSON'a ekle
+    if report_paths.get("json"):
+        try:
+            with open(report_paths["json"], "r", encoding="utf-8") as f:
+                data = json.load(f)
+            data["ai_analysis"] = ai_analysis
+            with open(report_paths["json"], "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            warns.append("gemini_json_write_failed")
+
+    # HTML'e ekle
+    if report_paths.get("html") and gemini_text:
+        try:
+            with open(report_paths["html"], "r", encoding="utf-8") as f:
+                html = f.read()
+            escaped = gemini_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            paragraphs = [p.strip() for p in escaped.replace("\r\n", "\n").split("\n\n") if p.strip()]
+            formatted = "</p><p>".join(p.replace("\n", "<br>") for p in paragraphs)
+            block = (
+                '<div class="section"><h2>🤖 AI Destekli İK Değerlendirmesi</h2>'
+                f'<div class="ai-analysis"><p>{formatted}</p></div></div>'
+            )
+            if '<div class="footer">' in html:
+                html = html.replace('<div class="footer">', f'{block}\n<div class="footer">')
+            elif "</body>" in html:
+                html = html.replace("</body>", f"{block}\n</body>")
+            else:
+                html += block
+            with open(report_paths["html"], "w", encoding="utf-8") as f:
+                f.write(html)
+        except Exception:
+            warns.append("gemini_html_write_failed")
+
+    return warns
+
+
+# =====================================================================
+# Startup
+# =====================================================================
 @app.on_event("startup")
 async def startup_event():
     """Uygulama başlatıldığında modülleri yükle."""
     global pipeline, report_generator
-    
-    # Pipeline (Mediapipe içerir) - ÖNCE YÜKLE
+
     try:
-        print("[API] Pipeline yükleniyor (MediaPipe başlatılıyor)...")
-        pipeline = InterviewAnalysisPipeline()
-        print("[API] Pipeline hazır (MediaPipe başarıyla başlatıldı).")
+        print("[API] Pipeline yükleniyor...")
+        pipeline = InterviewAnalysisPipeline(phase3_enabled=True)
+        print("[API] Pipeline hazır!")
+
+        # Opsiyonel: model prewarm (ilk analizde beklemeyi azaltır)
+        if os.getenv("SENSIFYHR_PREWARM_MODELS", "0").strip() == "1":
+            try:
+                print("[API] Prewarm: STT (faster-whisper) yükleniyor...")
+                pipeline.text_analyzer._ensure_fw_model()
+            except Exception as exc:
+                print(f"[API] Prewarm uyarı (STT): {exc}")
+            try:
+                print("[API] Prewarm: HuBERT SER (audio signal) yükleniyor...")
+                pipeline._get_audio_signal_fusion()
+            except Exception as exc:
+                print(f"[API] Prewarm uyarı (SER): {exc}")
     except Exception as e:
-        print(f"[API] KRİTİK HATA: Pipeline yüklenemedi: {str(e)}")
+        print(f"[API] KRİTİK: Pipeline yüklenemedi: {e}")
         import traceback
         traceback.print_exc()
         pipeline = None
-    
-    # Report Generator (MediaPipe'dan sonra, bağımlılık yok)
+
     try:
         report_generator = ReportGenerator()
         print("[API] Report Generator hazır.")
     except Exception as e:
-        print(f"[API] Hata: Report Generator yüklenemedi: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"[API] Hata: Report Generator: {e}")
         report_generator = None
 
 
+# =====================================================================
+# Endpoints
+# =====================================================================
 @app.get("/")
 async def root():
-    """Ana endpoint - API bilgileri."""
+    """Ana endpoint."""
     return {
         "service": "SensifyHR Mülakat Analiz API",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "running",
+        "modules": ["TextAnalyzer (Whisper+BERT)", "AudioAnalyzer (wav2vec2)",
+                     "FaceAnalyzer (MediaPipe)", "VoiceAnalyzer (Librosa)"],
         "endpoints": {
-            "analyze": "POST /analyze - Video yükleme ve analiz + Gemini yorumu",
-            "status": "GET /status/{interview_id} - Analiz durumu",
-            "health": "GET /health - Sistem sağlık kontrolü"
-        }
+            "analyze": "POST /analyze",
+            "status": "GET /status/{interview_id}",
+            "health": "GET /health",
+        },
     }
 
 
@@ -85,250 +268,138 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "pipeline_ready": pipeline is not None
+        "pipeline_ready": pipeline is not None,
     }
 
 
 @app.post("/analyze")
 async def analyze_interview(
     file: UploadFile = File(..., description="Video dosyası (MP4, AVI, MOV, MKV, WEBM)"),
-    interview_id: Optional[str] = None
+    interview_id: Optional[str] = None,
+    phase3: bool = True,
+    llm_provider: str = "gemini",
 ):
     """
-    Video dosyası yükler ve analiz başlatır.
-    
-    **Kullanım:**
-    1. Swagger UI'da "Try it out" butonuna tıkla
-    2. "Choose File" ile video dosyasını seç
-    3. "Execute" ile gönder
-    4. Analiz tamamlandığında JSON, HTML ve PDF raporları oluşturulur
-    
-    **Parametreler:**
-    - **file**: Yüklenecek video dosyası (MP4, AVI, MOV, MKV, WEBM formatları desteklenir)
-    - **interview_id**: Opsiyonel mülakat ID (yoksa otomatik oluşturulur)
-    
-    **Dönen Değerler:**
-    - Analiz sonuçları (frame_summary, voice_analysis)
-    - Rapor dosya yolları (JSON, HTML, PDF)
+    Video yükle → analiz et → JSON + HTML rapor döndür.
+
+    1. Swagger UI'da "Try it out" ile video seçin
+    2. "Execute" ile gönderin
+    3. JSON yanıtı + HTML/JSON rapor dosyaları oluşturulur
     """
     if pipeline is None:
         raise HTTPException(status_code=503, detail="Pipeline henüz hazır değil")
-    
-    # Dosya formatı kontrolü
-    allowed_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm']
-    file_extension = os.path.splitext(file.filename)[1].lower()
-    
-    if file_extension not in allowed_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Desteklenmeyen dosya formatı. İzin verilen formatlar: {', '.join(allowed_extensions)}"
-        )
-    
-    # Interview ID oluştur
+
     if interview_id is None:
         interview_id = str(uuid.uuid4())
 
-    # Uploads klasörüne kaydet
-    uploads_dir = "uploads"
-    os.makedirs(uploads_dir, exist_ok=True)
-    video_file_path = os.path.join(uploads_dir, f"{interview_id}{file_extension}")
-    
+    video_path = _save_upload(file, interview_id)
+
     try:
-        # Dosyayı kaydet
-        async with aiofiles.open(video_file_path, 'wb') as out_file:
+        # 1) Dosyayı kaydet
+        async with aiofiles.open(video_path, "wb") as out:
             content = await file.read()
-            await out_file.write(content)
-        
-        # Analiz durumunu güncelle
-        analysis_status[interview_id] = {
-            "status": "processing",
-            "started_at": datetime.utcnow().isoformat() + "Z"
-        }
-        
-        # 1. Analizi başlat (senkron, production'da async task queue kullanılmalı)
-        print(f"[API] Analiz başlatılıyor: {interview_id}")
-        full_report = pipeline.process_interview(video_file_path, interview_id)
-        
-        # 2. Rafine verileri çıkar (terminaldeki özet gibi)
-        frame_summary = full_report.get("frame_summary", {})
-        voice_analysis = full_report.get("voice_analysis", {})
-        pyfeat_analysis = full_report.get("pyfeat_analysis", {})
-        pyfeat_summary = pyfeat_analysis.get("summary", {})
-        video_info = full_report.get("video_info", {})
-        duration_seconds = full_report.get("duration_seconds", 0.0)
-        
-        # 3. AI analizi (Gemini - summary only)
-        def _strip_voice_series(data: Dict[str, Any]) -> Dict[str, Any]:
-            if not isinstance(data, dict):
-                return data
-            cleaned = dict(data)
-            raw = cleaned.get("raw_voice_features", cleaned)
-            if isinstance(raw, dict):
-                raw = dict(raw)
-                raw.pop("rms_energy_series", None)
-                raw.pop("pitch_series", None)
-                raw.pop("pitch_histogram", None)
-                if "raw_voice_features" in cleaned:
-                    cleaned["raw_voice_features"] = raw
-                else:
-                    cleaned = raw
-            return cleaned
+            await out.write(content)
 
-        voice_analysis_clean = _strip_voice_series(voice_analysis)
+        _update_status(interview_id, "processing",
+                       started_at=datetime.utcnow().isoformat() + "Z")
 
-        summary_payload = _build_summary_payload({
-            "interview_id": interview_id,
-            "duration_seconds": duration_seconds,
-            "video_info": video_info,
-            "frame_summary": frame_summary,
-            "voice_analysis": voice_analysis_clean,
-            "pyfeat_summary": pyfeat_summary,
-        })
-        ai_analysis = {}
-        
-        # 4. Rapor oluştur (JSON, HTML, PDF)
+        # 2) Pipeline çalıştır (metin + ses + yüz + voice)
+        full_report = pipeline.process_interview(
+            video_path, interview_id, phase3_enabled=bool(phase3)
+        )
+
+        # 3) Rapor oluştur (JSON + HTML + grafikler)
+        warnings_list = []
+        report_paths = {}
         if report_generator:
-            frame_analysis = full_report.get("frame_analysis", [])
-            report_paths = report_generator.generate_report(
-                interview_id=interview_id,
-                frame_analysis=frame_analysis,
-                frame_summary=frame_summary,
-                voice_analysis=voice_analysis,
-                ai_analysis=ai_analysis,
-                pyfeat_summary=pyfeat_summary,
-                pyfeat_frame_analysis=pyfeat_analysis.get("frame_analysis", []),
-                video_info=video_info,
-                duration_seconds=duration_seconds,
-            )
-        else:
-            report_paths = {}
+            try:
+                report_paths = report_generator.generate_report(full_report)
+            except Exception as e:
+                warnings_list.append(f"report_generation_failed: {e}")
 
-        # 4.5 Gemini (ayrı process - protobuf çakışması için izolasyon)
-        gemini_text = ""
+        # 4) LLM değerlendirmesi (varsayılan: Gemini; kota/hatada Ollama fallback)
+        provider = (llm_provider or "gemini").strip().lower()
+        ai_analysis: Dict[str, Any] = {}
         if report_paths.get("json"):
-            gemini_script = os.path.join(os.path.dirname(__file__), "..", "src", "gemini.py")
-            gemini_script = os.path.abspath(gemini_script)
-            env = os.environ.copy()
-            env["PYTHONIOENCODING"] = "utf-8"
-            env["PYTHONUTF8"] = "1"
-            result = subprocess.run(
-                [sys.executable, gemini_script, report_paths["json"]],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                env=env,
-            )
-            if result.returncode == 0:
-                gemini_text = result.stdout.strip()
+            if provider == "ollama":
+                ai_analysis = _run_ollama(full_report)
+            elif provider == "none":
+                ai_analysis = {}
             else:
-                gemini_text = ""
-                ai_analysis = {"status": "error", "message": result.stderr.strip()}
+                ai_analysis = _run_gemini(report_paths)
+                # Gemini kota/hatada otomatik fallback
+                if isinstance(ai_analysis, dict) and ai_analysis.get("status") == "error":
+                    warnings_list.append(f"gemini_failed_fallback_to_ollama: {ai_analysis.get('message', '')}")
+                    ai_analysis = _run_ollama(full_report)
+        warnings_list.extend(_write_ai_to_reports(report_paths, ai_analysis))
 
-        if gemini_text:
-            ai_analysis = {"analysis": gemini_text}
+        # 5) API yanıtı oluştur
+        voice_clean = _strip_voice_series(full_report.get("voice_analysis", {}))
 
-        # Gemini metnini HTML ve JSON rapora ekle
-        if report_paths.get("json"):
-            try:
-                with open(report_paths["json"], "r", encoding="utf-8") as f:
-                    report_data = json.load(f)
-                report_data["ai_analysis"] = ai_analysis
-                with open(report_paths["json"], "w", encoding="utf-8") as f:
-                    json.dump(report_data, f, indent=2, ensure_ascii=False)
-            except Exception:
-                pass
-
-        if report_paths.get("html") and gemini_text:
-            try:
-                with open(report_paths["html"], "r", encoding="utf-8") as f:
-                    html_content = f.read()
-                escaped = (
-                    gemini_text.replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                )
-                insertion = f"<h2>AI Destekli İK Değerlendirmesi</h2><p>{escaped}</p>"
-                if "<div class=\"footer\">" in html_content:
-                    html_content = html_content.replace("<div class=\"footer\">", f"{insertion}\n<div class=\"footer\">")
-                elif "</body>" in html_content:
-                    html_content = html_content.replace("</body>", f"{insertion}\n</body>")
-                else:
-                    html_content += insertion
-                with open(report_paths["html"], "w", encoding="utf-8") as f:
-                    f.write(html_content)
-            except Exception:
-                pass
-        
-        # 5. Rafine JSON yanıtı oluştur (ham frame_analysis olmadan)
-        refined_response = {
+        response = {
             "interview_id": interview_id,
-            "duration_seconds": duration_seconds,
+            "duration_seconds": full_report.get("duration_seconds", 0),
+            "phase": full_report.get("phase", "v2"),
             "analysis_timestamp": datetime.utcnow().isoformat() + "Z",
-            "video_info": video_info,
-            "frame_summary": frame_summary,
-            "voice_analysis": voice_analysis_clean,
-            "pyfeat_summary": pyfeat_summary,
-        }
-        
-        # Analiz durumunu güncelle
-        analysis_status[interview_id] = {
-            "status": "completed",
-            "started_at": analysis_status[interview_id]["started_at"],
-            "completed_at": datetime.utcnow().isoformat() + "Z",
+            "video_info": full_report.get("video_info", {}),
+            # Özetler
+            "text_analysis": full_report.get("text_analysis", {}),
+            "audio_emotion_analysis": full_report.get("audio_emotion_analysis", {}),
+            "audio_signal_analysis": full_report.get("audio_signal_analysis", {}),
+            "visual_signal_analysis": full_report.get("visual_signal_analysis", {}),
+            "face_analysis": full_report.get("face_analysis", {}),
+            "voice_analysis": voice_clean,
+            "anomalies": full_report.get("anomalies", []),
+            "segment_signal_packages": full_report.get("segment_signal_packages", []),
+            # AI
+            "ai_analysis": ai_analysis,
+            "llm_provider": (ai_analysis.get("provider") if isinstance(ai_analysis, dict) else provider),
+            # Rapor dosyaları
             "report_files": report_paths,
+            "warnings": warnings_list,
         }
-        
-        return JSONResponse(content=refined_response)
-        
+
+        _update_status(
+            interview_id, "completed",
+            started_at=analysis_status[interview_id]["started_at"],
+            completed_at=datetime.utcnow().isoformat() + "Z",
+            report_files=report_paths,
+        )
+
+        return JSONResponse(content=_sanitize_for_json(response))
+
     except Exception as e:
-        # Hata durumunda durumu güncelle
-        analysis_status[interview_id] = {
-            "status": "failed",
-            "error": str(e),
-            "started_at": analysis_status.get(interview_id, {}).get("started_at"),
-            "failed_at": datetime.utcnow().isoformat() + "Z"
-        }
-        
-        # Video dosyasını temizle (hata durumunda)
-        if os.path.exists(video_file_path):
-            os.remove(video_file_path)
-        
-        raise HTTPException(status_code=500, detail=f"Analiz hatası: {str(e)}")
+        _update_status(
+            interview_id, "failed",
+            error=str(e),
+            started_at=analysis_status.get(interview_id, {}).get("started_at"),
+            completed_at=datetime.utcnow().isoformat() + "Z",
+        )
+
+        if os.path.exists(video_path):
+            try:
+                os.remove(video_path)
+            except Exception:
+                pass
+
+        return JSONResponse(
+            content=_sanitize_for_json({
+                "interview_id": interview_id,
+                "analysis_timestamp": datetime.utcnow().isoformat() + "Z",
+                "partial_success": True,
+                "warnings": [f"analysis_error: {e}"],
+            }),
+            status_code=500,
+        )
 
 
 @app.get("/status/{interview_id}")
 async def get_analysis_status(interview_id: str):
-    """
-    Analiz durumunu sorgular.
-    
-    Args:
-        interview_id: Mülakat ID
-        
-    Returns:
-        Analiz durumu
-    """
+    """Analiz durumunu sorgular."""
     status = analysis_status.get(interview_id)
-    
     if status is None:
         raise HTTPException(status_code=404, detail="Mülakat bulunamadı")
-    
     return status
-
-
-def _build_summary_payload(report: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "interview_id": report.get("interview_id"),
-        "duration_seconds": report.get("duration_seconds"),
-        "video_info": report.get("video_info", {}),
-        "frame_summary": report.get("frame_summary", {}),
-        "voice_analysis": report.get("voice_analysis", {}),
-        "pyfeat_summary": report.get("pyfeat_summary", {}),
-    }
-
-
-
-
 
 
 if __name__ == "__main__":

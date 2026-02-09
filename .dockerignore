@@ -21,3 +21,28 @@ temp_uploads/
 reports/
 uploads/
 .cache/
+
+# Eski klasörler
+colab_bundle/
+best_mode_from_colab/
+SestenDuyguVeriSeti/
+tools/
+medipipe_ile_duygu/
+test_duygu_mg/
+
+# Stajyer çalışma (sadece referans)
+stajyer_çalışma/
+
+# Test videoları
+test_videolar/
+
+# Test dosyaları
+test_*.py
+
+# Lock dosyaları (Docker build'de dahil)
+# requirements.lock.sonn.txt -> DAHIL EDİLMELİ
+
+# Büyük model dosyaları (Docker içinde indirilecek)
+*.pt
+*.pth
+*.onnx

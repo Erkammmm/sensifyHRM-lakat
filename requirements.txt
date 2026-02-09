@@ -1,45 +1,57 @@
-# Video Processing
+# =============================================
+# SensifyHR Mülakat Analiz Sistemi v2.0
+# Gereksinimler (GPU / CUDA 12.1)
+# =============================================
+
+# --- Video İşleme ---
 opencv-python>=4.8.0
-opencv-contrib-python>=4.8.0
 ffmpeg-python>=0.2.0
 
-# Face / Gaze Analysis (sadece Mediapipe kullanılıyor)
+# --- Yüz / Bakış Analizi (MediaPipe) ---
 mediapipe==0.10.9
-numpy<2.0,>=1.24.0
-protobuf==3.20.3  # Mediapipe uyumluluğu için sabit versiyon
+protobuf==3.20.3
 
-# Audio Processing
+# --- Metin Analizi (Whisper STT + Türkçe BERT) ---
+openai-whisper>=20231117
+faster-whisper>=1.0.0
+
+# --- Ses Duygu Analizi (wav2vec2) + Metin BERT ---
+transformers>=4.39.0
+huggingface_hub>=0.20.0
+
+# --- PyTorch (GPU - CUDA 12.1) ---
+# Not: torch, torchaudio ayrıca CUDA index'den kurulmalı:
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+torch>=2.1.0
+torchaudio>=2.1.0
+
+# --- Ses Özellikleri (Librosa) ---
 librosa>=0.10.0
 soundfile>=0.12.0
-# pyaudio>=0.2.11  # Webcam ses kaydı için (opsiyonel - Windows'ta pipwin gerekebilir)
-# Not: transformers ve torch kaldırıldı (heavy modüller için gerekli değil)
-# Not: pyaudio Windows'ta kurulumu zor olabilir, pipwin kullanılabilir: pip install pipwin && pipwin install pyaudio
 
-# API Framework
+# --- API Framework ---
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
-
-# Data Processing
-numpy>=1.24.0,<2.0.0
-pandas>=2.1.3
-scipy>=1.10.0,<1.11.0
-
-# Utilities
-python-dotenv>=1.0.0
-pydantic>=2.5.0
 aiofiles>=23.2.1
-google-genai>=0.6.0
 
-# Image Processing
-Pillow>=10.1.0
-scikit-image>=0.22.0
+# --- Veri İşleme ---
+numpy<2.0,>=1.24.0
+pandas>=2.1.0
+scipy>=1.10.0
 
-# Visualization & Reporting
+# --- Görselleştirme & Raporlama ---
 matplotlib>=3.8.0
 seaborn>=0.13.0
 jinja2>=3.1.2
 xhtml2pdf>=0.2.11
+Pillow>=10.1.0
 
-# Py-Feat (CPU)
-py-feat>=0.7.0
+# --- AI Değerlendirme ---
+google-generativeai>=0.8.0
+ollama>=0.3.0
+
+# --- Yardımcılar ---
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+safetensors>=0.4.0

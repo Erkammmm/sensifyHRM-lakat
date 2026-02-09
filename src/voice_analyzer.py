@@ -1,368 +1,326 @@
 """
-Ses Analizi Modülü
-Ses dosyalarından stres, güven ve konuşma özelliklerini analiz eder.
+Ses Analizi Modülü (Phase-2)
+DistilHuBERT yaklaşımına uygun şekilde ham ses özelliklerini çıkarır.
 """
 
 import numpy as np
 import librosa
-import soundfile as sf
-from typing import Dict, List, Optional, Tuple
-from scipy import stats
-from scipy.signal import find_peaks
+from typing import Dict, Tuple, List
 import warnings
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 
 
 class VoiceAnalyzer:
     """
     Ses analizi yapan sınıf.
-    Librosa tabanlı özellikleri çıkarır ve sadece ham (raw) ses özelliklerini döner.
+    Librosa tabanlı ham özellikleri çıkarır ve sadece yorumlanabilir raw çıktılar döner.
     """
-    
-    def __init__(self, sample_rate: int = 16000, frame_length: int = 2048, hop_length: int = 512):
-        """
-        Ses analizcisini başlatır.
-        
-        Args:
-            sample_rate: Ses örnekleme hızı (Hz)
-            frame_length: Frame uzunluğu (FFT için)
-            hop_length: Frame atlama uzunluğu
-        """
+
+    def __init__(
+        self,
+        sample_rate: int = 16000,
+        frame_length: int = 2048,
+        hop_length: int = 512,
+        top_db: int = 20,
+        pre_emphasis: float = 0.97,
+        max_norm: float = 0.95,
+        window_seconds: int = 8,
+        overlap_seconds: int = 0,
+    ):
         self.sample_rate = sample_rate
         self.frame_length = frame_length
         self.hop_length = hop_length
-    
+        self.top_db = top_db
+        self.pre_emphasis = pre_emphasis
+        self.max_norm = max_norm
+        self.window_seconds = window_seconds
+        self.overlap_seconds = overlap_seconds
+
     def load_audio(self, audio_path: str) -> Tuple[np.ndarray, int]:
-        """
-        Ses dosyasını yükler ve normalize eder.
-        
-        Args:
-            audio_path: Ses dosyasının yolu
-            
-        Returns:
-            (audio_array, sample_rate) tuple
-        """
+        """Ses dosyasını 16 kHz olarak yükler."""
         try:
-            # Librosa ile ses yükleme (otomatik resample)
             audio, sr = librosa.load(audio_path, sr=self.sample_rate, mono=True)
             return audio, sr
         except Exception as e:
             raise ValueError(f"Ses dosyası yüklenemedi: {str(e)}")
-    
-    def extract_pitch(self, audio: np.ndarray) -> Dict:
-        """
-        Pitch (perde) özelliklerini çıkarır.
-        Yüksek pitch değişkenliği stres göstergesi olabilir.
-        
-        Args:
-            audio: Ses sinyali
-            
-        Returns:
-            Pitch özellikleri dictionary'si
-        """
-        # Pitch tespiti (pyin algoritması - daha doğru)
-        pitches, magnitudes = librosa.piptrack(
-            y=audio,
-            sr=self.sample_rate,
-            fmin=50,  # Minimum frekans (Hz)
-            fmax=400  # Maksimum frekans (Hz)
-        )
-        
-        # Pitch değerlerini çıkar (0 olmayan değerler)
-        pitch_values = []
-        for t in range(pitches.shape[1]):
-            index = magnitudes[:, t].argmax()
-            pitch = pitches[index, t]
-            if pitch > 0:
-                pitch_values.append(pitch)
-        
-        if len(pitch_values) == 0:
+
+    def _trim_silence(self, audio: np.ndarray) -> Tuple[np.ndarray, Dict[str, float]]:
+        """Sessiz giriş/çıkışları temizler, trim bilgilerini döndürür."""
+        if audio.size == 0:
+            return audio, {"trim_start_sec": 0.0, "trim_end_sec": 0.0}
+        trimmed, (start, end) = librosa.effects.trim(audio, top_db=self.top_db)
+        trim_start = float(start) / float(self.sample_rate)
+        trim_end = float(len(audio) - end) / float(self.sample_rate)
+        return trimmed, {"trim_start_sec": trim_start, "trim_end_sec": trim_end}
+
+    def _pre_emphasize(self, audio: np.ndarray) -> np.ndarray:
+        """Pre-emphasis filtre uygular: H(z) = 1 - 0.97 z^-1."""
+        if audio.size == 0:
+            return audio
+        return np.append(audio[0], audio[1:] - self.pre_emphasis * audio[:-1])
+
+    def _normalize(self, audio: np.ndarray) -> np.ndarray:
+        """Genliği 0.95 tepe değere normalize eder."""
+        if audio.size == 0:
+            return audio
+        max_val = float(np.max(np.abs(audio)))
+        if max_val <= 0:
+            return audio
+        return audio * (self.max_norm / max_val)
+
+    def _downsample_series(self, values: np.ndarray, max_points: int = 4000) -> np.ndarray:
+        if values.size <= max_points:
+            return values
+        idx = np.linspace(0, values.size - 1, max_points).astype(int)
+        return values[idx]
+
+    def _extract_waveform(self, audio: np.ndarray) -> Dict:
+        """Ham waveform serisini (downsample edilmiş) çıkarır."""
+        if audio.size == 0:
+            return {"times": [], "values": []}
+        values = self._downsample_series(audio, max_points=4000)
+        times = np.linspace(0, len(audio) / float(self.sample_rate), num=values.size, endpoint=False)
+        return {"times": times.tolist(), "values": values.tolist()}
+
+    def _compute_vad_metrics(self, audio: np.ndarray) -> Dict:
+        """VAD metriklerini (sessizlik/speech oranları) hesaplar."""
+        total_duration = float(len(audio)) / float(self.sample_rate) if audio.size else 0.0
+        if audio.size == 0:
             return {
-                'mean_pitch': 0.0,
-                'std_pitch': 0.0,
-                'min_pitch': 0.0,
-                'max_pitch': 0.0,
-                'pitch_range': 0.0,
-                'pitch_variability': 0.0
+                "total_speech_seconds": 0.0,
+                "total_silence_seconds": 0.0,
+                "average_silence_seconds": 0.0,
+                "speech_silence_ratio": 0.0,
+                "response_pre_silence_seconds": [],
+                "speech_segments": [],
             }
-        
-        pitch_values = np.array(pitch_values)
-        
-        # Pitch özellikleri
-        mean_pitch = np.mean(pitch_values)
-        std_pitch = np.std(pitch_values)
-        min_pitch = np.min(pitch_values)
-        max_pitch = np.max(pitch_values)
-        pitch_range = max_pitch - min_pitch
-        
-        # Pitch değişkenliği (coefficient of variation)
-        pitch_variability = std_pitch / mean_pitch if mean_pitch > 0 else 0.0
-        
+
+        intervals = librosa.effects.split(audio, top_db=self.top_db)
+        if intervals.size == 0:
+            return {
+                "total_speech_seconds": 0.0,
+                "total_silence_seconds": total_duration,
+                "average_silence_seconds": total_duration,
+                "speech_silence_ratio": 0.0,
+                "response_pre_silence_seconds": [total_duration] if total_duration > 0 else [],
+                "speech_segments": [],
+            }
+
+        speech_segments = [(int(s), int(e)) for s, e in intervals]
+        speech_seconds = sum((e - s) for s, e in speech_segments) / float(self.sample_rate)
+        silence_seconds = max(0.0, total_duration - speech_seconds)
+
+        silence_durations = []
+        response_pre_silences = []
+        prev_end = 0
+        for start, end in speech_segments:
+            silence = max(0.0, (start - prev_end) / float(self.sample_rate))
+            response_pre_silences.append(silence)
+            silence_durations.append(silence)
+            prev_end = end
+        tail_silence = max(0.0, (len(audio) - prev_end) / float(self.sample_rate))
+        silence_durations.append(tail_silence)
+
+        avg_silence = float(np.mean(silence_durations)) if silence_durations else 0.0
+        ratio = speech_seconds / silence_seconds if silence_seconds > 0 else 0.0
+
         return {
-            'mean_pitch': float(mean_pitch),
-            'std_pitch': float(std_pitch),
-            'min_pitch': float(min_pitch),
-            'max_pitch': float(max_pitch),
-            'pitch_range': float(pitch_range),
-            'pitch_variability': float(pitch_variability),
-            'pitch_values': pitch_values.tolist()[:100]  # İlk 100 değer (örnek)
+            "total_speech_seconds": float(speech_seconds),
+            "total_silence_seconds": float(silence_seconds),
+            "average_silence_seconds": float(avg_silence),
+            "speech_silence_ratio": float(ratio),
+            "response_pre_silence_seconds": [float(v) for v in response_pre_silences],
+            "speech_segments": [
+                {"start": float(s) / self.sample_rate, "end": float(e) / self.sample_rate}
+                for s, e in speech_segments
+            ],
         }
-    
-    def extract_energy(self, audio: np.ndarray) -> Dict:
-        """
-        Enerji (ses seviyesi) özelliklerini çıkarır.
-        
-        Args:
-            audio: Ses sinyali
-            
-        Returns:
-            Enerji özellikleri dictionary'si
-        """
-        # RMS (Root Mean Square) enerji
+
+    def _extract_rms(self, audio: np.ndarray) -> Dict:
+        """RMS enerji serisi ve özet istatistiklerini çıkarır."""
+        if audio.size == 0:
+            return {
+                "mean": 0.0,
+                "variance": 0.0,
+                "series": {"times": [], "values": []},
+            }
         rms = librosa.feature.rms(y=audio, frame_length=self.frame_length, hop_length=self.hop_length)[0]
-        
-        # Enerji özellikleri
-        mean_energy = np.mean(rms)
-        std_energy = np.std(rms)
-        max_energy = np.max(rms)
-        min_energy = np.min(rms)
-        
-        # Enerji değişkenliği
-        energy_variability = std_energy / mean_energy if mean_energy > 0 else 0.0
-        
+        times = librosa.frames_to_time(
+            np.arange(len(rms)),
+            sr=self.sample_rate,
+            hop_length=self.hop_length,
+        )
         return {
-            'mean_energy': float(mean_energy),
-            'std_energy': float(std_energy),
-            'max_energy': float(max_energy),
-            'min_energy': float(min_energy),
-            'energy_variability': float(energy_variability)
+            "mean": float(np.mean(rms)),
+            "variance": float(np.var(rms)),
+            "series": {"times": times.tolist(), "values": rms.tolist()},
         }
-    
-    def extract_mfcc(self, audio: np.ndarray, n_mfcc: int = 13) -> Dict:
-        """
-        MFCC (Mel-Frequency Cepstral Coefficients) özelliklerini çıkarır.
-        (Şu an rapora eklenmiyor; gerekirse ileride kullanılabilir.)
-        """
-        mfccs = librosa.feature.mfcc(
+
+    def _extract_pitch(self, audio: np.ndarray) -> Dict:
+        """Pitch (F0) serisi ve istatistiklerini çıkarır."""
+        if audio.size == 0:
+            return {
+                "mean": 0.0,
+                "variability": 0.0,
+                "jump_count": 0,
+                "series": {"times": [], "values": []},
+            }
+
+        f0, voiced_flag, _ = librosa.pyin(
+            audio,
+            fmin=50,
+            fmax=400,
+            sr=self.sample_rate,
+            frame_length=self.frame_length,
+            hop_length=self.hop_length,
+        )
+        times = librosa.frames_to_time(
+            np.arange(len(f0)),
+            sr=self.sample_rate,
+            hop_length=self.hop_length,
+        )
+        f0_series = np.where(np.isnan(f0), 0.0, f0)
+        voiced_f0 = f0[voiced_flag] if voiced_flag is not None else f0[np.isfinite(f0)]
+        voiced_f0 = voiced_f0[np.isfinite(voiced_f0)] if voiced_f0 is not None else np.array([])
+
+        pitch_mean = float(np.mean(voiced_f0)) if voiced_f0.size else 0.0
+        pitch_std = float(np.std(voiced_f0)) if voiced_f0.size else 0.0
+
+        # Pitch sıçramaları: ardışık voiced frame'lerde 50 Hz üzeri değişim
+        jump_threshold = 50.0
+        jump_count = 0
+        if voiced_flag is not None and len(f0) > 1:
+            prev = None
+            for val, voiced in zip(f0, voiced_flag):
+                if not voiced or not np.isfinite(val):
+                    prev = None
+                    continue
+                if prev is not None and abs(val - prev) >= jump_threshold:
+                    jump_count += 1
+                prev = float(val)
+
+        return {
+            "mean": pitch_mean,
+            "variability": pitch_std,
+            "jump_count": int(jump_count),
+            "series": {"times": times.tolist(), "values": f0_series.tolist()},
+        }
+
+    def _extract_mel_spectrogram(self, audio: np.ndarray) -> Dict:
+        """Tek bir Mel spectrogram (ısı haritası) üretir."""
+        if audio.size == 0:
+            return {"times": [], "frequencies": [], "values": []}
+        mel = librosa.feature.melspectrogram(
             y=audio,
             sr=self.sample_rate,
-            n_mfcc=n_mfcc,
-            hop_length=self.hop_length
+            n_mels=128,
+            hop_length=self.hop_length,
+            power=2.0,
         )
-        
-        mfcc_features = {}
-        for i in range(n_mfcc):
-            mfcc_features[f'mfcc_{i}_mean'] = float(np.mean(mfccs[i]))
-            mfcc_features[f'mfcc_{i}_std'] = float(np.std(mfccs[i]))
-        
-        return mfcc_features
-    
-    def extract_prosodic_features(self, audio: np.ndarray) -> Dict:
-        """
-        Prosodic (prosodik) özelliklerini çıkarır.
-        Konuşma ritmi, tempo ve duraklamalar.
-        
-        Args:
-            audio: Ses sinyali
-            
-        Returns:
-            Prosodic özellikleri dictionary'si
-        """
-        # Zero crossing rate (ses-sessizlik geçişleri)
-        zcr = librosa.feature.zero_crossing_rate(audio, frame_length=self.frame_length, hop_length=self.hop_length)[0]
-        
-        # Tempo (BPM - beats per minute)
-        tempo, _ = librosa.beat.beat_track(y=audio, sr=self.sample_rate)
-        
-        # Duraklama tespiti (düşük enerji bölgeleri)
-        rms = librosa.feature.rms(y=audio, frame_length=self.frame_length, hop_length=self.hop_length)[0]
-        energy_threshold = np.percentile(rms, 20)  # En düşük %20'lik dilim
-        pauses = rms < energy_threshold
-        pause_ratio = np.sum(pauses) / len(pauses)
-        # Duraklama sürelerini (saniye) hesapla
-        pause_durations = []
-        in_pause = False
-        start_idx = 0
-        for i, is_pause in enumerate(pauses):
-            if is_pause and not in_pause:
-                in_pause = True
-                start_idx = i
-            elif not is_pause and in_pause:
-                length = i - start_idx
-                duration_sec = (length * self.hop_length) / float(self.sample_rate)
-                pause_durations.append(float(duration_sec))
-                in_pause = False
-        if in_pause:
-            length = len(pauses) - start_idx
-            duration_sec = (length * self.hop_length) / float(self.sample_rate)
-            pause_durations.append(float(duration_sec))
-        
-        # Konuşma hızı (göreli indeks, yaklaşık konuşma hızı göstergesi)
-        # Yüksek ZCR = daha hızlı konuşma (yaklaşık)
-        speech_rate = np.mean(zcr) * 100  # Göreli ölçek (0-100 civarı)
-        
+        mel_db = librosa.power_to_db(mel, ref=np.max)
+        times = librosa.frames_to_time(
+            np.arange(mel_db.shape[1]),
+            sr=self.sample_rate,
+            hop_length=self.hop_length,
+        )
+        freqs = librosa.mel_frequencies(n_mels=mel_db.shape[0], fmin=0, fmax=self.sample_rate / 2.0)
+
+        # Downsample time axis for plotting
+        max_time_points = 400
+        if mel_db.shape[1] > max_time_points:
+            idx = np.linspace(0, mel_db.shape[1] - 1, max_time_points).astype(int)
+            mel_db = mel_db[:, idx]
+            times = times[idx]
+
         return {
-            'zero_crossing_rate_mean': float(np.mean(zcr)),
-            'zero_crossing_rate_std': float(np.std(zcr)),
-            'tempo_bpm': float(tempo),
-            'pause_ratio': float(pause_ratio),
-            'pause_durations': pause_durations,
-            'speech_rate': float(speech_rate)
+            "times": times.tolist(),
+            "frequencies": freqs.tolist(),
+            "values": mel_db.tolist(),
         }
-    
-    def detect_voice_activity(self, audio: np.ndarray, threshold: float = 0.01) -> Dict:
-        """
-        Voice Activity Detection (VAD) - Ses aktivitesi tespiti.
-        Konuşma ve sessizlik bölgelerini ayırır.
-        
-        Args:
-            audio: Ses sinyali
-            threshold: Enerji eşiği
-            
-        Returns:
-            VAD sonuçları
-        """
-        # RMS enerji
-        rms = librosa.feature.rms(y=audio, frame_length=self.frame_length, hop_length=self.hop_length)[0]
-        
-        # Ses aktivitesi (threshold üzeri)
-        voice_frames = rms > threshold
-        voice_ratio = np.sum(voice_frames) / len(voice_frames)
-        
-        # Ses segmentleri (sürekli konuşma bölgeleri)
-        voice_segments = []
-        in_voice = False
-        segment_start = 0
-        
-        for i, is_voice in enumerate(voice_frames):
-            if is_voice and not in_voice:
-                segment_start = i
-                in_voice = True
-            elif not is_voice and in_voice:
-                segment_length = i - segment_start
-                voice_segments.append(segment_length)
-                in_voice = False
-        
-        if in_voice:
-            segment_length = len(voice_frames) - segment_start
-            voice_segments.append(segment_length)
-        
-        avg_segment_length = np.mean(voice_segments) if voice_segments else 0.0
-        
-        return {
-            'voice_ratio': float(voice_ratio),
-            'num_voice_segments': len(voice_segments),
-            'avg_segment_length': float(avg_segment_length),
-            'total_duration_seconds': len(audio) / self.sample_rate
-        }
+
+    def _window_audio(self, audio: np.ndarray) -> List[Dict]:
+        """8 saniyelik pencereler üzerinden ham özellikleri çıkarır."""
+        if audio.size == 0:
+            return []
+
+        step = self.window_seconds - self.overlap_seconds
+        step = step if step > 0 else self.window_seconds
+        window_samples = int(self.window_seconds * self.sample_rate)
+        step_samples = int(step * self.sample_rate)
+        total_samples = len(audio)
+
+        windows = []
+        start = 0
+        while start < total_samples:
+            end = min(start + window_samples, total_samples)
+            segment = audio[start:end]
+            if segment.size == 0:
+                break
+            start_sec = float(start) / float(self.sample_rate)
+            end_sec = float(end) / float(self.sample_rate)
+            windows.append(
+                {
+                    "window_start": start_sec,
+                    "window_end": end_sec,
+                    "energy_rms": self._extract_rms(segment),
+                    "pitch_f0": self._extract_pitch(segment),
+                    "speech_silence": self._compute_vad_metrics(segment),
+                }
+            )
+            start += step_samples
+        return windows
 
     def analyze_audio(self, audio_path: str) -> Dict:
-        """
-        Ses dosyasını tam olarak analiz eder.
-        
-        Args:
-            audio_path: Ses dosyasının yolu
-            
-        Returns:
-            Tüm analiz sonuçları
-        """
-        # Ses dosyasını yükle
-        audio, sr = self.load_audio(audio_path)
-        
-        # Tüm özellikleri çıkar
-        pitch_features = self.extract_pitch(audio)
-        energy_features = self.extract_energy(audio)
-        prosodic_features = self.extract_prosodic_features(audio)
-        vad_features = self.detect_voice_activity(audio)
+        """Ses dosyasını DistilHuBERT yaklaşımına uygun şekilde analiz eder."""
+        audio, _ = self.load_audio(audio_path)
 
-        # Spektral centroid (enerjinin frekans eksenindeki ağırlık merkezi)
-        spectral_centroid = librosa.feature.spectral_centroid(
-            y=audio,
-            sr=self.sample_rate
-        )[0]
-        spectral_centroid_mean = float(np.mean(spectral_centroid))
-        spectral_centroid_std = float(np.std(spectral_centroid))
+        # 1) Zorunlu yeniden örnekleme load_audio ile yapılır
+        original_duration = float(len(audio)) / float(self.sample_rate) if audio.size else 0.0
 
-        # RMS enerji zaman serisi
-        rms_series = librosa.feature.rms(
-            y=audio,
-            frame_length=self.frame_length,
-            hop_length=self.hop_length
-        )[0]
-        rms_times = librosa.frames_to_time(
-            np.arange(len(rms_series)),
-            sr=self.sample_rate,
-            hop_length=self.hop_length
-        )
+        # 2) Sessizlik temizleme (trim) + sessizlik metrikleri
+        vad_metrics = self._compute_vad_metrics(audio)
+        audio_trimmed, trim_info = self._trim_silence(audio)
 
-        # Pitch zaman serisi (piptrack)
-        pitches, magnitudes = librosa.piptrack(
-            y=audio,
-            sr=self.sample_rate,
-            fmin=50,
-            fmax=400
-        )
-        pitch_series = []
-        for t in range(pitches.shape[1]):
-            index = magnitudes[:, t].argmax()
-            pitch = pitches[index, t]
-            pitch_series.append(float(pitch) if pitch > 0 else 0.0)
-        pitch_times = librosa.frames_to_time(
-            np.arange(len(pitch_series)),
-            sr=self.sample_rate,
-            hop_length=self.hop_length
-        )
+        # 3) Pre-emphasis
+        audio_emph = self._pre_emphasize(audio_trimmed)
 
-        # RAW VOICE FEATURES (yorum içermeyen, ham özellikler)
+        # 4) Normalizasyon
+        audio_norm = self._normalize(audio_emph)
+
+        # Ham özellikler
+        waveform_series = self._extract_waveform(audio)
+        rms_features = self._extract_rms(audio_norm)
+        pitch_features = self._extract_pitch(audio_norm)
+        mel_spectrogram = self._extract_mel_spectrogram(audio_norm)
+        windowed = self._window_audio(audio_norm)
+
         raw_voice_features = {
-            "speech_rate": {
-                "value": float(prosodic_features.get("speech_rate", 0.0)),
-                "unit": "relative_index_0_100"
+            "preprocessing": {
+                "sample_rate": int(self.sample_rate),
+                "top_db": int(self.top_db),
+                "pre_emphasis": float(self.pre_emphasis),
+                "max_norm": float(self.max_norm),
+                "original_duration_seconds": float(original_duration),
+                "trim_start_seconds": float(trim_info.get("trim_start_sec", 0.0)),
+                "trim_end_seconds": float(trim_info.get("trim_end_sec", 0.0)),
+                "processed_duration_seconds": float(len(audio_norm)) / float(self.sample_rate) if audio_norm.size else 0.0,
             },
-            "rms_energy": {
-                "mean": float(energy_features.get("mean_energy", 0.0)),
-                "std": float(energy_features.get("std_energy", 0.0)),
-                "min": float(energy_features.get("min_energy", 0.0)),
-                "max": float(energy_features.get("max_energy", 0.0))
-            },
-            "rms_energy_series": {
-                "times": rms_times.tolist(),
-                "values": rms_series.tolist()
-            },
-            "pitch_f0": {
-                "mean": float(pitch_features.get("mean_pitch", 0.0)),
-                "std": float(pitch_features.get("std_pitch", 0.0)),
-                "min": float(pitch_features.get("min_pitch", 0.0)),
-                "max": float(pitch_features.get("max_pitch", 0.0))
-            },
-            "pitch_series": {
-                "times": pitch_times.tolist(),
-                "values": pitch_series
-            },
-            "pitch_histogram": pitch_features.get("pitch_values", []),
-            "pause_durations": prosodic_features.get("pause_durations", []),
-            "silence_ratio": float(prosodic_features.get("pause_ratio", 0.0)),
-            "spectral_centroid": {
-                "mean": spectral_centroid_mean,
-                "std": spectral_centroid_std
-            },
-            "zero_crossing_rate": {
-                "mean": float(prosodic_features.get("zero_crossing_rate_mean", 0.0)),
-                "std": float(prosodic_features.get("zero_crossing_rate_std", 0.0))
-            },
-            "duration_seconds": float(vad_features.get("total_duration_seconds", 0.0))
+            "waveform": waveform_series,
+            "energy_rms": rms_features,
+            "pitch_f0": pitch_features,
+            "speech_silence": vad_metrics,
+            "mel_spectrogram": mel_spectrogram,
+            "windowed_features": windowed,
+            "duration_seconds": float(len(audio_norm)) / float(self.sample_rate) if audio_norm.size else 0.0,
         }
 
-        return {
-            "raw_voice_features": raw_voice_features
-        }
+        return {"raw_voice_features": raw_voice_features}
 
 
 if __name__ == "__main__":
-    # Test kodu
     analyzer = VoiceAnalyzer()
     print("VoiceAnalyzer modülü hazır.")
     print("\nKullanım:")
     print("  analyzer = VoiceAnalyzer()")
     print("  result = analyzer.analyze_audio('audio.wav')")
-    print("  print(result['summary'])")

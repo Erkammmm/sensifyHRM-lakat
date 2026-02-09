@@ -1,481 +1,812 @@
 """
-Matplotlib/Seaborn tabanlı grafik üretimi.
-Rapor için PNG görseller üretir ve HTML'de kullanılmak üzere yol döndürür.
+Grafik Oluşturma Modülü
+Tüm analiz verileri için matplotlib grafikleri üretir.
 """
 
-from typing import Dict, List, Optional, Any
 import os
-import math
-import base64
-
-import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # GUI olmadan çalış
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+from typing import Dict, List, Any, Optional
+from collections import Counter
 
 
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
+# --- Türkçe renk paleti ---
+EMOTION_COLORS = {
+    "Mutlu": "#2ecc71",
+    "Notr": "#95a5a6",
+    "Korku": "#9b59b6",
+    "Tiksinti": "#e67e22",
+    "Ofkeli": "#e74c3c",
+    "Saskin": "#f1c40f",
+    "Stresli": "#c0392b",
+    "Uzgun": "#3498db",
+    # Ses duygu (Türkçe büyük harf)
+    "MUTLU": "#2ecc71",
+    "NÖTR": "#95a5a6",
+    "SAKİN": "#1abc9c",
+    "KIZGIN": "#e74c3c",
+    "KORKU": "#9b59b6",
+    "TİKSİNME": "#e67e22",
+    "ÜZGÜN": "#3498db",
+    "ŞAŞIRMA": "#f1c40f",
+    "SESSİZLİK": "#bdc3c7",
+}
+
+GAZE_COLORS = {
+    "Ekrana Bakiyor": "#2ecc71",
+    "Saga bakiyor": "#e74c3c",
+    "Sola bakiyor": "#3498db",
+    "Asagi bakiyor": "#9b59b6",
+    "Yukari bakiyor": "#f39c12",
+}
+
+SENTIMENT_COLORS = {
+    "positive": "#2ecc71",
+    "negative": "#e74c3c",
+}
+
+# FAZ-3 (signal palette)
+SIGNAL_COLORS = {
+    "NEGATIVE": "#fb7185",
+    "NEUTRAL": "#94a3b8",
+    "POSITIVE": "#34d399",
+    "LOW": "#60a5fa",
+    "MEDIUM": "#fbbf24",
+    "HIGH": "#f97316",
+    "FOCUSED": "#34d399",
+    "AVERTED": "#fb7185",
+    "NEUTRAL_STATE": "#94a3b8",
+    "POSITIVE_STATE": "#34d399",
+    "TENSE": "#fb7185",
+    "ELEVATED": "#fbbf24",
+}
+
+# Genel stil
+plt.rcParams.update({
+    "figure.facecolor": "white",
+    "axes.facecolor": "#fafafa",
+    "axes.grid": True,
+    "grid.alpha": 0.3,
+    "font.size": 11,
+})
 
 
-def _save_fig(fig, output_path: str) -> str:
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+def _save_fig(fig, path):
+    """Figürü kaydedip kapatır."""
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
-    return output_path
 
 
-def _radar_chart(labels: List[str], values: List[float], title: str) -> plt.Figure:
-    values = values + values[:1]
-    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-    angles += angles[:1]
+def _smooth(values, window=5):
+    """Basit hareketli ortalama."""
+    if len(values) < window:
+        return values
+    kernel = np.ones(window) / window
+    return np.convolve(values, kernel, mode="same")
 
-    fig = plt.figure(figsize=(6, 4))
-    ax = plt.subplot(111, polar=True)
-    ax.plot(angles, values, color="#4c78a8", linewidth=2)
-    ax.fill(angles, values, color="#4c78a8", alpha=0.25)
-    ax.set_thetagrids(np.degrees(angles[:-1]), labels)
+
+# =====================================================================
+# 1) SES DUYGU TIMELINE (HuBERT SER)
+# =====================================================================
+def plot_audio_emotion_timeline(audio_timeline: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Ses duygu analizi zaman serisi grafiği."""
+    if not audio_timeline:
+        return None
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+
+    # Duygu etiketlerini sayısala çevir
+    unique_emotions = list(set(t["emotion"] for t in audio_timeline))
+    emotion_to_idx = {e: i for i, e in enumerate(unique_emotions)}
+
+    times = [t["start"] for t in audio_timeline]
+    indices = [emotion_to_idx[t["emotion"]] for t in audio_timeline]
+    colors = [EMOTION_COLORS.get(t["emotion"], "#95a5a6") for t in audio_timeline]
+
+    ax.scatter(times, indices, c=colors, s=30, alpha=0.7, zorder=5)
+
+    # Yumuşatılmış çizgi
+    if len(indices) > 5:
+        smoothed = _smooth(np.array(indices, dtype=float), window=5)
+        ax.plot(times, smoothed, color="#2c3e50", alpha=0.5, linewidth=1.5)
+
+    ax.set_yticks(range(len(unique_emotions)))
+    ax.set_yticklabels(unique_emotions)
+    ax.set_xlabel("Zaman (saniye)")
+    ax.set_title("🎤 Ses Duygu Analizi (HuBERT SER)", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "audio_emotion_timeline.png")
+    _save_fig(fig, path)
+    return {"title": "Ses Duygu Analizi - Zaman Serisi", "path": path}
+
+
+# =====================================================================
+# 2) SES DUYGU DAĞILIMI (pasta)
+# =====================================================================
+def plot_audio_emotion_distribution(audio_timeline: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Ses duygu dağılımı pasta grafiği."""
+    if not audio_timeline:
+        return None
+
+    emotions = [t["emotion"] for t in audio_timeline]
+    counter = Counter(emotions)
+    labels = list(counter.keys())
+    sizes = list(counter.values())
+    colors = [EMOTION_COLORS.get(l, "#95a5a6") for l in labels]
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    wedges, texts, autotexts = ax.pie(
+        sizes, labels=labels, colors=colors,
+        autopct="%1.1f%%", startangle=90, textprops={"fontsize": 10}
+    )
+    ax.set_title("🎤 Ses Duygu Dağılımı", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "audio_emotion_dist.png")
+    _save_fig(fig, path)
+    return {"title": "Ses Duygu Dağılımı", "path": path}
+
+
+# =====================================================================
+# 3) METİN DUYGU DAĞILIMI
+# =====================================================================
+def plot_text_sentiment(text_segments: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Metin duygu analizi çubuk grafiği."""
+    if not text_segments:
+        return None
+
+    # Phase-3: sentiment yok (metin = sadece içerik)
+    if not isinstance(text_segments[0], dict) or "sentiment" not in text_segments[0]:
+        return None
+
+    sentiments = [s["sentiment"] for s in text_segments]
+    counter = Counter(sentiments)
+    labels = list(counter.keys())
+    values = list(counter.values())
+    colors = [SENTIMENT_COLORS.get(l, "#95a5a6") for l in labels]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    bars = ax.bar(labels, values, color=colors, edgecolor="white", linewidth=1.5)
+    for bar, val in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.3,
+                str(val), ha="center", va="bottom", fontweight="bold")
+
+    ax.set_ylabel("Cümle Sayısı")
+    ax.set_title("📝 Metin Duygu Analizi (Türkçe BERT)", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "text_sentiment.png")
+    _save_fig(fig, path)
+    return {"title": "Metin Duygu Analizi", "path": path}
+
+
+# =====================================================================
+# 4) METİN DUYGU TIMELINE
+# =====================================================================
+def plot_text_sentiment_timeline(text_segments: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Metin duygu timeline (pozitif=1, negatif=-1)."""
+    if not text_segments:
+        return None
+
+    # Phase-3: sentiment yok (metin = sadece içerik)
+    if not isinstance(text_segments[0], dict) or "sentiment" not in text_segments[0]:
+        return None
+
+    fig, ax = plt.subplots(figsize=(14, 4))
+    for seg in text_segments:
+        mid = (seg["start"] + seg["end"]) / 2
+        val = 1 if seg["sentiment"] == "positive" else -1
+        color = SENTIMENT_COLORS.get(seg["sentiment"], "#95a5a6")
+        ax.bar(mid, val, width=(seg["end"] - seg["start"]), color=color, alpha=0.7)
+
+    ax.axhline(y=0, color="#2c3e50", linewidth=0.8)
+    ax.set_xlabel("Zaman (saniye)")
+    ax.set_ylabel("Duygu")
+    ax.set_yticks([-1, 0, 1])
+    ax.set_yticklabels(["Negatif", "", "Pozitif"])
+    ax.set_title("📝 Metin Duygu Zaman Serisi", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "text_sentiment_timeline.png")
+    _save_fig(fig, path)
+    return {"title": "Metin Duygu Zaman Serisi", "path": path}
+
+
+# =====================================================================
+# 5) YÜZ DUYGU TIMELINE
+# =====================================================================
+def plot_face_emotion_timeline(face_timeline: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Yüz duygu analizi zaman serisi."""
+    if not face_timeline:
+        return None
+
+    # Phase-3: emotion alanı yok (visual signal mode)
+    if not isinstance(face_timeline[0], dict) or "emotion" not in face_timeline[0]:
+        return None
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+
+    unique_emotions = list(set(f["emotion"] for f in face_timeline))
+    emotion_to_idx = {e: i for i, e in enumerate(unique_emotions)}
+
+    times = [f["timestamp"] for f in face_timeline]
+    indices = [emotion_to_idx[f["emotion"]] for f in face_timeline]
+    colors = [EMOTION_COLORS.get(f["emotion"], "#95a5a6") for f in face_timeline]
+
+    ax.scatter(times, indices, c=colors, s=25, alpha=0.7, zorder=5)
+
+    if len(indices) > 5:
+        smoothed = _smooth(np.array(indices, dtype=float), window=5)
+        ax.plot(times, smoothed, color="#2c3e50", alpha=0.5, linewidth=1.5)
+
+    ax.set_yticks(range(len(unique_emotions)))
+    ax.set_yticklabels(unique_emotions)
+    ax.set_xlabel("Zaman (saniye)")
+    ax.set_title("😊 Yüz Duygu Analizi (MediaPipe)", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "face_emotion_timeline.png")
+    _save_fig(fig, path)
+    return {"title": "Yüz Duygu Analizi - Zaman Serisi", "path": path}
+
+
+# =====================================================================
+# 6) YÜZ DUYGU DAĞILIMI
+# =====================================================================
+def plot_face_emotion_distribution(face_timeline: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Yüz duygu dağılımı pasta grafiği."""
+    if not face_timeline:
+        return None
+
+    # Phase-3: emotion alanı yok (visual signal mode)
+    if not isinstance(face_timeline[0], dict) or "emotion" not in face_timeline[0]:
+        return None
+
+    emotions = [f["emotion"] for f in face_timeline]
+    counter = Counter(emotions)
+    labels = list(counter.keys())
+    sizes = list(counter.values())
+    colors = [EMOTION_COLORS.get(l, "#95a5a6") for l in labels]
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.pie(sizes, labels=labels, colors=colors, autopct="%1.1f%%",
+           startangle=90, textprops={"fontsize": 10})
+    ax.set_title("😊 Yüz Duygu Dağılımı", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "face_emotion_dist.png")
+    _save_fig(fig, path)
+    return {"title": "Yüz Duygu Dağılımı", "path": path}
+
+
+# =====================================================================
+# 7) BAKIM YÖNÜ DAĞILIMI
+# =====================================================================
+def plot_gaze_distribution(face_timeline: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Bakış yönü dağılımı bar grafiği."""
+    if not face_timeline:
+        return None
+
+    gazes = [f["gaze"] for f in face_timeline]
+    counter = Counter(gazes)
+    labels = list(counter.keys())
+    values = list(counter.values())
+    total = sum(values)
+    colors = [GAZE_COLORS.get(l, "#95a5a6") for l in labels]
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    bars = ax.barh(labels, values, color=colors, edgecolor="white", linewidth=1.5)
+    for bar, val in zip(bars, values):
+        pct = (val / total) * 100
+        ax.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height() / 2,
+                f"{val} (%{pct:.1f})", va="center", fontweight="bold")
+
+    ax.set_xlabel("Kayıt Sayısı")
+    ax.set_title("👁️ Bakış Yönü Dağılımı", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "gaze_distribution.png")
+    _save_fig(fig, path)
+    return {"title": "Bakış Yönü Dağılımı", "path": path}
+
+
+# =====================================================================
+# 8) GÖZ KIRPMA TIMELINE
+# =====================================================================
+def plot_blink_timeline(face_timeline: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Göz kırpma birikim grafiği."""
+    if not face_timeline:
+        return None
+
+    times = [f["timestamp"] for f in face_timeline]
+    blinks = [f["blink_total"] for f in face_timeline]
+
+    fig, ax = plt.subplots(figsize=(14, 4))
+    ax.plot(times, blinks, color="#3498db", linewidth=2, alpha=0.8)
+    ax.fill_between(times, blinks, alpha=0.15, color="#3498db")
+    ax.set_xlabel("Zaman (saniye)")
+    ax.set_ylabel("Toplam Göz Kırpma")
+    ax.set_title("👁️ Göz Kırpma Birikimi", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "blink_timeline.png")
+    _save_fig(fig, path)
+    return {"title": "Göz Kırpma Birikimi", "path": path}
+
+
+# =====================================================================
+# 9) RMS ENERJİ
+# =====================================================================
+def plot_rms_energy(voice_features: Dict, output_dir: str) -> Optional[Dict]:
+    """RMS enerji zaman serisi."""
+    rms = voice_features.get("energy_rms", {})
+    series = rms.get("series", {})
+    times = series.get("times", [])
+    values = series.get("values", [])
+    if not times or not values:
+        return None
+
+    fig, ax = plt.subplots(figsize=(14, 4))
+    ax.plot(times, values, color="#e74c3c", linewidth=1, alpha=0.7)
+    ax.fill_between(times, values, alpha=0.15, color="#e74c3c")
+
+    mean_val = rms.get("mean", 0)
+    ax.axhline(y=mean_val, color="#2c3e50", linestyle="--", linewidth=1, alpha=0.6,
+               label=f"Ortalama: {mean_val:.4f}")
+    ax.legend()
+
+    ax.set_xlabel("Zaman (saniye)")
+    ax.set_ylabel("RMS Enerji")
+    ax.set_title("🔊 Ses Enerjisi (RMS)", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "rms_energy.png")
+    _save_fig(fig, path)
+    return {"title": "Ses Enerjisi (RMS)", "path": path}
+
+
+# =====================================================================
+# 10) PİTCH (F0)
+# =====================================================================
+def plot_pitch(voice_features: Dict, output_dir: str) -> Optional[Dict]:
+    """Pitch (F0) zaman serisi."""
+    pitch = voice_features.get("pitch_f0", {})
+    series = pitch.get("series", {})
+    times = series.get("times", [])
+    values = series.get("values", [])
+    if not times or not values:
+        return None
+
+    values_arr = np.array(values)
+    times_arr = np.array(times)
+    # Sıfır olmayanları filtrele (voiced)
+    mask = values_arr > 0
+    if not mask.any():
+        return None
+
+    fig, ax = plt.subplots(figsize=(14, 4))
+    ax.scatter(times_arr[mask], values_arr[mask], s=3, color="#3498db", alpha=0.6)
+
+    mean_val = pitch.get("mean", 0)
+    if mean_val > 0:
+        ax.axhline(y=mean_val, color="#e74c3c", linestyle="--", linewidth=1, alpha=0.6,
+                   label=f"Ortalama: {mean_val:.1f} Hz")
+        ax.legend()
+
+    ax.set_xlabel("Zaman (saniye)")
+    ax.set_ylabel("Frekans (Hz)")
+    ax.set_title("🎵 Ses Perdesi (Pitch / F0)", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "pitch_f0.png")
+    _save_fig(fig, path)
+    return {"title": "Ses Perdesi (Pitch / F0)", "path": path}
+
+
+# =====================================================================
+# 11) WAVEFORM + VAD
+# =====================================================================
+def plot_waveform_vad(voice_features: Dict, output_dir: str) -> Optional[Dict]:
+    """Dalga formu + konuşma/sessizlik segmentleri."""
+    waveform = voice_features.get("waveform", {})
+    w_times = waveform.get("times", [])
+    w_values = waveform.get("values", [])
+    if not w_times or not w_values:
+        return None
+
+    fig, ax = plt.subplots(figsize=(14, 4))
+    ax.plot(w_times, w_values, color="#2c3e50", linewidth=0.4, alpha=0.6)
+
+    # VAD segmentlerini yeşil olarak göster
+    segments = voice_features.get("speech_silence", {}).get("speech_segments", [])
+    for seg in segments:
+        ax.axvspan(seg["start"], seg["end"], alpha=0.15, color="#2ecc71")
+
+    ax.set_xlabel("Zaman (saniye)")
+    ax.set_ylabel("Genlik")
+    ax.set_title("📊 Dalga Formu + Konuşma Segmentleri", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "waveform_vad.png")
+    _save_fig(fig, path)
+    return {"title": "Dalga Formu + Konuşma Segmentleri", "path": path}
+
+
+# =====================================================================
+# 12) KONUŞMA / SESSİZLİK ORANLARI
+# =====================================================================
+def plot_speech_silence_ratio(voice_features: Dict, output_dir: str) -> Optional[Dict]:
+    """Konuşma / sessizlik süresi bar grafiği."""
+    ss = voice_features.get("speech_silence", {})
+    speech = ss.get("total_speech_seconds", 0)
+    silence = ss.get("total_silence_seconds", 0)
+    if speech == 0 and silence == 0:
+        return None
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    labels = ["Konuşma", "Sessizlik"]
+    values = [speech, silence]
+    colors = ["#2ecc71", "#e74c3c"]
+
+    bars = ax.bar(labels, values, color=colors, edgecolor="white", linewidth=1.5)
+    for bar, val in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.2,
+                f"{val:.1f}s", ha="center", va="bottom", fontweight="bold")
+
+    ax.set_ylabel("Süre (saniye)")
+    ax.set_title("🗣️ Konuşma / Sessizlik Süresi", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "speech_silence.png")
+    _save_fig(fig, path)
+    return {"title": "Konuşma / Sessizlik Süresi", "path": path}
+
+
+# =====================================================================
+# 13) MEL SPECTROGRAM
+# =====================================================================
+def plot_mel_spectrogram(voice_features: Dict, output_dir: str) -> Optional[Dict]:
+    """Mel spectrogram ısı haritası."""
+    mel = voice_features.get("mel_spectrogram", {})
+    mel_values = mel.get("values", [])
+    mel_times = mel.get("times", [])
+    mel_freqs = mel.get("frequencies", [])
+    if not mel_values or not mel_times:
+        return None
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+    mel_arr = np.array(mel_values)
+    extent = [mel_times[0], mel_times[-1], mel_freqs[0] if mel_freqs else 0,
+              mel_freqs[-1] if mel_freqs else 8000]
+
+    im = ax.imshow(mel_arr, aspect="auto", origin="lower", extent=extent,
+                   cmap="magma", interpolation="nearest")
+    fig.colorbar(im, ax=ax, label="dB")
+    ax.set_xlabel("Zaman (saniye)")
+    ax.set_ylabel("Frekans (Hz)")
+    ax.set_title("🎼 Mel Spectrogram", fontweight="bold", fontsize=13)
+
+    path = os.path.join(output_dir, "mel_spectrogram.png")
+    _save_fig(fig, path)
+    return {"title": "Mel Spectrogram", "path": path}
+
+
+# =====================================================================
+# 14) DURAKLAMA SÜRELERİ
+# =====================================================================
+def plot_pause_durations(voice_features: Dict, output_dir: str) -> Optional[Dict]:
+    """Her konuşma segmenti öncesi duraklama süreleri."""
+    ss = voice_features.get("speech_silence", {})
+    pauses = ss.get("response_pre_silence_seconds", [])
+    if not pauses or len(pauses) < 2:
+        return None
+
+    fig, ax = plt.subplots(figsize=(12, 4))
+    x = range(1, len(pauses) + 1)
+    ax.bar(x, pauses, color="#9b59b6", edgecolor="white", linewidth=0.5)
+    ax.set_xlabel("Segment No")
+    ax.set_ylabel("Duraklama (saniye)")
+    ax.set_title("⏸️ Konuşma Öncesi Duraklama Süreleri", fontweight="bold", fontsize=13)
+
+    if len(pauses) > 0:
+        avg = np.mean(pauses)
+        ax.axhline(y=avg, color="#e74c3c", linestyle="--", linewidth=1,
+                   label=f"Ort: {avg:.2f}s")
+        ax.legend()
+
+    path = os.path.join(output_dir, "pause_durations.png")
+    _save_fig(fig, path)
+    return {"title": "Duraklama Süreleri", "path": path}
+
+
+# =====================================================================
+# 15) TUTARSIZLIK TIMELINE
+# =====================================================================
+def plot_anomalies(anomalies: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Tutarsızlık noktalarını gösteren grafik."""
+    if not anomalies:
+        return None
+
+    fig, ax = plt.subplots(figsize=(14, 4))
+
+    for i, a in enumerate(anomalies):
+        # time_range parse: "3.5s - 7.2s"
+        parts = a["time_range"].replace("s", "").split(" - ")
+        if len(parts) == 2:
+            try:
+                start = float(parts[0])
+                end = float(parts[1])
+                mid = (start + end) / 2
+                ax.axvspan(start, end, alpha=0.25, color="#e74c3c")
+                ax.annotate(
+                    f"#{i+1}", (mid, 0.5),
+                    fontsize=8, ha="center", fontweight="bold",
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="#e74c3c", alpha=0.3),
+                )
+            except ValueError:
+                pass
+
     ax.set_ylim(0, 1)
-    ax.set_title(title)
-    return fig
+    ax.set_xlabel("Zaman (saniye)")
+    ax.set_title("⚠️ Tutarsızlık Noktaları (Metin ↔ Yüz)", fontweight="bold", fontsize=13)
+    ax.yaxis.set_visible(False)
+
+    path = os.path.join(output_dir, "anomalies.png")
+    _save_fig(fig, path)
+    return {"title": "Tutarsızlık Noktaları", "path": path}
 
 
-def _kpi_bar(label: str, value: float, max_value: float = 100.0) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(4, 2))
-    ax.barh([label], [value], color="#4c78a8")
-    ax.set_xlim(0, max_value)
-    ax.set_title(label)
-    for i, v in enumerate([value]):
-        ax.text(v + max_value * 0.01, i, f"{v:.2f}", va="center")
-    sns.despine(ax=ax, left=True, bottom=True)
-    ax.get_xaxis().set_visible(False)
-    return fig
+# =====================================================================
+# FAZ-3: AUDIO SIGNAL GRAFİKLERİ
+# =====================================================================
+def plot_audio_signal_distributions(audio_signal_timeline: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Valence ve Arousal state dağılımını tek figürde gösterir."""
+    if not audio_signal_timeline:
+        return None
+
+    valences = [t.get("valence_state", "") for t in audio_signal_timeline]
+    arousals = [t.get("arousal_state", "") for t in audio_signal_timeline]
+    v_counter = Counter(valences)
+    a_counter = Counter(arousals)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    fig.suptitle("🎛️ Audio Signal Dağılımı (Valence/Arousal)", fontsize=13, fontweight="bold")
+
+    # Valence
+    ax = axes[0]
+    v_labels = list(v_counter.keys())
+    v_vals = list(v_counter.values())
+    v_colors = [SIGNAL_COLORS.get(l, "#95a5a6") for l in v_labels]
+    ax.bar(v_labels, v_vals, color=v_colors, edgecolor="white", linewidth=1.0)
+    ax.set_title("Valence State")
+    ax.set_ylabel("Parça Sayısı")
+
+    # Arousal
+    ax = axes[1]
+    a_labels = list(a_counter.keys())
+    a_vals = list(a_counter.values())
+    a_colors = [SIGNAL_COLORS.get(l, "#95a5a6") for l in a_labels]
+    ax.bar(a_labels, a_vals, color=a_colors, edgecolor="white", linewidth=1.0)
+    ax.set_title("Arousal State")
+
+    fig.tight_layout()
+    path = os.path.join(output_dir, "audio_signal_dist.png")
+    _save_fig(fig, path)
+    return {"title": "Audio Signal Dağılımı (Valence/Arousal)", "path": path}
 
 
-def generate_report_charts(
-    frame_analysis: List[Dict],
-    frame_summary: Dict,
-    voice_analysis: Dict,
-    pyfeat_summary: Optional[Dict],
-    pyfeat_frame_analysis: Optional[List[Dict]],
-    video_info: Dict,
-    duration_seconds: float,
-    output_dir: str,
-) -> List[Dict[str, Any]]:
+def plot_audio_signal_timeline(audio_signal_timeline: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Valence/Arousal state'leri zaman serisi olarak gösterir."""
+    if not audio_signal_timeline:
+        return None
+
+    # state -> index (ordered for readability)
+    v_order = ["NEGATIVE", "NEUTRAL", "POSITIVE"]
+    a_order = ["LOW", "MEDIUM", "HIGH"]
+    v_to_idx = {v: i for i, v in enumerate(v_order)}
+    a_to_idx = {a: i for i, a in enumerate(a_order)}
+
+    times = [t.get("start", 0) for t in audio_signal_timeline]
+    v_idx = [v_to_idx.get(t.get("valence_state", "NEUTRAL"), 1) for t in audio_signal_timeline]
+    a_idx = [a_to_idx.get(t.get("arousal_state", "MEDIUM"), 1) for t in audio_signal_timeline]
+
+    fig, axes = plt.subplots(2, 1, figsize=(14, 6), sharex=True)
+    axes[0].scatter(times, v_idx, c=[SIGNAL_COLORS.get(t.get("valence_state", ""), "#94a3b8") for t in audio_signal_timeline],
+                    s=25, alpha=0.8)
+    axes[0].set_yticks(range(len(v_order)))
+    axes[0].set_yticklabels(v_order)
+    axes[0].set_title("Valence Timeline", fontweight="bold")
+
+    axes[1].scatter(times, a_idx, c=[SIGNAL_COLORS.get(t.get("arousal_state", ""), "#fbbf24") for t in audio_signal_timeline],
+                    s=25, alpha=0.8)
+    axes[1].set_yticks(range(len(a_order)))
+    axes[1].set_yticklabels(a_order)
+    axes[1].set_title("Arousal Timeline", fontweight="bold")
+    axes[1].set_xlabel("Zaman (saniye)")
+
+    fig.tight_layout()
+    path = os.path.join(output_dir, "audio_signal_timeline.png")
+    _save_fig(fig, path)
+    return {"title": "Audio Signal Timeline (Valence/Arousal)", "path": path}
+
+
+# =====================================================================
+# FAZ-3: VISUAL SIGNAL GRAFİKLERİ
+# =====================================================================
+def plot_visual_signal_distributions(visual_timeline: List[Dict], output_dir: str) -> Optional[Dict]:
+    """Facial/Attention/Stress state dağılımları."""
+    if not visual_timeline:
+        return None
+    if not isinstance(visual_timeline[0], dict) or "facial_state" not in visual_timeline[0]:
+        return None
+
+    facial = [t.get("facial_state", "") for t in visual_timeline]
+    attn = [t.get("attention_state", "") for t in visual_timeline]
+    stress = [t.get("stress_indicator", "") for t in visual_timeline]
+
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    fig.suptitle("👁️ Visual Signal Dağılımı", fontsize=13, fontweight="bold")
+
+    for ax, title, values in [
+        (axes[0], "Facial State", facial),
+        (axes[1], "Attention State", attn),
+        (axes[2], "Stress Indicator", stress),
+    ]:
+        counter = Counter(values)
+        labels = list(counter.keys())
+        vals = list(counter.values())
+        colors = [SIGNAL_COLORS.get(l, "#95a5a6") for l in labels]
+        ax.bar(labels, vals, color=colors, edgecolor="white", linewidth=1.0)
+        ax.set_title(title)
+        ax.tick_params(axis="x", rotation=20)
+
+    fig.tight_layout()
+    path = os.path.join(output_dir, "visual_signal_dist.png")
+    _save_fig(fig, path)
+    return {"title": "Visual Signal Dağılımı (Facial/Attention/Stress)", "path": path}
+
+# =====================================================================
+# 16) KPI ÖZETİ (Dashboard)
+# =====================================================================
+def plot_kpi_dashboard(face_summary: Dict, text_summary: Dict,
+                       audio_summary: Dict, voice_features: Dict,
+                       output_dir: str) -> Optional[Dict]:
+    """Tüm modüllerin KPI göstergeleri tek bir dashboard'da."""
+    fig, axes = plt.subplots(2, 3, figsize=(16, 8))
+    fig.suptitle("📊 Mülakat KPI Özeti", fontsize=16, fontweight="bold", y=1.02)
+
+    # 1) Odak Skoru
+    ax = axes[0, 0]
+    focus = face_summary.get("focus_score", 0)
+    ax.barh(["Odak"], [focus], color="#2ecc71" if focus > 60 else "#e74c3c")
+    ax.set_xlim(0, 100)
+    ax.set_title("👁️ Odak Skoru")
+    ax.text(focus + 1, 0, f"%{focus:.0f}", va="center", fontweight="bold")
+
+    # 2) Göz Kırpma
+    ax = axes[0, 1]
+    bpm = face_summary.get("blink_rate_per_min", 0)
+    color = "#2ecc71" if 10 <= bpm <= 25 else "#e74c3c"
+    ax.barh(["Kırpma/dk"], [bpm], color=color)
+    ax.set_title("👁️ Göz Kırpma Hızı")
+    ax.text(bpm + 0.3, 0, f"{bpm:.1f}", va="center", fontweight="bold")
+
+    # 3) Baskın Yüz Duygusu
+    ax = axes[0, 2]
+    dom_face = face_summary.get("dominant_emotion", "?")
+    ax.text(0.5, 0.5, dom_face, fontsize=24, ha="center", va="center",
+            fontweight="bold", color=EMOTION_COLORS.get(dom_face, "#2c3e50"),
+            transform=ax.transAxes)
+    ax.set_title("😊 Baskın Yüz Duygusu")
+    ax.axis("off")
+
+    # 4) Metin Duygu Oranı
+    ax = axes[1, 0]
+    pos = text_summary.get("sentiment_percentages", {}).get("positive", 0)
+    neg = text_summary.get("sentiment_percentages", {}).get("negative", 0)
+    ax.barh(["Pozitif", "Negatif"], [pos, neg],
+            color=[SENTIMENT_COLORS["positive"], SENTIMENT_COLORS["negative"]])
+    ax.set_xlim(0, 100)
+    ax.set_title("📝 Metin Duygu Oranı")
+
+    # 5) Baskın Ses Duygusu
+    ax = axes[1, 1]
+    dom_audio = audio_summary.get("dominant_emotion", "?")
+    ax.text(0.5, 0.5, dom_audio, fontsize=20, ha="center", va="center",
+            fontweight="bold", color=EMOTION_COLORS.get(dom_audio, "#2c3e50"),
+            transform=ax.transAxes)
+    ax.set_title("🎤 Baskın Ses Duygusu")
+    ax.axis("off")
+
+    # 6) Konuşma/Sessizlik oranı
+    ax = axes[1, 2]
+    ss = voice_features.get("speech_silence", {})
+    speech = ss.get("total_speech_seconds", 0)
+    silence = ss.get("total_silence_seconds", 0)
+    total = speech + silence
+    if total > 0:
+        ax.pie([speech, silence], labels=["Konuşma", "Sessizlik"],
+               colors=["#2ecc71", "#e74c3c"], autopct="%1.0f%%",
+               textprops={"fontsize": 9})
+    ax.set_title("🗣️ Konuşma/Sessizlik")
+
+    fig.tight_layout()
+
+    path = os.path.join(output_dir, "kpi_dashboard.png")
+    _save_fig(fig, path)
+    return {"title": "Mülakat KPI Özeti", "path": path}
+
+
+# =====================================================================
+# ANA FONKSİYON: Tüm grafikleri üret
+# =====================================================================
+def generate_report_charts(report: Dict, output_dir: str) -> List[Dict[str, Any]]:
     """
-    Tüm grafiklerin PNG dosyalarını üretir.
-    Dönen liste: [{"title": "...", "path": "..."}]
+    Tüm rapor grafiklerini üretir.
+
+    Args:
+        report: pipeline.process_interview() çıktısı
+        output_dir: Grafiklerin kaydedileceği klasör
+
+    Returns:
+        list[dict]: Her grafik için {"title": str, "path": str}
     """
-    _ensure_dir(output_dir)
-    charts: List[Dict[str, Any]] = []
+    os.makedirs(output_dir, exist_ok=True)
 
-    sns.set_theme(style="whitegrid")
+    # Verileri çıkar
+    phase = (report.get("phase", "v2") or "v2").lower()
+    text_segments = report.get("text_analysis", {}).get("segments", [])
+    text_summary = report.get("text_analysis", {}).get("summary", {})
+    audio_timeline = report.get("audio_emotion_analysis", {}).get("timeline", [])
+    audio_summary = report.get("audio_emotion_analysis", {}).get("summary", {})
+    face_timeline = report.get("face_analysis", {}).get("timeline", [])
+    face_summary = report.get("face_analysis", {}).get("summary", {})
+    audio_signal_timeline = report.get("audio_signal_analysis", {}).get("timeline", [])
+    visual_signal_timeline = report.get("visual_signal_analysis", {}).get("timeline", [])
+    voice_raw = report.get("voice_analysis", {}).get("raw_voice_features", {})
+    anomalies = report.get("anomalies", [])
 
-    valid_frames = [f for f in frame_analysis if f is not None]
-    if not valid_frames:
-        return charts
+    charts = []
 
-    timestamps = [f.get("timestamp", 0.0) for f in valid_frames]
-    mouth_heights = [f.get("raw_features", {}).get("mouth_height_norm", 0.0) for f in valid_frames]
-    jaw_open = [f.get("raw_features", {}).get("jaw_open_norm", 0.0) for f in valid_frames]
-    eye_openings = [f.get("raw_features", {}).get("eye_opening_norm", 0.0) for f in valid_frames]
-    brow_distances = [f.get("raw_features", {}).get("brow_distance_norm", 0.0) for f in valid_frames]
+    # Sırayla grafikleri üret
+    if phase == "v3":
+        chart_funcs = [
+            lambda: plot_visual_signal_distributions(visual_signal_timeline, output_dir),
+            lambda: plot_gaze_distribution(face_timeline, output_dir),
+            lambda: plot_blink_timeline(face_timeline, output_dir),
+            lambda: plot_audio_signal_distributions(audio_signal_timeline, output_dir),
+            lambda: plot_audio_signal_timeline(audio_signal_timeline, output_dir),
+            # Teknik ses grafikleri (Detaylar)
+            lambda: plot_rms_energy(voice_raw, output_dir),
+            lambda: plot_pitch(voice_raw, output_dir),
+            lambda: plot_waveform_vad(voice_raw, output_dir),
+            lambda: plot_speech_silence_ratio(voice_raw, output_dir),
+            lambda: plot_mel_spectrogram(voice_raw, output_dir),
+            lambda: plot_pause_durations(voice_raw, output_dir),
+        ]
+    else:
+        chart_funcs = [
+            lambda: plot_kpi_dashboard(face_summary, text_summary, audio_summary, voice_raw, output_dir),
+            lambda: plot_face_emotion_timeline(face_timeline, output_dir),
+            lambda: plot_face_emotion_distribution(face_timeline, output_dir),
+            lambda: plot_gaze_distribution(face_timeline, output_dir),
+            lambda: plot_blink_timeline(face_timeline, output_dir),
+            lambda: plot_audio_emotion_timeline(audio_timeline, output_dir),
+            lambda: plot_audio_emotion_distribution(audio_timeline, output_dir),
+            lambda: plot_text_sentiment(text_segments, output_dir),
+            lambda: plot_text_sentiment_timeline(text_segments, output_dir),
+            lambda: plot_rms_energy(voice_raw, output_dir),
+            lambda: plot_pitch(voice_raw, output_dir),
+            lambda: plot_waveform_vad(voice_raw, output_dir),
+            lambda: plot_speech_silence_ratio(voice_raw, output_dir),
+            lambda: plot_mel_spectrogram(voice_raw, output_dir),
+            lambda: plot_pause_durations(voice_raw, output_dir),
+            lambda: plot_anomalies(anomalies, output_dir),
+        ]
 
-    total_frames = int(video_info.get("frame_count", len(frame_analysis) or 0))
-    fps = float(video_info.get("fps", 0.0) or 0.0)
-    analyzed_frames = len(valid_frames)
-    frame_skip = int(round(total_frames / analyzed_frames)) if analyzed_frames else 0
+    for func in chart_funcs:
+        try:
+            result = func()
+            if result:
+                charts.append(result)
+        except Exception as e:
+            print(f"[Plot] Grafik üretim hatası: {e}")
 
-    # --- NEW: İlk 5 kritik grafik en başta ---
-    # 1) Zaman–Duygu Değişimi (Py-Feat)
-    if pyfeat_frame_analysis:
-        emo_times = []
-        emo_happiness = []
-        emo_surprise = []
-        emo_neutral = []
-        for frame in pyfeat_frame_analysis:
-            faces = frame.get("faces", [])
-            if not faces:
-                continue
-            emotions = faces[0].get("emotions", {})
-            if not emotions:
-                continue
-            emo_times.append(frame.get("timestamp", 0.0))
-            emo_happiness.append(float(emotions.get("happiness", 0.0)))
-            emo_surprise.append(float(emotions.get("surprise", 0.0)))
-            emo_neutral.append(float(emotions.get("neutral", 0.0)))
-        if emo_times:
-            fig, ax = plt.subplots(figsize=(8, 3))
-            ax.plot(emo_times, emo_happiness, label="happiness")
-            ax.plot(emo_times, emo_surprise, label="surprise")
-            ax.plot(emo_times, emo_neutral, label="neutral")
-            ax.set_title("Zaman–Duygu Değişimi")
-            ax.set_xlabel("Zaman (s)")
-            ax.set_ylabel("Skor")
-            ax.legend()
-            charts.append({"title": "Zaman–Duygu Değişimi", "path": _save_fig(fig, os.path.join(output_dir, "emotion_timeseries.png"))})
-
-    # 2) Gaze Direction Dağılımı (Bar / Pie)
-    gaze_summary = frame_summary.get("gaze_summary", {})
-    dir_perc = gaze_summary.get("direction_percentages", {})
-    added_gaze_distribution = False
-    if dir_perc:
-        fig, ax = plt.subplots(figsize=(5, 3))
-        sns.barplot(x=list(dir_perc.keys()), y=list(dir_perc.values()), ax=ax, palette="muted")
-        ax.set_title("Gaze Direction Dağılımı")
-        ax.set_ylabel("%")
-        charts.append({"title": "Gaze Direction Dağılımı", "path": _save_fig(fig, os.path.join(output_dir, "gaze_distribution_bar.png"))})
-        added_gaze_distribution = True
-
-    # 3) Pitch & Energy Zaman Serisi
-    rv = voice_analysis.get("raw_voice_features", voice_analysis)
-    rms_series = rv.get("rms_energy_series", {})
-    pitch_series = rv.get("pitch_series", {})
-    added_pitch_energy = False
-    if rms_series.get("values") or pitch_series.get("values"):
-        fig, ax1 = plt.subplots(figsize=(8, 3))
-        if rms_series.get("values"):
-            ax1.plot(rms_series.get("times", []), rms_series.get("values", []), color="#1f77b4", label="RMS Energy")
-            ax1.set_ylabel("Energy")
-        ax2 = ax1.twinx()
-        if pitch_series.get("values"):
-            ax2.plot(pitch_series.get("times", []), pitch_series.get("values", []), color="#ff7f0e", label="Pitch (F0)")
-            ax2.set_ylabel("Hz")
-        ax1.set_title("Pitch & Energy Zaman Serisi")
-        ax1.set_xlabel("Zaman (s)")
-        charts.append({"title": "Pitch & Energy Zaman Serisi", "path": _save_fig(fig, os.path.join(output_dir, "pitch_energy_ts.png"))})
-        added_pitch_energy = True
-
-    # 4) Pause Timeline (Stem / Event Plot)
-    pause_durations = rv.get("pause_durations", [])
-    added_pause_timeline = False
-    if pause_durations:
-        fig, ax = plt.subplots(figsize=(7, 2.5))
-        x = list(range(len(pause_durations)))
-        y = pause_durations
-        ax.stem(x, y, basefmt=" ")
-        long_idx = [i for i, v in enumerate(y) if v >= 0.7]
-        if long_idx:
-            ax.scatter(long_idx, [y[i] for i in long_idx], color="red", label="Uzun duraksama")
-            ax.legend()
-        ax.set_title("Pause Timeline")
-        ax.set_xlabel("Duraksama index")
-        ax.set_ylabel("Süre (s)")
-        charts.append({"title": "Pause Timeline", "path": _save_fig(fig, os.path.join(output_dir, "pause_timeline.png"))})
-        added_pause_timeline = True
-
-    # 5) Pose (Yaw–Pitch) Yoğunluk
-    added_pose_density = False
-    if pyfeat_frame_analysis:
-        yaw_vals = []
-        pitch_vals = []
-        for frame in pyfeat_frame_analysis:
-            faces = frame.get("faces", [])
-            if not faces:
-                continue
-            pose = faces[0].get("pose", {})
-            if not pose:
-                continue
-            yaw_vals.append(float(pose.get("Yaw", 0.0)))
-            pitch_vals.append(float(pose.get("Pitch", 0.0)))
-        if yaw_vals and pitch_vals:
-            fig, ax = plt.subplots(figsize=(5, 4))
-            if len(yaw_vals) > 10:
-                sns.kdeplot(x=yaw_vals, y=pitch_vals, fill=True, thresh=0.05, levels=30, ax=ax)
-            ax.scatter(yaw_vals, pitch_vals, s=10, alpha=0.4)
-            ax.set_title("Pose (Yaw–Pitch) Yoğunluk")
-            ax.set_xlabel("Yaw")
-            ax.set_ylabel("Pitch")
-            charts.append({"title": "Pose (Yaw–Pitch) Yoğunluk", "path": _save_fig(fig, os.path.join(output_dir, "pose_yaw_pitch_density.png"))})
-            added_pose_density = True
-
-    # 1.1 Analiz Kapsamı Özeti
-    fig, ax = plt.subplots(figsize=(6, 4))
-    labels = ["Video Süresi (s)", "FPS", "Analiz Edilen Frame", "Frame Skip"]
-    values = [duration_seconds, fps, analyzed_frames, frame_skip]
-    sns.barplot(x=labels, y=values, ax=ax, palette="muted")
-    ax.set_title("Analiz Kapsamı Özeti")
-    ax.set_ylabel("")
-    charts.append({"title": "Analiz Kapsamı Özeti", "path": _save_fig(fig, os.path.join(output_dir, "info_summary.png"))})
-
-    # 2.1 Zaman İçinde Yüz Aktivitesi
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(timestamps, mouth_heights, label="mouth_height_norm")
-    ax.plot(timestamps, jaw_open, label="jaw_open_norm")
-    ax.plot(timestamps, eye_openings, label="eye_opening_norm")
-    ax.plot(timestamps, brow_distances, label="brow_distance_norm")
-    ax.set_title("Zaman İçinde Yüz Aktivitesi")
-    ax.set_xlabel("Zaman (s)")
-    ax.set_ylabel("Normalize Değer")
-    ax.legend()
-    charts.append({"title": "Zaman İçinde Yüz Aktivitesi", "path": _save_fig(fig, os.path.join(output_dir, "face_activity_ts.png"))})
-
-    # 2.2 Ortalama Yüz Özellikleri
-    avg_feat = frame_summary.get("general_statistics", {}).get("average_features", {})
-    if avg_feat:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        sns.barplot(x=list(avg_feat.keys()), y=list(avg_feat.values()), ax=ax, palette="deep")
-        ax.set_title("Ortalama Yüz Özellikleri")
-        ax.set_ylabel("Ortalama")
-        ax.tick_params(axis="x", rotation=25)
-        charts.append({"title": "Ortalama Yüz Özellikleri", "path": _save_fig(fig, os.path.join(output_dir, "face_avg.png"))})
-
-    # 2.3 Emotion Change Points
-    change_points = frame_summary.get("emotion_change_points", [])
-    if change_points:
-        fig, ax = plt.subplots(figsize=(6, 3))
-        cp_x = [cp.get("timestamp", 0.0) for cp in change_points]
-        cp_y = [cp.get("feature", "") for cp in change_points]
-        ax.scatter(cp_x, range(len(cp_x)), c=cp_x, cmap="viridis")
-        ax.set_yticks(range(len(cp_y)))
-        ax.set_yticklabels(cp_y)
-        ax.set_title("Emotion Change Points")
-        ax.set_xlabel("Zaman (s)")
-        charts.append({"title": "Emotion Change Points", "path": _save_fig(fig, os.path.join(output_dir, "emotion_change_points.png"))})
-
-    # 3.1 Gaze Dağılımı (önceden eklendiyse tekrar ekleme)
-    if dir_perc and not added_gaze_distribution:
-        fig, ax = plt.subplots(figsize=(5, 4))
-        ax.pie(dir_perc.values(), labels=dir_perc.keys(), autopct="%1.1f%%")
-        ax.set_title("Göz Bakış Dağılımı")
-        charts.append({"title": "Göz Bakış Dağılımı", "path": _save_fig(fig, os.path.join(output_dir, "gaze_distribution.png"))})
-
-    # 3.2 Zaman İçinde Bakış
-    gaze_dirs = [f.get("gaze", {}).get("direction", "center") for f in valid_frames]
-    dir_map = {"left": 0, "right": 1, "up": 2, "down": 3, "center": 4}
-    gaze_vals = [dir_map.get(d, 4) for d in gaze_dirs]
-    fig, ax = plt.subplots(figsize=(8, 3))
-    ax.step(timestamps, gaze_vals, where="post")
-    ax.set_yticks(list(dir_map.values()))
-    ax.set_yticklabels(list(dir_map.keys()))
-    ax.set_title("Zaman İçinde Bakış Durumu")
-    ax.set_xlabel("Zaman (s)")
-    charts.append({"title": "Zaman İçinde Bakış Durumu", "path": _save_fig(fig, os.path.join(output_dir, "gaze_timeline.png"))})
-
-    # 3.3 Gaze Center KPI
-    gaze_center = frame_summary.get("general_statistics", {}).get("gaze_center_percentage", 0.0)
-    fig = _kpi_bar("Gaze Center %", float(gaze_center), 100.0)
-    charts.append({"title": "Gaze Center %", "path": _save_fig(fig, os.path.join(output_dir, "gaze_center_kpi.png"))})
-
-    # 4.1 Bilişsel Yük
-    cog_load = frame_summary.get("cognitive_load_score", {})
-    if cog_load:
-        fig, ax = plt.subplots(figsize=(5, 3))
-        labels = ["thinking_reading_percentage", "speaking_percentage"]
-        values = [cog_load.get("thinking_reading_percentage", 0.0), cog_load.get("speaking_percentage", 0.0)]
-        sns.barplot(x=labels, y=values, ax=ax, palette="pastel")
-        ax.set_title("Bilişsel Yük Özeti")
-        ax.set_ylabel("%")
-        ax.tick_params(axis="x", rotation=15)
-        charts.append({"title": "Bilişsel Yük Özeti", "path": _save_fig(fig, os.path.join(output_dir, "cognitive_load.png"))})
-
-    # 4.2 Jaw Open Threshold
-    jaw_threshold = cog_load.get("jaw_open_threshold_used", 0.4)
-    fig, ax = plt.subplots(figsize=(8, 3))
-    ax.plot(timestamps, jaw_open, label="jaw_open_norm")
-    ax.axhline(jaw_threshold, color="red", linestyle="--", label="threshold")
-    ax.set_title("Jaw Open Threshold Kullanımı")
-    ax.set_xlabel("Zaman (s)")
-    ax.legend()
-    charts.append({"title": "Jaw Open Threshold", "path": _save_fig(fig, os.path.join(output_dir, "jaw_threshold.png"))})
-
-    # 5. Ses Analizi
-    rv = voice_analysis.get("raw_voice_features", voice_analysis)
-    rms_series = rv.get("rms_energy_series", {})
-    if rms_series.get("values") and not added_pitch_energy:
-        fig, ax = plt.subplots(figsize=(8, 3))
-        ax.plot(rms_series.get("times", []), rms_series.get("values", []))
-        ax.set_title("RMS Energy Zaman Serisi")
-        ax.set_xlabel("Zaman (s)")
-        charts.append({"title": "RMS Energy Zaman Serisi", "path": _save_fig(fig, os.path.join(output_dir, "rms_series.png"))})
-
-    rms_stats = rv.get("rms_energy", {})
-    if rms_stats:
-        fig, ax = plt.subplots(figsize=(5, 3))
-        sns.barplot(x=list(rms_stats.keys()), y=list(rms_stats.values()), ax=ax)
-        ax.set_title("RMS Energy İstatistikleri")
-        ax.tick_params(axis="x", rotation=15)
-        charts.append({"title": "RMS Energy İstatistikleri", "path": _save_fig(fig, os.path.join(output_dir, "rms_stats.png"))})
-
-    pitch_series = rv.get("pitch_series", {})
-    if pitch_series.get("values") and not added_pitch_energy:
-        fig, ax = plt.subplots(figsize=(8, 3))
-        ax.plot(pitch_series.get("times", []), pitch_series.get("values", []))
-        ax.set_title("Pitch (F0) Zaman Serisi")
-        ax.set_xlabel("Zaman (s)")
-        charts.append({"title": "Pitch (F0) Zaman Serisi", "path": _save_fig(fig, os.path.join(output_dir, "pitch_series.png"))})
-
-    pitch_hist = rv.get("pitch_histogram", [])
-    if pitch_hist:
-        fig, ax = plt.subplots(figsize=(5, 3))
-        sns.histplot(pitch_hist, bins=30, ax=ax)
-        ax.set_title("Pitch Dağılımı")
-        charts.append({"title": "Pitch Dağılımı", "path": _save_fig(fig, os.path.join(output_dir, "pitch_hist.png"))})
-
-    pause_durations = rv.get("pause_durations", [])
-    if pause_durations and not added_pause_timeline:
-        fig, ax = plt.subplots(figsize=(5, 3))
-        sns.histplot(pause_durations, bins=20, ax=ax)
-        ax.set_title("Pause Durations")
-        charts.append({"title": "Pause Durations", "path": _save_fig(fig, os.path.join(output_dir, "pause_durations.png"))})
-
-    silence_ratio = float(rv.get("silence_ratio", 0.0)) * 100.0
-    fig = _kpi_bar("Silence Ratio %", silence_ratio, 100.0)
-    charts.append({"title": "Silence Ratio %", "path": _save_fig(fig, os.path.join(output_dir, "silence_ratio.png"))})
-
-    spectral = rv.get("spectral_centroid", {})
-    if spectral:
-        fig, ax = plt.subplots(figsize=(5, 3))
-        sns.barplot(x=list(spectral.keys()), y=list(spectral.values()), ax=ax)
-        ax.set_title("Spectral Centroid")
-        charts.append({"title": "Spectral Centroid", "path": _save_fig(fig, os.path.join(output_dir, "spectral_centroid.png"))})
-
-    zcr = rv.get("zero_crossing_rate", {})
-    if zcr:
-        fig, ax = plt.subplots(figsize=(5, 3))
-        sns.barplot(x=list(zcr.keys()), y=list(zcr.values()), ax=ax)
-        ax.set_title("Zero Crossing Rate")
-        charts.append({"title": "Zero Crossing Rate", "path": _save_fig(fig, os.path.join(output_dir, "zcr.png"))})
-
-    # 6. Duygu (Py-Feat)
-    pyfeat_summary = pyfeat_summary or {}
-    emo_dist = pyfeat_summary.get("emotion_distribution", {})
-    emo_means = emo_dist.get("mean", {})
-    emo_vars = emo_dist.get("variance", {})
-    if emo_means:
-        fig, ax = plt.subplots(figsize=(5, 4))
-        ax.pie(emo_means.values(), labels=emo_means.keys(), autopct="%1.1f%%")
-        ax.set_title("Ortalama Duygu Dağılımı")
-        charts.append({"title": "Ortalama Duygu Dağılımı", "path": _save_fig(fig, os.path.join(output_dir, "emotion_mean.png"))})
-    if emo_vars:
-        fig, ax = plt.subplots(figsize=(6, 3))
-        sns.barplot(x=list(emo_vars.keys()), y=list(emo_vars.values()), ax=ax)
-        ax.set_title("Duygu Varyansı")
-        ax.tick_params(axis="x", rotation=15)
-        charts.append({"title": "Duygu Varyansı", "path": _save_fig(fig, os.path.join(output_dir, "emotion_var.png"))})
-
-    dominant = emo_dist.get("dominant_emotion")
-    dominant_score = emo_dist.get("dominant_emotion_score", 0.0)
-    if dominant:
-        fig = _kpi_bar(f"Dominant Emotion: {dominant}", float(dominant_score), 1.0)
-        charts.append({"title": "Dominant Emotion KPI", "path": _save_fig(fig, os.path.join(output_dir, "emotion_dominant.png"))})
-
-    dom_freq = emo_dist.get("dominant_emotion_by_frequency", {})
-    if dom_freq.get("emotion") is not None:
-        fig, ax = plt.subplots(figsize=(4, 3))
-        sns.barplot(x=[dom_freq.get("emotion")], y=[dom_freq.get("count", 0)], ax=ax)
-        ax.set_title("Dominant Emotion Frequency")
-        charts.append({"title": "Dominant Emotion Frequency", "path": _save_fig(fig, os.path.join(output_dir, "emotion_dom_freq.png"))})
-
-    # 7. Head Pose & Beden Dili
-    if pyfeat_frame_analysis and not added_pose_density:
-        pose_times = []
-        pitch_vals = []
-        yaw_vals = []
-        roll_vals = []
-        for frame in pyfeat_frame_analysis:
-            faces = frame.get("faces", [])
-            if not faces:
-                continue
-            pose = faces[0].get("pose", {})
-            if not pose:
-                continue
-            pose_times.append(frame.get("timestamp", 0.0))
-            pitch_vals.append(pose.get("Pitch", 0.0))
-            yaw_vals.append(pose.get("Yaw", 0.0))
-            roll_vals.append(pose.get("Roll", 0.0))
-        if pose_times:
-            fig, ax = plt.subplots(figsize=(8, 3))
-            ax.plot(pose_times, pitch_vals, label="Pitch")
-            ax.plot(pose_times, yaw_vals, label="Yaw")
-            ax.plot(pose_times, roll_vals, label="Roll")
-            ax.set_title("Head Pose Zaman Serileri")
-            ax.set_xlabel("Zaman (s)")
-            ax.legend()
-            charts.append({"title": "Head Pose Zaman Serileri", "path": _save_fig(fig, os.path.join(output_dir, "pose_timeseries.png"))})
-
-            fig, ax = plt.subplots(figsize=(5, 3))
-            sns.histplot(yaw_vals, bins=30, ax=ax)
-            ax.set_title("Yaw Distribution")
-            charts.append({"title": "Yaw Distribution", "path": _save_fig(fig, os.path.join(output_dir, "yaw_hist.png"))})
-
-    pose_stats = pyfeat_summary.get("pose_summary", {})
-    if pose_stats:
-        keys = []
-        means = []
-        stds = []
-        mins = []
-        maxs = []
-        for k in ("Pitch", "Yaw", "Roll"):
-            if k not in pose_stats:
-                continue
-            keys.append(k)
-            means.append(pose_stats[k].get("mean", 0.0))
-            stds.append(pose_stats[k].get("std", 0.0))
-            mins.append(pose_stats[k].get("min", 0.0))
-            maxs.append(pose_stats[k].get("max", 0.0))
-        if keys:
-            fig, ax = plt.subplots(figsize=(6, 4))
-            x = np.arange(len(keys))
-            width = 0.2
-            ax.bar(x - width * 1.5, means, width, label="mean")
-            ax.bar(x - width * 0.5, stds, width, label="std")
-            ax.bar(x + width * 0.5, mins, width, label="min")
-            ax.bar(x + width * 1.5, maxs, width, label="max")
-            ax.set_xticks(x)
-            ax.set_xticklabels(keys)
-            ax.set_title("Head Pose İstatistikleri")
-            ax.legend()
-            charts.append({"title": "Head Pose İstatistikleri", "path": _save_fig(fig, os.path.join(output_dir, "pose_stats.png"))})
-
-    # 8. Kalite & Güvenilirlik
-    face_rate = pyfeat_summary.get("face_detection_rate", None)
-    if face_rate is not None:
-        fig = _kpi_bar("Face Detection Rate %", float(face_rate), 100.0)
-        charts.append({"title": "Face Detection Rate %", "path": _save_fig(fig, os.path.join(output_dir, "face_detection_kpi.png"))})
-
-    gs = pyfeat_summary.get("general_statistics", {})
-    if gs:
-        fig, ax = plt.subplots(figsize=(5, 3))
-        labels = ["frames_analyzed", "total_frames"]
-        values = [gs.get("frames_analyzed", 0), gs.get("total_frames", 0)]
-        sns.barplot(x=labels, y=values, ax=ax)
-        ax.set_title("Frames Analyzed vs Total Frames")
-        charts.append({"title": "Frames Analyzed vs Total Frames", "path": _save_fig(fig, os.path.join(output_dir, "frames_analyzed.png"))})
-
-    # 9. İK Odaklı Radar Chart
-    speech_rate = float(rv.get("speech_rate", {}).get("value", 0.0))
-    pause_count = len(pause_durations) if pause_durations else 0
-    pitch_var = float(rv.get("pitch_f0", {}).get("std", 0.0))
-    comm_values = [
-        min(speech_rate / 100.0, 1.0),
-        max(0.0, 1.0 - silence_ratio / 100.0),
-        max(0.0, 1.0 - min(pause_count / 20.0, 1.0)),
-        min(pitch_var / 50.0, 1.0),
-    ]
-    fig = _radar_chart(
-        ["speech_rate", "silence_ratio_inv", "pause_count_inv", "pitch_variance"],
-        comm_values,
-        "İletişim Akıcılığı Radar"
-    )
-    charts.append({"title": "İletişim Akıcılığı Radar", "path": _save_fig(fig, os.path.join(output_dir, "radar_communication.png"))})
-
-    gaze_center_norm = float(gaze_center) / 100.0
-    pose_std_vals = [pose_stats.get(k, {}).get("std", 0.0) for k in ("Pitch", "Yaw", "Roll") if k in pose_stats]
-    pose_std = float(sum(pose_std_vals) / len(pose_std_vals)) if pose_std_vals else 0.0
-    emotion_vars = list(emo_vars.values()) if emo_vars else []
-    emotion_var_avg = float(sum(emotion_vars) / len(emotion_vars)) if emotion_vars else 0.0
-    eye_open_avg = float(avg_feat.get("eye_opening_norm", 0.0)) if avg_feat else 0.0
-    trust_values = [
-        min(gaze_center_norm, 1.0),
-        max(0.0, 1.0 - min(pose_std / 20.0, 1.0)),
-        max(0.0, 1.0 - min(emotion_var_avg / 0.1, 1.0)),
-        min(eye_open_avg / 0.2, 1.0),
-    ]
-    fig = _radar_chart(
-        ["gaze_center", "head_pose_std_inv", "emotion_var_inv", "eye_opening"],
-        trust_values,
-        "Güven & Stabilite Radar"
-    )
-    charts.append({"title": "Güven & Stabilite Radar", "path": _save_fig(fig, os.path.join(output_dir, "radar_trust.png"))})
-
+    print(f"[Plot] {len(charts)} grafik oluşturuldu.")
     return charts
+
+
+if __name__ == "__main__":
+    print("Plot modülü hazır.")

@@ -1,153 +1,111 @@
 """
-Test Script - Örnek Kullanım
-Bu script, sistemin nasıl kullanılacağını gösterir.
+Hızlı Test Scripti
+Pipeline'ı doğrudan çalıştırır ve sonuçları konsola yazdırır.
+
+Kullanım:
+    python test_example.py video.mp4
+    python test_example.py video.mp4 --ollama   # Ollama + Gemma ile test
+    python test_example.py video.mp4 --phase3   # FAZ-3 opt-in
 """
 
-import sys
 import os
+import sys
 import json
-
-# Proje root'unu path'e ekle
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.pipeline import InterviewAnalysisPipeline
 
 
-def test_pipeline(video_path: str):
-    """
-    Pipeline'ı test eder.
-    
-    Args:
-        video_path: Test edilecek video dosyasının yolu
-    """
-    print("=" * 60)
-    print("SensifyHR Mülakat Analiz Sistemi - Test")
-    print("=" * 60)
-    
-    # Pipeline oluştur
-    print("\n[1/4] Pipeline başlatılıyor...")
-    pipeline = InterviewAnalysisPipeline()
-    print("✓ Pipeline hazır")
-    
-    # Video kontrolü
+def test_pipeline(video_path: str, use_ollama: bool = False):
+    """Pipeline'ı çalıştırır ve özet yazdırır."""
+
     if not os.path.exists(video_path):
-        print(f"\n❌ Hata: Video dosyası bulunamadı: {video_path}")
+        print(f"HATA: '{video_path}' bulunamadı!")
         return
-    
-    print(f"\n[2/4] Video analizi başlatılıyor: {video_path}")
-    
-    try:
-        # Analizi çalıştır
-        report = pipeline.process_interview(video_path)
-        
-        print("\n[3/4] Analiz tamamlandı!")
-        print("\n[4/4] Rapor özeti:")
-        print("-" * 60)
-        print(f"Interview ID: {report['interview_id']}")
-        print(f"Süre: {report['duration_seconds']:.2f} saniye")
-        print(f"\nFrame Bazlı Mediapipe Analizi (örnek 5 frame):")
-        frame_analysis = report.get("frame_analysis", [])
-        if frame_analysis:
-            for fa in frame_analysis[:5]:
-                ts = fa.get("timestamp", 0.0)
-                rf = fa.get("raw_features", {})
-                gaze = fa.get("gaze", {})
-                print(
-                    f"  - t={ts:.2f}s | "
-                    f"mouth_w={rf.get('mouth_width_norm', 0.0):.3f}, "
-                    f"mouth_h={rf.get('mouth_height_norm', 0.0):.3f}, "
-                    f"eye_open={rf.get('eye_opening_norm', 0.0):.3f}, "
-                    f"brow_dist={rf.get('brow_distance_norm', 0.0):.3f}, "
-                    f"jaw_open={rf.get('jaw_open_norm', 0.0):.3f} | "
-                    f"gaze_dir={gaze.get('direction', 'center')}, "
-                    f"gx={gaze.get('x', 0.0):.2f}, gy={gaze.get('y', 0.0):.2f}"
-                )
-        else:
-            print("  - Frame analizi mevcut değil")
 
-        # Frame Özeti (Gemini API için sadeleştirilmiş)
-        frame_summary = report.get("frame_summary", {})
-        print(f"\nFrame Özeti (Gemini API için):")
-        if frame_summary:
-            # Genel İstatistikler
-            gen_stats = frame_summary.get("general_statistics", {})
-            if gen_stats:
-                avg_feat = gen_stats.get("average_features", {})
-                print(f"  Genel İstatistikler:")
-                print(f"    - Ortalama Mouth Width: {avg_feat.get('mouth_width_norm', 0.0):.3f}")
-                print(f"    - Ortalama Mouth Height: {avg_feat.get('mouth_height_norm', 0.0):.3f}")
-                print(f"    - Ortalama Eye Opening: {avg_feat.get('eye_opening_norm', 0.0):.3f}")
-                print(f"    - Ortalama Brow Distance: {avg_feat.get('brow_distance_norm', 0.0):.3f}")
-                print(f"    - Ortalama Jaw Open: {avg_feat.get('jaw_open_norm', 0.0):.3f}")
-                print(f"    - Gaze Center Yüzdesi: {gen_stats.get('gaze_center_percentage', 0.0):.1f}%")
-                print(f"    - Toplam Frame: {gen_stats.get('total_frames_analyzed', 0)}")
-            
-            # Göz Analizi Özeti
-            gaze_sum = frame_summary.get("gaze_summary", {})
-            if gaze_sum:
-                print(f"  Göz Analizi Özeti:")
-                dir_perc = gaze_sum.get("direction_percentages", {})
-                for direction, percentage in dir_perc.items():
-                    count = gaze_sum.get("direction_counts", {}).get(direction, 0)
-                    print(f"    - {direction}: {percentage:.1f}% ({count} frame)")
-            
-            # Bilişsel Yük Skoru
-            cog_load = frame_summary.get("cognitive_load_score", {})
-            if cog_load:
-                print(f"  Bilişsel Yük Skoru:")
-                print(f"    - Thinking/Reading: {cog_load.get('thinking_reading_count', 0)} frame ({cog_load.get('thinking_reading_percentage', 0.0):.1f}%)")
-                print(f"    - Konuşma: {cog_load.get('total_speaking_frames', 0)} frame ({cog_load.get('speaking_percentage', 0.0):.1f}%)")
-            
-            # Duygu Değişim Noktaları
-            change_points = frame_summary.get("emotion_change_points", [])
-            if change_points:
-                print(f"  Duygu Değişim Noktaları ({len(change_points)} adet):")
-                for cp in change_points[:5]:  # İlk 5'ini göster
-                    print(f"    - t={cp.get('timestamp', 0.0):.2f}s: {cp.get('feature', '')} {cp.get('change_percentage', 0.0):.1f}% değişti ({cp.get('previous_value', 0.0):.3f} → {cp.get('current_value', 0.0):.3f})")
-        else:
-            print("  - Frame özeti mevcut değil")
+    # 1) Pipeline çalıştır
+    pipeline = InterviewAnalysisPipeline()
+    report = pipeline.process_interview(video_path, phase3_enabled=("--phase3" in sys.argv))
 
-        # Ses Analizi (ham özellikler)
-        voice_analysis = report.get('voice_analysis', {})
-        print(f"\nSes Analizi (raw özellikler):")
-        if voice_analysis:
-            # Pipeline'da voice_analysis doğrudan raw_voice_features dict'i olarak yazılıyor.
-            rv = voice_analysis.get('raw_voice_features', voice_analysis)
-            sr = rv.get('speech_rate', {})
-            print(f"  - Speech rate: {sr.get('value', 0.0):.2f} ({sr.get('unit', '')})")
-            print(f"  - RMS Energy (mean): {rv.get('rms_energy', {}).get('mean', 0.0):.6f}")
-            print(f"  - Pitch f0 mean: {rv.get('pitch_f0', {}).get('mean', 0.0):.2f} Hz")
-            print(f"  - Silence ratio: {rv.get('silence_ratio', 0.0):.3f}")
-            print(f"  - Duration: {rv.get('duration_seconds', 0.0):.2f} s")
-        else:
-            print("  - Ses analizi mevcut değil")
+    # 2) Özet yazdır
+    print("\n" + "=" * 60)
+    print("📊 ANALİZ ÖZETİ")
+    print("=" * 60)
 
-        # Py-Feat özeti terminalde gösterilmez (terminal şişmesini önlemek için)
-        print("-" * 60)
-        
-        # JSON çıktısı (raporlar klasörüne kaydet)
-        # Raporlar klasörü oluştur
-        reports_dir = "reports"
-        os.makedirs(reports_dir, exist_ok=True)
-        
-        output_file = os.path.join(reports_dir, f"report_{report['interview_id']}.json")
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(report, f, indent=2, ensure_ascii=False)
-        print(f"\n✓ Detaylı rapor kaydedildi: {output_file}")
-        
-    except Exception as e:
-        print(f"\n❌ Hata: {str(e)}")
-        import traceback
-        traceback.print_exc()
+    # Metin
+    text_summary = report.get("text_analysis", {}).get("summary", {})
+    print(f"\n📝 Metin Analizi:")
+    print(f"   Toplam Cümle: {text_summary.get('total_sentences', 0)}")
+    print(f"   Baskın Duygu: {text_summary.get('dominant_sentiment', '?')}")
+    print(f"   Dağılım: {text_summary.get('sentiment_percentages', {})}")
+
+    # Ses duygu
+    audio_summary = report.get("audio_emotion_analysis", {}).get("summary", {})
+    print(f"\n🎤 Ses Duygu Analizi:")
+    print(f"   Toplam Parça: {audio_summary.get('total_chunks', 0)}")
+    print(f"   Baskın Duygu: {audio_summary.get('dominant_emotion', '?')}")
+    print(f"   Ort. Güven: {audio_summary.get('avg_confidence', 0):.3f}")
+
+    # Yüz
+    face_summary = report.get("face_analysis", {}).get("summary", {})
+    print(f"\n😊 Yüz Analizi:")
+    print(f"   Baskın Duygu: {face_summary.get('dominant_emotion', '?')}")
+    print(f"   Odak Skoru: %{face_summary.get('focus_score', 0)}")
+    print(f"   Göz Kırpma/dk: {face_summary.get('blink_rate_per_min', 0)}")
+
+    # Ses özellikleri
+    voice = report.get("voice_analysis", {}).get("raw_voice_features", {})
+    ss = voice.get("speech_silence", {})
+    print(f"\n🔊 Ses Özellikleri:")
+    print(f"   Konuşma: {ss.get('total_speech_seconds', 0):.1f}s")
+    print(f"   Sessizlik: {ss.get('total_silence_seconds', 0):.1f}s")
+    print(f"   RMS Ort: {voice.get('energy_rms', {}).get('mean', 0):.4f}")
+    print(f"   Pitch Ort: {voice.get('pitch_f0', {}).get('mean', 0):.1f} Hz")
+
+    # Anomaliler
+    anomalies = report.get("anomalies", [])
+    print(f"\n⚠️ Tutarsızlıklar: {len(anomalies)}")
+    for a in anomalies[:5]:
+        print(f"   [{a['time_range']}] {a['result']}")
+
+    # 3) JSON kaydet
+    os.makedirs("reports", exist_ok=True)
+    output_file = os.path.join("reports", f"report_{report['interview_id']}.json")
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False, default=str)
+    print(f"\n✅ JSON rapor: {output_file}")
+
+    # 4) Opsiyonel: Ollama AI değerlendirmesi
+    if use_ollama:
+        print("\n" + "=" * 60)
+        print("🤖 OLLAMA + GEMMA DEĞERLENDİRMESİ")
+        print("=" * 60)
+        try:
+            from src.ollama_ai import OllamaAI
+            ai = OllamaAI()
+            result = ai.evaluate_candidate(
+                text_data=report.get("text_analysis", {}).get("segments", []),
+                audio_data=report.get("audio_emotion_analysis", {}).get("timeline", []),
+                face_summary=face_summary,
+                anomalies=anomalies,
+            )
+            print(result)
+        except Exception as e:
+            print(f"Ollama hatası: {e}")
+            print("Ollama kurulumu: https://ollama.com/download")
+            print("Model indirme: ollama pull gemma3:12b")
+            print("Servis başlatma: ollama serve")
+
+    print("\n✅ Analiz tamamlandı!")
 
 
 if __name__ == "__main__":
-    # Test için video yolu
-    # Kullanım: python test_example.py <video_path>
-    if len(sys.argv) > 1:
-        video_path = sys.argv[1]
-        test_pipeline(video_path)
-    else:
-        print("Kullanım: python test_example.py <video_dosyası_yolu>")
-        print("\nÖrnek:")
-        print("  python test_example.py test_video.mp4")
+    if len(sys.argv) < 2:
+        print("Kullanım:")
+        print("  python test_example.py video.mp4")
+        print("  python test_example.py video.mp4 --ollama")
+        print("  python test_example.py video.mp4 --phase3")
+        sys.exit(1)
+
+    video = sys.argv[1]
+    ollama_flag = "--ollama" in sys.argv
+    test_pipeline(video, use_ollama=ollama_flag)

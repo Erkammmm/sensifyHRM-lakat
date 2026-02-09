@@ -1,244 +1,201 @@
-# SensifyHR Mülakat Analiz Sistemi
+# 🎯 SensifyHR v3.0 – Multimodal Signal Fusion + LLM Reasoning
 
-Online iş görüşmelerinde aday davranışlarını analiz eden AI motoru.
+**Multimodal yapay zekâ destekli online mülakat değerlendirme sistemi.**
 
-## Özellikler
+Video kaydı üzerinden adayın **metin (ne söylüyor)**, **ses (nasıl söylüyor)** ve **görsel davranış (nasıl davranıyor)** sinyallerini analiz ederek karar destekleyici bir İK raporu üretir.
 
-- **Yüz ve Gaze Analizi**: MediaPipe Face Mesh ile 478 landmark + iris tracking
-  - Ham özellikler: Ağız genişliği/yüksekliği, göz açıklığı, kaş mesafesi, çene açıklığı
-  - Gaze yönü: Left, Right, Up, Down, Center (iris tabanlı)
-  - Kalman filtreleme ile gürültü azaltma
-- **Ses Analizi**: Librosa ile ham ses özellikleri
-  - Speech rate, RMS energy, Pitch (f0), Silence ratio
-  - Spectral centroid, Zero crossing rate
-- **Py-Feat Analizi**: Duygu, kafa pozisyonu ve landmark çıktıları (CPU)
-  - Frame bazlı ham veriler rapora eklenir
-  - Terminal/Gemini özeti: duygu dağılımları, yüz tespit oranı, pose istatistikleri
-- **Frame Özetleme**: Detaylı frame analizlerini özetleyen modül
-- **Rapor Oluşturma**: JSON, HTML ve PDF formatında detaylı raporlar
-- **RESTful API**: FastAPI ile modern API arayüzü
+Bu sürümde temel ilke:
+- **Metin = sadece içerik (STT)**
+- **Ses & görüntü = sadece sinyal**
+- **LLM = tek karar verici (signal reasoning)**
+- Sistem **emotion/sentiment sınıflandırmaz**.
 
-## Kurulum
+---
 
-### Gereksinimler
+## 🚀 Özellikler
 
-- Python 3.10+
-- FFmpeg
+| Modül | Teknoloji | Açıklama |
+|-------|-----------|----------|
+| 📝 Metin (STT) | `openai/whisper-large-v3-turbo` (Transformers) + fallback | Metin = **sadece içerik** (`{start,end,text}`) |
+| 🎛️ Audio Signal | HuBERT SER projection + librosa | **Valence/Arousal + fiziksel ses state’leri** (emotion etiketi yok) |
+| 👁️ Visual Signal | MediaPipe FaceLandmarker | **facial_state / attention_state / stress_indicator** (emotion etiketi yok) |
+| 🔊 Ses Özellikleri | Librosa | RMS enerji, Pitch, VAD, Mel spectrogram |
+| 🔗 Contextual Aggregator | `contextual_aggregator.py` | Metin+Audio+Visual sinyalleri **segment bazlı hizalar** (LLM input) |
+| 🤖 LLM Reasoning | **Ollama/Gemma12B** (+ opsiyonel Gemini) | Segment paketlerini chunk’layıp yorumlar |
+| 📊 Görselleştirme | Matplotlib | v3’te **signal** grafikleri + teknik grafikler “Detaylar”da |
+| 📄 Raporlama | HTML + JSON | v3’te **Product Mode** (tab’lı UI: Dashboard / LLM / Detaylar) |
 
-### Adımlar
+---
 
-1. **Repository'yi klonlayın:**
+## 📦 Kurulum
+
+### 1. Ortam Hazırlığı (Anaconda + GPU)
+
 ```bash
-git clone <repository-url>
-cd sensifyHRMülakay
-```
+# Sanal ortam oluştur (CUDA 12.1)
+conda create -n sensifyhr python=3.10
+conda activate sensifyhr
 
-2. **Virtual environment oluşturun:**
-```bash
-python -m venv sensifyhr
-sensifyhr\Scripts\activate  # Windows
-# veya
-source sensifyhr/bin/activate  # Linux/Mac
-```
+# PyTorch GPU kurulumu
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 
-3. **Bağımlılıkları yükleyin:**
-```bash
+# Proje bağımlılıkları
 pip install -r requirements.txt
+
+# veya lock dosyası ile (tam sürüm eşleşmesi):
+pip install -r requirements.lock.sonn.txt
 ```
 
-4. **FFmpeg'i yükleyin:**
-- Windows: [FFmpeg indir](https://ffmpeg.org/download.html) ve PATH'e ekleyin
-- Linux: `sudo apt-get install ffmpeg`
-- Mac: `brew install ffmpeg`
-
-## Kullanım
-
-### Hızlı Test
-
-1. **Test videosunu proje klasörüne koyun** (örn: `test_video.mp4`)
-
-2. **Terminal'de:**
-```bash
-python test_example.py test_video.mp4
-```
-
-3. **Canlı kamera testi:**
-```bash
-python test_webcam_mediapipe.py
-```
-
-### API'yi Başlatma
+### 2. Model Dosyaları
 
 ```bash
-python api/main.py
+# MediaPipe FaceLandmarker modeli (otomatik indirilir veya manuel)
+mkdir -p weights
+wget -O weights/face_landmarker.task \
+  https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task
 ```
 
-veya
+### 3. (Opsiyonel) Gemini API Anahtarı
 
 ```bash
-uvicorn api.main:app --reload
+# .env dosyası oluştur
+echo "GEMINI_API_KEY=your_api_key_here" > .env
 ```
 
-API `http://localhost:8000` adresinde çalışacaktır.
+### 4. Ollama + Gemma12B (Önerilen / Primary)
 
-**Gemini entegrasyonu**: `/analyze` çağrısı sonrasında Gemini otomatik çalışır ve
-çıktı `ai_analysis` alanına yazılır (ham veriler gönderilmez).
-Gerekli env: `GEMINI_API_KEY` (opsiyonel: `GEMINI_MODEL`).
-
-### API Endpoints
-
-#### 1. Video Analizi
 ```bash
-curl -X POST "http://localhost:8000/analyze" \
-  -F "file=@interview_video.mp4"
+ollama serve
+ollama pull gemma3:12b
 ```
 
-#### 2. Analiz Durumu
+---
+
+## 🎯 Kullanım
+
+### Hızlı Test (CLI)
+
 ```bash
-curl "http://localhost:8000/status/{interview_id}"
+# v3 (FAZ-3) analiz
+python test_example.py video.mp4 --phase3
+
+# v3 + Ollama
+python test_example.py video.mp4 --phase3 --ollama
 ```
 
-#### 3. Sağlık Kontrolü
+### FastAPI (Web API)
+
 ```bash
-curl "http://localhost:8000/health"
+# Sunucuyu başlat
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+
+# Swagger UI: http://localhost:8000/docs
+# Video yükle → JSON + HTML rapor al
 ```
 
-#### 4. API Dokümantasyonu
-Tarayıcıda açın: `http://localhost:8000/docs`
+v3 için:
+- `POST /analyze?phase3=true`
+- LLM seçimi: `llm_provider=ollama|gemini|none`
 
-## Proje Yapısı
+### Ollama + Gemma ile Test
+
+```bash
+# 1) Ollama'yı kurun
+#    Windows: https://ollama.com/download
+#    Linux:   curl -fsSL https://ollama.com/install.sh | sh
+
+# 2) Gemma modelini indirin (12B parametre - en iyi sonuç)
+ollama pull gemma3:12b
+
+# 3) Servisi başlatın (arka planda çalışır)
+ollama serve
+
+# 4) Test edin
+python test_example.py video.mp4 --ollama
+```
+
+---
+
+## 🐳 Docker
+
+```bash
+# Build
+docker build -t sensifyhr .
+
+# Çalıştır (GPU)
+docker run --gpus all -p 8000:8000 --env-file .env sensifyhr
+
+# Çalıştır (CPU only)
+docker run -p 8000:8000 -e CUDA_VISIBLE_DEVICES="" --env-file .env sensifyhr
+```
+
+---
+
+## 📁 Proje Yapısı
 
 ```
 sensifyHRMülakay/
 ├── src/
-│   ├── video_processor.py           # Video işleme
-│   ├── mediapipe_face_gaze_analyzer.py  # MediaPipe yüz + gaze analizi
-│   ├── voice_analyzer.py            # Ses analizi (Librosa)
-│   ├── frame_summarizer.py          # Frame analiz özetleme
-│   ├── pyfeat_analyzer.py           # Py-Feat analizi (duygu/pose/landmark)
-│   ├── pyfeat_summarizer.py         # Py-Feat özetleme
-│   ├── report_generator.py          # Rapor oluşturma (JSON, HTML, PDF)
-│   └── pipeline.py                  # Ana pipeline
+│   ├── text_analyzer.py          # STT (turbo) -> segment text
+│   ├── audio_signal_fusion.py    # HuBERT SER projection + librosa -> audio_signal
+│   ├── contextual_aggregator.py  # Segment signal package builder (LLM input)
+│   ├── face_analyzer.py          # Visual signal (facial/attention/stress) + gaze/blink
+│   ├── voice_analyzer.py         # Librosa ham ses özellikleri (detay grafikler)
+│   ├── video_processor.py        # Audio çıkarma (WAV)
+│   ├── pipeline.py               # Ana pipeline
+│   ├── ollama_ai.py              # Ollama + Gemma LLM reasoning (chunking + synthesis)
+│   ├── gemini.py                 # Opsiyonel: Gemini LLM
+│   ├── report_generator.py       # Product Mode HTML + JSON
+│   ├── plot.py                   # Signal grafikleri + teknik grafikler
+│   └── prompt_phase3.txt         # v3 prompt (signal reasoning, TR/HR)
 ├── api/
-│   └── main.py                      # FastAPI endpoints
-├── reports/                          # Analiz raporları
-├── uploads/                          # Yüklenen videolar
-├── requirements.txt
-└── README.md
+│   └── main.py               # FastAPI endpoint'leri
+├── weights/
+│   └── face_landmarker.task   # MediaPipe model dosyası
+├── stajyer_çalışma/           # Referans: stajyer çalışma dosyaları
+├── Dockerfile
+├── .env                       # GEMINI_API_KEY (gitignore'da)
+├── requirements.txt           # Temiz gereksinimler
+├── requirements.lock.sonn.txt # Lock dosyası (tam sürümler)
+└── test_example.py            # Hızlı test scripti
 ```
 
-## Rapor Formatı
+---
 
-Analiz sonuçları JSON formatında döner:
+## 📊 Rapor İçeriği
 
-```json
-{
-  "interview_id": "uuid",
-  "duration_seconds": 600,
-  "frame_summary": {
-    "general_statistics": {...},
-    "gaze_summary": {...},
-    "cognitive_load_score": {...},
-    "emotion_change_points": [...]
-  },
-  "voice_analysis": {
-    "raw_voice_features": {
-      "speech_rate": {...},
-      "rms_energy": {...},
-      "pitch_f0": {...},
-      "silence_ratio": 0.2
-    }
-  },
-  "pyfeat_summary": {
-    "emotion_distribution": {...},
-    "pose_summary": {...},
-    "face_detection_rate": 100.0,
-    "general_statistics": {...}
-  },
-  "report_files": {
-    "json": "reports/report_xxx.json",
-    "html": "reports/report_xxx.html",
-    "pdf": "reports/report_xxx.pdf"
-  }
-}
-```
+### JSON Rapor
+- `phase`: `"v3"`
+- `text_analysis`: `{start,end,text}` segmentleri (sentiment yok)
+- `audio_signal_analysis`: audio signal timeline + özet
+- `visual_signal_analysis`: visual signal timeline + özet
+- `voice_analysis`: RMS enerji, Pitch, konuşma/sessizlik metrikleri
+- `segment_signal_packages`: LLM’ye giden zaman hizalı paketler
+- `ai_analysis`: LLM değerlendirmesi (Ollama/Gemma12B veya Gemini)
 
-Not: HTML/PDF grafikler `frame_analysis` ve `voice_analysis` ham serileri üzerinden Python/Plotly ile üretilir.
+### HTML Rapor
+- **v3 Product Mode**: Dashboard / LLM / Detaylar tabları
+- Dashboard’da: sinyal KPI’ları + “Kritik Anlar” + “Soft Skill Karnesi” kartları
+- Detaylar’da: teknik grafikler
 
-Detaylı format ve teknik bilgiler için `PROJE_DOKUMANTASYONU.md` dosyasına bakın.
+---
 
-## İK Raporu (Gemini için)
+## 🛠️ Teknoloji Yığını
 
-- **Ham veri gönderme**: `frame_analysis` ve Py-Feat frame detayları Gemini'ye gönderilmez.
-- **Özet üzerinden yorum**: `frame_summary`, `voice_analysis` ve `pyfeat_summary` kullanılır.
-- **Prompt dosyası**: `src/prompt.txt` (yoksa `src/prompt`)
+| Kategori | Araç |
+|----------|------|
+| STT | `openai/whisper-large-v3-turbo` (Transformers) |
+| Audio Signal | HuBERT SER projection `SeaBenSea/hubert-large-turkish-speech-emotion-recognition` + librosa |
+| Visual Signal | MediaPipe FaceLandmarker (blendshape) |
+| Ses Özellik | Librosa (RMS, Pitch, VAD, Mel) |
+| AI Değerlendirme | **Ollama + Gemma3:12b** (+ opsiyonel Gemini) |
+| API | FastAPI + Uvicorn |
+| Görselleştirme | Matplotlib |
+| Raporlama | Jinja2 + HTML |
+| GPU | PyTorch CUDA 12.1 |
 
-Önerilen prompt şablonu:
-```
-Sen, video mülakatlar üzerinden aday değerlendirmesi yapan
-kıdemli bir İK analisti ve davranış bilimcisin.
+---
 
-Sana verilen veriler:
-- Adayın video mülakatı boyunca çıkarılmış
-  multimodal analiz çıktılarıdır.
-- Bu çıktılar; ses, konuşma akıcılığı, yüz ifadeleri,
-  bakış yönü, duygusal durum ve zaman içindeki değişimleri içerir.
-- Veriler sayısal ve objektiftir, ancak yorumlanmaya ihtiyaç duyar.
+## 📜 Lisans
 
-Görevin:
-Bu multimodal çıktıları bir İK uzmanı bakış açısıyla,
-kısa, net ve yorumlayıcı bir rapora dönüştürmek.
-
-Aşağıdaki başlıklar altında yaz:
-
-1) Genel İzlenim
-   - Özellikle ilk 10 saniyeye odaklan
-   - Aday ilk bakışta nasıl algılanıyor?
-
-2) İletişim ve Akıcılık
-   - Konuşma temposu
-   - Duraksamalar
-   - Artikülasyon ve ritim
-
-3) Duygusal Durum
-   - Stres / rahatlık sinyalleri
-   - Duygusal stabilite
-   - Zaman içindeki değişim
-
-4) Güven ve Beden Dili
-   - Göz teması
-   - Yüz açıklığı
-   - Genel beden dili tutarlılığı
-
-5) Olası Risk Sinyalleri
-   - Aşırı stres
-   - Kaçamak bakış
-   - Tutarsızlıklar
-   (Varsa belirt, yoksa “belirgin risk sinyali yok” de)
-
-6) Genel Değerlendirme
-   - Bu aday mülakatta nasıl bir izlenim bırakır?
-   - Kısa, profesyonel bir İK yorumu ile bitir.
-
-Yazım kuralları:
-- Teknik terimleri sadeleştir
-- İK uzmanına hitap et
-- Abartma, varsayım yapma
-- Kısa paragraflar kullan
-- Yorum yap, veri tekrar etme
-```
-
-## Teknoloji Stack
-
-- **MediaPipe**: Yüz landmark ve iris tracking
-- **Librosa**: Ses analizi
-- **Py-Feat**: Duygu, pose ve landmark analizi
-- **FastAPI**: REST API
-- **Matplotlib/Seaborn**: Veri görselleştirme
-- **Jinja2**: HTML rapor şablonları
-- **xhtml2pdf**: PDF oluşturma
-- **Google GenAI**: Gemini istemcisi
-
-## Lisans
-
-Ticari kullanım için lisans gerekebilir.
+Bu proje SensifyHR tarafından geliştirilmektedir.

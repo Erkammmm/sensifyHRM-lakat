@@ -1,231 +1,293 @@
 """
 Ana Pipeline Modülü
-Tüm analiz modüllerini koordine eder ve sonuçları birleştirir.
+Tüm analiz adımlarını koordine eder:
+  1) Metin Analizi (Whisper + Türkçe BERT)
+  2) Ses Duygu Analizi (HuBERT SER)
+  3) Yüz Analizi (MediaPipe blendshape)
+  4) Ham Ses Özellikleri (Librosa)
+  5) Tutarsızlık Analizi
 """
 
-import numpy as np
-from typing import Dict, List, Optional
+import os
+import time
 import uuid
-from datetime import datetime
+from typing import Dict, Optional
 from collections import Counter
 
-from .video_processor import VideoProcessor
-from .mediapipe_face_gaze_analyzer import MediapipeFaceGazeAnalyzer
+from .text_analyzer import TextAnalyzer
+from .audio_analyzer import AudioAnalyzer
+from .face_analyzer import FaceAnalyzer
 from .voice_analyzer import VoiceAnalyzer
-from .frame_summarizer import FrameAnalysisSummarizer
-from .pyfeat_analyzer import PyFeatAnalyzer
-from .pyfeat_summarizer import PyFeatSummarizer
+from .video_processor import VideoProcessor
+from .audio_signal_fusion import AudioSignalFusion
+from .contextual_aggregator import build_segment_signal_packages
+from .thought_unit_merger import merge_into_thought_units
 
 
 class InterviewAnalysisPipeline:
     """
     Mülakat analiz pipeline'ı.
-    Video'yu işler, tüm analizleri yapar ve rapor oluşturur.
+    Video dosyası alır → 4 modül ile analiz eder → birleşik rapor döndürür.
     """
-    
-    def __init__(self):
-        """Pipeline'ı başlatır ve modülleri yükler."""
-        self.video_processor = VideoProcessor()
-        # DeepFace + MobileGaze yerine tamamen Mediapipe tabanlı analizör
-        self.face_gaze_analyzer = MediapipeFaceGazeAnalyzer(
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-            frame_skip=3,  # FRAME_SKIP: her 3 karede bir analiz
-        )
-        self.voice_analyzer = VoiceAnalyzer()
-        # Py-Feat analizi (CPU, hız öncelikli)
-        self.pyfeat_analyzer = PyFeatAnalyzer(
-            frame_skip=5,
-            batch_size=8,
-            device="cpu",
-        )
-    
-    def process_interview(self, video_path: str, interview_id: Optional[str] = None) -> Dict:
-        """
-        Mülakat videosunu işler ve analiz eder.
-        
-        Args:
-            video_path: Video dosyasının yolu
-            interview_id: Mülakat ID (None ise otomatik oluşturulur)
-            
-        Returns:
-            Analiz sonuçları dictionary'si
-        """
-        if interview_id is None:
-            interview_id = str(uuid.uuid4())
-        
-        print(f"[Pipeline] Mülakat analizi başlatılıyor: {interview_id}")
-        
-        # 1. Video bilgilerini al
-        print("[Pipeline] Video bilgileri alınıyor...")
-        video_info = self.video_processor.get_video_info(video_path)
-        
-        # 2. Frame'leri çıkar
-        print("[Pipeline] Frame'ler çıkarılıyor...")
-        frames = self.video_processor.extract_frames(video_path)
-        print(f"[Pipeline] {len(frames)} frame çıkarıldı.")
-        
-        # 3. Mediapipe tabanlı yüz + ham özellikler + bakış yönü analizi
-        print("[Pipeline] Mediapipe yüz + ham özellikler + bakış yönü analizi yapılıyor...")
-        fps = video_info.get("fps", 0) or 30.0
-        frame_analysis = self.face_gaze_analyzer.analyze_frames(frames, fps=fps)
-        valid_face_frames = len([r for r in frame_analysis if r is not None])
-        print(f"[Pipeline] Mediapipe analizi tamamlandı. {valid_face_frames}/{len(frame_analysis)} frame'de yüz tespit edildi.")
-        
-        # 4. Ses analizi (librosa - sadece raw özellikler)
-        print("[Pipeline] Ses analizi yapılıyor...")
-        voice_summary = None
-        try:
-            # Video'dan sesi çıkar
-            audio_path = self.video_processor.extract_audio(video_path)
-            # Ses analizini yap
-            voice_analysis_result = self.voice_analyzer.analyze_audio(audio_path)
-            # Artık sadece raw_voice_features kullanıyoruz
-            voice_summary = voice_analysis_result.get('raw_voice_features', {})
-            # Geçici ses dosyasını sil
-            import os
-            if os.path.exists(audio_path):
-                os.remove(audio_path)
-            print("[Pipeline] Ses analizi tamamlandı.")
-        except Exception as e:
-            print(f"[Pipeline] Ses analizi hatası: {str(e)}")
-            voice_summary = {
-                'status': 'error',
-                'message': str(e),
-                'raw_voice_features': {}
-            }
 
-        # 4.5 Py-Feat analizi (duygu + pose + landmark + ham çıktılar)
-        print("[Pipeline] Py-Feat analizi yapılıyor...")
-        pyfeat_frame_analysis = []
-        pyfeat_summary = {}
-        pyfeat_metadata = {
-            "status": "not_available",
-            "message": "Py-Feat analizi yapılamadı",
-        }
-        try:
-            pyfeat_result = self.pyfeat_analyzer.analyze_video(
-                video_path,
-                fps=fps,
-                total_frames=video_info.get("frame_count", len(frames)),
+    def __init__(self, phase3_enabled: bool = True):
+        print("=" * 60)
+        print("[Pipeline] SensifyHR Mülakat Analiz Sistemi Başlatılıyor...")
+        print("=" * 60)
+
+        # v3 default (ürün modu)
+        self.phase3_enabled = bool(phase3_enabled)
+
+        self.video_processor = VideoProcessor()
+        self.text_analyzer = TextAnalyzer()
+        self.audio_analyzer = AudioAnalyzer()
+        self.face_analyzer = FaceAnalyzer()
+        self.voice_analyzer = VoiceAnalyzer()
+        # FAZ-3 audio signal (lazy init değil; model init süresi yüksek olabilir)
+        self._audio_signal_fusion: Optional[AudioSignalFusion] = None
+
+        print("[Pipeline] Tüm modüller hazır!\n")
+
+    def _get_audio_signal_fusion(self) -> AudioSignalFusion:
+        if self._audio_signal_fusion is None:
+            self._audio_signal_fusion = AudioSignalFusion()
+        return self._audio_signal_fusion
+
+    # ------------------------------------------------------------------
+    # Tutarsızlık Analizi
+    # ------------------------------------------------------------------
+    @staticmethod
+    def analyze_consistency(text_sentiment, face_emotion):
+        """
+        Metin duygusunu yüz ifadesiyle karşılaştırarak tutarsızlık tespit eder.
+
+        Args:
+            text_sentiment: "positive" veya "negative"
+            face_emotion: Yüz analizi duygu etiketi (Türkçe)
+
+        Returns:
+            str: "Tutarli", "ŞÜPHELİ (...)" veya "Nötr/Belirsiz"
+        """
+        positive_face = {"Mutlu", "Saskin"}
+        negative_face = {"Uzgun", "Korku", "Tiksinti", "Ofkeli", "Stresli"}
+
+        if text_sentiment == "positive":
+            if face_emotion in positive_face:
+                return "Tutarli"
+            if face_emotion in negative_face:
+                return "ŞÜPHELİ (Pozitif Söz / Negatif Yüz)"
+
+        elif text_sentiment == "negative":
+            if face_emotion in negative_face:
+                return "Tutarli"
+            if face_emotion == "Mutlu":
+                return "ŞÜPHELİ (Negatif Söz / Gülen Yüz - Sarkazm?)"
+
+        return "Nötr/Belirsiz"
+
+    def _find_anomalies(self, text_data, face_timeline):
+        """
+        Metin ve yüz verilerini zaman bazında eşleştirip tutarsızlıkları bulur.
+
+        Returns:
+            list[dict]: Bulunan anomaliler
+        """
+        anomalies = []
+        if not text_data or not face_timeline:
+            return anomalies
+
+        for segment in text_data:
+            seg_start = segment["start"]
+            seg_end = segment["end"]
+
+            # Bu zaman aralığındaki yüz verisini bul
+            face_in_range = [
+                f for f in face_timeline
+                if seg_start <= f["timestamp"] <= seg_end
+            ]
+            if not face_in_range:
+                continue
+
+            # En sık yüz duygusunu bul
+            face_emotions = [f["emotion"] for f in face_in_range]
+            dominant_face = Counter(face_emotions).most_common(1)[0][0]
+
+            consistency = self.analyze_consistency(
+                segment["sentiment"], dominant_face
             )
-            pyfeat_frame_analysis = pyfeat_result.get("frame_analysis", [])
-            pyfeat_metadata = pyfeat_result.get("metadata", {})
-            pyfeat_summary = PyFeatSummarizer.summarize(
-                pyfeat_frame_analysis,
-                total_frames=video_info.get("frame_count", len(frames)),
-                fps=fps,
-                frame_skip=self.pyfeat_analyzer.frame_skip,
-            )
-            print("[Pipeline] Py-Feat analizi tamamlandı.")
-        except Exception as e:
-            print(f"[Pipeline] Py-Feat analizi hatası: {str(e)}")
-            pyfeat_summary = {
-                "status": "error",
-                "message": str(e),
-                "emotion_distribution": {},
-                "face_detection_rate": 0.0,
-                "general_statistics": {},
-            }
-            pyfeat_metadata = {
-                "status": "error",
-                "message": str(e),
-            }
-        
-        # 5. Frame analizini özetle
-        print("[Pipeline] Frame analizi özetleniyor...")
-        frame_summary = FrameAnalysisSummarizer.summarize(frame_analysis)
-        
-        # 6. Sonuçları birleştir
-        print("[Pipeline] Sonuçlar birleştiriliyor...")
-        report = self._generate_report(
-            interview_id=interview_id,
-            video_info=video_info,
-            frame_analysis=frame_analysis,
-            frame_summary=frame_summary,
-            voice_summary=voice_summary,
-            pyfeat_frame_analysis=pyfeat_frame_analysis,
-            pyfeat_summary=pyfeat_summary,
-            pyfeat_metadata=pyfeat_metadata,
-        )
-        
-        print(f"[Pipeline] Analiz tamamlandı: {interview_id}")
-        
-        return report
-    
-    def _generate_report(
+
+            if "ŞÜPHELİ" in consistency:
+                anomalies.append({
+                    "time_range": f"{seg_start:.1f}s - {seg_end:.1f}s",
+                    "text": segment["text"],
+                    "text_sentiment": segment["sentiment"],
+                    "face_emotion": dominant_face,
+                    "result": consistency,
+                })
+
+        return anomalies
+
+    # ------------------------------------------------------------------
+    # Ana Analiz
+    # ------------------------------------------------------------------
+    def process_interview(
         self,
-        interview_id: str,
-        video_info: Dict,
-        frame_analysis: List[Optional[Dict]],
-        frame_summary: Dict,
-        voice_summary: Optional[Dict] = None,
-        pyfeat_frame_analysis: Optional[List[Dict]] = None,
-        pyfeat_summary: Optional[Dict] = None,
-        pyfeat_metadata: Optional[Dict] = None,
+        video_path: str,
+        interview_id: Optional[str] = None,
+        phase3_enabled: Optional[bool] = None,
     ) -> Dict:
         """
-        Analiz sonuçlarından rapor oluşturur.
-        
+        Tam mülakat analizi yapar.
+
         Args:
-            interview_id: Mülakat ID
-            video_info: Video bilgileri
-            frame_analysis: Her işlenen frame için
-                {
-                    "timestamp": float,
-                    "raw_features": {
-                        "mouth_width_norm": float,
-                        "mouth_height_norm": float,
-                        "eye_opening_norm": float,
-                        "brow_distance_norm": float,
-                        "jaw_open_norm": float,
-                    },
-                    "gaze": {...}
-                }
-            voice_summary: Ses analizi özeti (opsiyonel, raw voice features)
-            pyfeat_frame_analysis: Py-Feat frame bazlı detaylar (opsiyonel)
-            pyfeat_summary: Py-Feat özet (Gemini API için sadeleştirilmiş)
-            pyfeat_metadata: Py-Feat çalışma bilgileri
-            
+            video_path: Video dosya yolu
+            interview_id: Opsiyonel mülakat ID
+
         Returns:
-            Yapılandırılmış rapor
+            dict: Tüm analiz sonuçlarını içeren rapor
         """
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"Video dosyası bulunamadı: {video_path}")
+
+        if interview_id is None:
+            interview_id = str(uuid.uuid4())
+
+        # Çağrı bazlı override (None ise pipeline init flag'i kullan)
+        if phase3_enabled is None:
+            phase3_enabled = self.phase3_enabled
+
+        start_time = time.time()
+        print(f"\n{'='*60}")
+        print(f"[Pipeline] Analiz Başlıyor: {interview_id}")
+        print(f"[Pipeline] Video: {video_path}")
+        print(f"[Pipeline] Phase3 Enabled: {bool(phase3_enabled)}")
+        print(f"{'='*60}\n")
+
+        # 0) Video bilgileri
+        print("[Adım 0/5] Video bilgileri alınıyor...")
+        video_info = self.video_processor.get_video_info(video_path)
+
+        # 1) Ses çıkarma + Ham ses özellikleri (librosa)
+        print("[Adım 1/5] Ses çıkarılıyor ve ham özellikler hesaplanıyor...")
+        audio_path = self.video_processor.extract_audio(video_path)
+        voice_analysis = self.voice_analyzer.analyze_audio(audio_path)
+
+        # 2) Metin analizi (STT + (v2) sentiment)
+        # Not: MP4 decode bağımlılıklarını azaltmak için STT'yi çıkarılmış WAV üzerinden çalıştırıyoruz.
+        print("[Adım 2/5] Metin analizi yapılıyor (STT)...")
+        text_data = self.text_analyzer.process_video(audio_path, phase3_enabled=bool(phase3_enabled))
+        text_summary = self.text_analyzer.get_summary(text_data)
+
+        thought_units = []
+        if phase3_enabled:
+            thought_units = merge_into_thought_units(text_data)
+
+        # 3) Ses analizi
+        audio_emotion_data = []
+        audio_emotion_summary = {}
+        audio_signal_data = []
+        audio_signal_summary = {}
+
+        if phase3_enabled:
+            print("[Adım 3/5] Ses sinyal analizi yapılıyor (HuBERT SER projection + librosa)...")
+            fusion = self._get_audio_signal_fusion()
+            audio_signal_data = fusion.process_audio(audio_path)
+            audio_signal_summary = fusion.get_summary(audio_signal_data)
+        else:
+            print("[Adım 3/5] Ses duygu analizi yapılıyor (HuBERT SER)...")
+            audio_emotion_data = self.audio_analyzer.process_video(video_path)
+            audio_emotion_summary = self.audio_analyzer.get_summary(audio_emotion_data)
+
+        # 4) Görsel analiz (MediaPipe)
+        if phase3_enabled:
+            print("[Adım 4/5] Görsel sinyal analizi yapılıyor (MediaPipe)...")
+        else:
+            print("[Adım 4/5] Yüz analizi yapılıyor (MediaPipe)...")
+        face_timeline, face_summary = self.face_analyzer.process_video(
+            video_path, phase3_enabled=bool(phase3_enabled)
+        )
+
+        # 5) Tutarsızlık analizi
+        anomalies = []
+        if phase3_enabled:
+            print("[Adım 5/5] Tutarsızlık analizi (FAZ-3) kapalı: sentiment/emotion label kullanılmıyor.")
+        else:
+            print("[Adım 5/5] Tutarsızlık analizi yapılıyor...")
+            anomalies = self._find_anomalies(text_data, face_timeline)
+
+        # FAZ-3 Contextual Aggregator: Segment Signal Packages (LLM input)
+        segment_signal_packages = []
+        if phase3_enabled:
+            print("[FAZ-3] Contextual Aggregator: segment paketleri oluşturuluyor...")
+            segment_signal_packages = build_segment_signal_packages(
+                text_segments=thought_units or text_data,
+                audio_signal_timeline=audio_signal_data,
+                visual_signal_timeline=face_timeline,
+            )
+
+        # Geçici ses dosyasını temizle
+        if os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+            except Exception:
+                pass
+
+        duration = time.time() - start_time
+
+        # Birleşik rapor
         report = {
             "interview_id": interview_id,
-            "duration_seconds": video_info.get('duration_seconds', 0),
-            "analysis_timestamp": datetime.utcnow().isoformat() + "Z",
-            "video_info": {
-                "fps": video_info.get('fps', 0),
-                "resolution": {
-                    "width": video_info.get('width', 0),
-                    "height": video_info.get('height', 0)
-                }
+            "phase": "v3" if phase3_enabled else "v2",
+            "duration_seconds": round(duration, 2),
+            "video_info": video_info,
+            # Metin Analizi
+            "text_analysis": {
+                "segments": text_data,
+                "thought_units": thought_units if phase3_enabled else [],
+                "summary": text_summary,
             },
-            # Frame bazlı Mediapipe analizi (ham özellikler + gaze vektörü)
-            # Not: Ham veri çok kalabalık olabilir, Gemini API için frame_summary kullanılmalı
-            "frame_analysis": [
-                fa for fa in frame_analysis if fa is not None
-            ],
-            # Frame analizi özeti (Gemini API için sadeleştirilmiş)
-            "frame_summary": frame_summary,
-            # Ses analizi: sadece raw_voice_features içeren sade yapı
-            "voice_analysis": voice_summary if voice_summary else {
-                "status": "not_available",
-                "note": "Ses analizi yapılamadı"
+            # Ses Duygu Analizi
+            "audio_emotion_analysis": {
+                "timeline": audio_emotion_data,
+                "summary": audio_emotion_summary,
             },
-            # Py-Feat analizi (ham frame bazlı + özet)
-            "pyfeat_analysis": {
-                "frame_analysis": pyfeat_frame_analysis or [],
-                "summary": pyfeat_summary or {},
-                "metadata": pyfeat_metadata or {},
-            }
+            # FAZ-3 Audio Signal Analizi (emotion yok)
+            "audio_signal_analysis": {
+                "timeline": audio_signal_data,
+                "summary": audio_signal_summary,
+            },
+            # Yüz Analizi
+            "face_analysis": {
+                "timeline": face_timeline,
+                "summary": face_summary,
+            },
+            # FAZ-3 görsel sinyal alias (aynı veri; isim değişimi için)
+            "visual_signal_analysis": {
+                "timeline": face_timeline if phase3_enabled else [],
+                "summary": face_summary if phase3_enabled else {},
+            },
+            # Ham Ses Özellikleri
+            "voice_analysis": voice_analysis,
+            # Tutarsızlık
+            "anomalies": anomalies,
+            # FAZ-3 Segment Signal Package (LLM'ye giden tek veri)
+            "segment_signal_packages": segment_signal_packages if phase3_enabled else [],
         }
-        
+
+        print(f"\n{'='*60}")
+        print(f"[Pipeline] Analiz Tamamlandı! Süre: {duration:.1f} saniye")
+        print(f"  - Metin: {text_summary.get('total_sentences', 0)} cümle")
+        if phase3_enabled:
+            print(f"  - Ses Sinyali: {audio_signal_summary.get('total_chunks', 0)} parça")
+        else:
+            print(f"  - Ses Duygusu: {audio_emotion_summary.get('total_chunks', 0)} parça")
+        print(f"  - Yüz: {face_summary.get('data_count', 0)} kayıt")
+        print(f"  - Anomali: {len(anomalies)} tutarsızlık")
+        print(f"{'='*60}\n")
+
         return report
-    
 
 
 if __name__ == "__main__":
-    # Test kodu
-    pipeline = InterviewAnalysisPipeline()
-    print("InterviewAnalysisPipeline modülü hazır.")
+    p = InterviewAnalysisPipeline()
+    print("Pipeline hazır. Kullanım: p.process_interview('video.mp4')")
