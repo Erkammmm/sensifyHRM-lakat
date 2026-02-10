@@ -50,7 +50,7 @@ sensifyHRMülakay/
 
 | Bileşen | Detay |
 |---------|-------|
-| STT (Speech-to-Text) | `openai/whisper-large-v3-turbo` (Transformers) + fallback |
+| STT (Speech-to-Text) | **faster-whisper** (default) + opsiyonel Transformers ASR |
 | Duygu Analizi | **YOK** (v3) |
 | Çıktı | `{start,end,text}` |
 | GPU | CUDA varsa kullanır; OOM durumunda otomatik CPU fallback |
@@ -77,19 +77,13 @@ FAZ‑3’te ses tarafı **emotion etiketi üretmez**. Bunun yerine:
 | Bileşen | Detay |
 |---------|-------|
 | Model | MediaPipe FaceLandmarker (float16) |
-| Duygu | **v2 legacy:** kural tabanlı emotion label |
 | Bakış | eyeLookIn/Out/Down skorlarından yön tespiti |
 | Göz Kırpma | eyeBlinkLeft/Right > 0.5 eşiği |
 | Çıktı | Timeline + özet istatistikler |
 
-**Duygu Kuralları:**
-- Korku: browInnerUp > 0.2 && browOuterUp > 0.1 && eyeWide > 0.1
-- Tiksinti: noseSneer > 0.15
-- Mutlu: mouthSmile > 0.35
-- Şaşkın: browInnerUp > 0.4 && jawOpen > 0.10
-- Öfkeli: browDown > 0.35
-- Stresli: mouthRoll+mouthShrug / 3 > 0.25
-- Nötr: hiçbiri tetiklenmezse
+Not:
+- v3’te görsel çıktı “duygu” değil, **davranışsal state**’lerdir (aşağıda).
+- Performans için video frame’leri hedef FPS’e göre örneklenir (default ~5 FPS).
 
 ### 3.4 Ses Özellikleri (voice_analyzer.py)
 
@@ -108,6 +102,9 @@ FAZ‑3’te görsel çıktı davranışsal state’lerdir:
 - `facial_state`: `NEUTRAL | POSITIVE | TENSE`
 - `attention_state`: `FOCUSED | AVERTED`
 - `stress_indicator`: `LOW | ELEVATED | HIGH`
+
+Yetkinlik karnesi için ayrıca **sayısal tepe sinyalleri** timeline’a eklenir:
+- `stress_score`, `smile_score`, `brow_down_score`, `eye_wide_score`, `jaw_open_score`
 
 ### 3.8 Contextual Aggregator (contextual_aggregator.py)
 
@@ -130,9 +127,20 @@ Whisper segmentleri için zaman bazlı hizalama yapar ve LLM’ye giden **Segmen
     "facial_state": "NEUTRAL",
     "attention_state": "FOCUSED",
     "stress_indicator": "LOW"
+  },
+  "fusion_summary": {
+    "max_pool": {
+      "voice": { "rms_max": 0.0, "pitch_max_hz": 0.0 },
+      "audio_ser": { "valence_raw_max": 0.0, "arousal_raw_max": 0.0 },
+      "visual": { "stress_score_max": 0.0, "smile_score_max": 0.0 }
+    }
   }
 }
 ```
+
+`fusion_summary` (365Aspects esintili):
+- Segment aralığındaki çok modlu sinyallerden **max‑pooling** ile “en belirgin tepe noktaları” çıkarılır.
+- Amaç: LLM’ye ham vektör/etiket vermeden, **küçük ama açıklanabilir** bir füzyon özeti sağlamak.
 
 ### 3.6 AI Değerlendirme
 
@@ -207,6 +215,15 @@ Video (MP4)
             "speech_silence": {"total_speech_seconds": 90.5, "total_silence_seconds": 29.5}
         }
     },
+    "segment_signal_packages": [
+      {
+        "timestamp": "00:10 - 00:25",
+        "text": "...",
+        "audio_signal": { "valence": "NEUTRAL", "arousal": "MEDIUM" },
+        "visual_signal": { "facial_state": "NEUTRAL", "attention_state": "FOCUSED" },
+        "fusion_summary": { "max_pool": { "voice": {}, "audio_ser": {}, "visual": {} } }
+      }
+    ],
     "ai_analysis": {"analysis": "..."}
 }
 ```
@@ -277,3 +294,10 @@ Kritik paketler:
 - Gemini ayrı subprocess'te çalışır (protobuf çakışması önlemi)
 - `requirements.lock.sonn.txt` dosyası Anaconda ortamından freeze edilmiştir
 - Ollama + Gemma tamamen yerel/offline çalışır, internet gerektirmez
+
+### Performans / ENV Ayarları (RTX 3050 öneri)
+
+- `SENSIFYHR_FACE_TARGET_FPS=5`: Görsel analizde hedef örnekleme FPS’i
+- `SENSIFYHR_STT_BACKEND=faster-whisper`: STT’de transformers denemesini kapatır (hız/kararlılık)
+- `SENSIFYHR_FW_COMPUTE_TYPE=int8_float16`: faster‑whisper GPU compute type
+- `SENSIFYHR_PREWARM_MODELS=1`: FastAPI startup’ta STT + HuBERT’i önden yükler (ilk analiz beklemesini azaltır)

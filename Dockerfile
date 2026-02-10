@@ -1,6 +1,6 @@
 # =============================================
-# SensifyHR Mülakat Analiz Sistemi v2.0
-# Docker Image (GPU CUDA 12.1 desteği)
+# SensifyHR Mülakat Analiz Sistemi v3.0 (FAZ-3)
+# Docker Image (varsayılan: CPU). GPU için host CUDA + uygun base image gerekir.
 # =============================================
 
 FROM python:3.10-slim
@@ -24,6 +24,13 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# Varsayılan performans ayarları (isteğe göre docker run -e ile override edilebilir)
+ENV SENSIFYHR_FACE_TARGET_FPS=5
+ENV SENSIFYHR_STT_BACKEND=faster-whisper
+ENV SENSIFYHR_FW_COMPUTE_TYPE=int8_float16
+# Prewarm default kapalı (container startup süresini uzatabilir)
+ENV SENSIFYHR_PREWARM_MODELS=0
+
 # GPU kullanımı: boş bırak = otomatik tespit, "" = CPU only
 # ENV CUDA_VISIBLE_DEVICES=""
 
@@ -36,7 +43,7 @@ RUN sed -i '/^packaging @/c\packaging' requirements.lock.sonn.txt \
         -r requirements.lock.sonn.txt
 
 # Ek paketler (lock dosyasında olmayabilir)
-RUN pip install --no-cache-dir openai-whisper ollama 2>/dev/null || true
+RUN pip install --no-cache-dir ollama 2>/dev/null || true
 
 # Uygulama kodları
 COPY . .

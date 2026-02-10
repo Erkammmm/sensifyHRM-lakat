@@ -9,6 +9,7 @@ Kullanım:
 """
 
 import json
+import os
 from collections import Counter
 from typing import Dict, List, Optional
 
@@ -42,6 +43,10 @@ class OllamaAI:
                 f"Ollama servisine bağlanılamadı. 'ollama serve' çalışıyor mu?\n"
                 f"Hata: {e}"
             )
+
+        # Ollama performans ayarları: GPU'da sıcak tutma
+        self._num_gpu = int((os.getenv("SENSIFYHR_OLLAMA_NUM_GPU", "1") or "1").strip() or "1")
+        self._keep_alive = (os.getenv("SENSIFYHR_OLLAMA_KEEP_ALIVE", "5m") or "5m").strip() or "5m"
 
     def _summarize_data(
         self,
@@ -148,6 +153,8 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
         response = self._client.chat(
             model=self.model_name,
             messages=[{"role": "user", "content": prompt}],
+            options={"num_gpu": self._num_gpu},
+            keep_alive=self._keep_alive,
         )
 
         result = response["message"]["content"]
@@ -225,6 +232,8 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
             response = self._client.chat(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
+                options={"num_gpu": self._num_gpu},
+                keep_alive=self._keep_alive,
             )
             text = (response.get("message", {}) or {}).get("content", "")
             if text:
@@ -248,6 +257,8 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
         final_resp = self._client.chat(
             model=self.model_name,
             messages=[{"role": "user", "content": synthesis_prompt}],
+            options={"num_gpu": self._num_gpu},
+            keep_alive=self._keep_alive,
         )
         return ((final_resp.get("message", {}) or {}).get("content", "") or "").strip()
 

@@ -16,11 +16,12 @@ Bu sürümde temel ilke:
 
 | Modül | Teknoloji | Açıklama |
 |-------|-----------|----------|
-| 📝 Metin (STT) | `openai/whisper-large-v3-turbo` (Transformers) + fallback | Metin = **sadece içerik** (`{start,end,text}`) |
+| 📝 Metin (STT) | **faster-whisper** (default) + opsiyonel Transformers ASR | Metin = **sadece içerik** (`{start,end,text}`) |
 | 🎛️ Audio Signal | HuBERT SER projection + librosa | **Valence/Arousal + fiziksel ses state’leri** (emotion etiketi yok) |
 | 👁️ Visual Signal | MediaPipe FaceLandmarker | **facial_state / attention_state / stress_indicator** (emotion etiketi yok) |
 | 🔊 Ses Özellikleri | Librosa | RMS enerji, Pitch, VAD, Mel spectrogram |
 | 🔗 Contextual Aggregator | `contextual_aggregator.py` | Metin+Audio+Visual sinyalleri **segment bazlı hizalar** (LLM input) |
+| 🧾 Yetkinlik Karnesi (365Aspects esintili) | SSP `fusion_summary` + LLM | Mülakat sonunda 5 boyutta **1–5** puan + 1 cümle gerekçe |
 | 🤖 LLM Reasoning | **Ollama/Gemma12B** (+ opsiyonel Gemini) | Segment paketlerini chunk’layıp yorumlar |
 | 📊 Görselleştirme | Matplotlib | v3’te **signal** grafikleri + teknik grafikler “Detaylar”da |
 | 📄 Raporlama | HTML + JSON | v3’te **Product Mode** (tab’lı UI: Dashboard / LLM / Detaylar) |
@@ -76,10 +77,10 @@ ollama pull gemma3:12b
 ### Hızlı Test (CLI)
 
 ```bash
-# v3 (FAZ-3) analiz
+# Not: test_example.py içinde v3'ü açmak için --phase3 flag'i kullanılır.
 python test_example.py video.mp4 --phase3
 
-# v3 + Ollama
+# v3 + Ollama (Gemma)
 python test_example.py video.mp4 --phase3 --ollama
 ```
 
@@ -94,8 +95,24 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
 
 v3 için:
-- `POST /analyze?phase3=true`
+- `POST /analyze?phase3=true` (API default: `true`)
 - LLM seçimi: `llm_provider=ollama|gemini|none`
+
+### Performans (RTX 3050 / düşük VRAM için önerilen ENV’ler)
+
+```bash
+# Startup'ta opsiyonel prewarm (ilk analiz beklemesini azaltır)
+export SENSIFYHR_PREWARM_MODELS=1
+
+# Yüz analizi frame sampling (varsayılan 5 FPS)
+export SENSIFYHR_FACE_TARGET_FPS=5
+
+# STT: faster-whisper only (transformers denemesini kapatır)
+export SENSIFYHR_STT_BACKEND=faster-whisper
+
+# faster-whisper compute type (RTX 3050 için daha stabil)
+export SENSIFYHR_FW_COMPUTE_TYPE=int8_float16
+```
 
 ### Ollama + Gemma ile Test
 
@@ -170,12 +187,13 @@ sensifyHRMülakay/
 - `audio_signal_analysis`: audio signal timeline + özet
 - `visual_signal_analysis`: visual signal timeline + özet
 - `voice_analysis`: RMS enerji, Pitch, konuşma/sessizlik metrikleri
-- `segment_signal_packages`: LLM’ye giden zaman hizalı paketler
+- `segment_signal_packages`: LLM’ye giden zaman hizalı paketler (her pakette `fusion_summary` dahil)
 - `ai_analysis`: LLM değerlendirmesi (Ollama/Gemma12B veya Gemini)
 
 ### HTML Rapor
 - **v3 Product Mode**: Dashboard / LLM / Detaylar tabları
 - Dashboard’da: sinyal KPI’ları + “Kritik Anlar” + “Soft Skill Karnesi” kartları
+- LLM sekmesinin en altı: **Yetkinlik Karnesi (LLM • 1–5)** progress bar + kısa gerekçe
 - Detaylar’da: teknik grafikler
 
 ---
@@ -184,7 +202,7 @@ sensifyHRMülakay/
 
 | Kategori | Araç |
 |----------|------|
-| STT | `openai/whisper-large-v3-turbo` (Transformers) |
+| STT | **faster-whisper** (default) • opsiyonel Transformers ASR (`openai/whisper-large-v3-turbo`) |
 | Audio Signal | HuBERT SER projection `SeaBenSea/hubert-large-turkish-speech-emotion-recognition` + librosa |
 | Visual Signal | MediaPipe FaceLandmarker (blendshape) |
 | Ses Özellik | Librosa (RMS, Pitch, VAD, Mel) |

@@ -43,6 +43,94 @@ def _get_audio_duration_seconds(path: str) -> float:
         return 0.0
 
 
+def _merge_segments_for_coherence(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    FAZ-3: Whisper segmentleri bazen bağlaç/yarım cümle ile biter.
+    Basit birleştirme heuristikleri:
+      - Çok kısa segment (3 kelimeden az) → sonrakiyle birleştir
+      - Segment sonu bağlaç/işaret edici ile bitiyorsa → sonrakiyle birleştir
+      - Segment sonu noktalama (.,!,?) içermiyorsa ve sonraki segment bağlaçla başlıyorsa → birleştir
+    """
+    if not segments:
+        return []
+
+    def norm(s: str) -> str:
+        s = (s or "").strip().lower()
+        # bazı noktalama/uzatma temizliği
+        for ch in ["…", "...", ",", ";", ":", "—", "-", "(", ")", "[", "]", "{", "}", "\"", "'"]:
+            s = s.replace(ch, " ")
+        s = " ".join(s.split())
+        return s
+
+    # TR bağlaç/bağlayıcılar (sonda kalınca kopukluk yaratır)
+    end_connectors = {
+        "ve", "veya", "ama", "fakat", "ancak", "çünkü", "cünkü",
+        "bu yüzden", "bu nedenle", "dolayısıyla", "sonuç olarak",
+        "yani", "örneğin", "mesela", "özellikle", "bu sebeple",
+        "bu yüzden bu", "bu yüzden ş", "bu yüzden şu", "bu yüzden o",
+    }
+    # eksik bırakılmış işaret ediciler
+    dangling_ends = {"bu", "şu", "o", "bunlar", "şunlar", "onlar", "böyle", "şöyle"}
+    start_connectors = {"ve", "veya", "ama", "fakat", "ancak", "çünkü", "cünkü", "bu yüzden", "bu nedenle", "yani"}
+
+    out: List[Dict[str, Any]] = []
+    i = 0
+    while i < len(segments):
+        cur = dict(segments[i] or {})
+        cur_text = (cur.get("text") or "").strip()
+        cur_start = float(cur.get("start", 0.0) or 0.0)
+        cur_end = float(cur.get("end", cur_start) or cur_start)
+
+        if i >= len(segments) - 1:
+            out.append({**cur, "text": cur_text, "start": cur_start, "end": cur_end})
+            break
+
+        nxt = dict(segments[i + 1] or {})
+        nxt_text = (nxt.get("text") or "").strip()
+        nxt_start = float(nxt.get("start", cur_end) or cur_end)
+        nxt_end = float(nxt.get("end", nxt_start) or nxt_start)
+
+        cur_words = [w for w in norm(cur_text).split(" ") if w]
+        nxt_norm = norm(nxt_text)
+        cur_norm = norm(cur_text)
+
+        # koşullar
+        too_short = len(cur_words) < 3
+        ends_with_punct = cur_text.endswith((".", "!", "?", "…"))
+        last_1 = cur_words[-1] if cur_words else ""
+        last_2 = " ".join(cur_words[-2:]) if len(cur_words) >= 2 else last_1
+        last_3 = " ".join(cur_words[-3:]) if len(cur_words) >= 3 else last_2
+
+        ends_with_connector = (last_1 in end_connectors) or (last_2 in end_connectors) or (last_3 in end_connectors)
+        ends_dangling = last_1 in dangling_ends
+
+        nxt_starts_connector = False
+        if nxt_norm:
+            for sc in sorted(start_connectors, key=len, reverse=True):
+                if nxt_norm.startswith(sc + " ") or nxt_norm == sc:
+                    nxt_starts_connector = True
+                    break
+
+        should_merge = too_short or ends_with_connector or ends_dangling or ((not ends_with_punct) and nxt_starts_connector)
+
+        if should_merge and nxt_text:
+            merged_text = (cur_text + " " + nxt_text).strip()
+            out.append(
+                {
+                    "start": cur_start,
+                    "end": max(cur_end, nxt_end),
+                    "text": " ".join(merged_text.split()),
+                }
+            )
+            i += 2
+            continue
+
+        out.append({**cur, "text": cur_text, "start": cur_start, "end": cur_end})
+        i += 1
+
+    return out
+
+
 class TextAnalyzer:
     """
     Video/ses dosyasından konuşmayı metne çevirir (Whisper)
@@ -124,9 +212,9 @@ class TextAnalyzer:
 
             # turbo/distil adaylarını öne al (varsa)
             if "turbo" in name.lower():
-                cands.extend(
-                    ["Systran/faster-whisper-large-v3-turbo", "Systran/faster-whisper-large-v3", "large-v3"]
-                )
+                # Not: bazı turbo repo id'leri her ortamda bulunmayabiliyor; 404 gürültüsünü azaltmak için
+                # stabil adayları öne alıyoruz.
+                cands.extend(["Systran/faster-whisper-large-v3", "large-v3"])
             if "distil" in name.lower():
                 cands.extend(["distil-whisper/distil-large-v3", "Systran/faster-whisper-large-v3", "large-v3"])
 
@@ -310,6 +398,9 @@ class TextAnalyzer:
                 if segments_data:
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
+                    # FAZ-3: kısa/bağlaçla biten segmentleri birleştir (anlamsal bütünlük)
+                    if phase3_enabled and segments_data:
+                        segments_data = _merge_segments_for_coherence(segments_data)
                     print(f"Metin analizi tamamlandı: {len(segments_data)} segment.")
                     return segments_data
             except Exception as _exc:
@@ -351,6 +442,9 @@ class TextAnalyzer:
                                         }
                                     )
                         if segments_data:
+                            # FAZ-3: kısa/bağlaçla biten segmentleri birleştir (anlamsal bütünlük)
+                            if phase3_enabled and segments_data:
+                                segments_data = _merge_segments_for_coherence(segments_data)
                             print(f"Metin analizi tamamlandı: {len(segments_data)} segment.")
                             return segments_data
                     except Exception:
@@ -419,6 +513,10 @@ class TextAnalyzer:
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+
+        # FAZ-3: kısa/bağlaçla biten segmentleri birleştir (anlamsal bütünlük)
+        if phase3_enabled and segments_data:
+            segments_data = _merge_segments_for_coherence(segments_data)
 
         print(f"Metin analizi tamamlandı: {len(segments_data)} segment.")
         return segments_data

@@ -195,6 +195,7 @@ class FaceAnalyzer:
         last_record_time = -1.0
         frame_count = 0
         timestamp_ms = 0
+        last_ts_ms = -1  # MediaPipe detect_for_video monotonik timestamp ister
 
         while cap.isOpened():
             # grab: decode maliyetini azaltır; sadece seçilen aralıklarda retrieve edilir
@@ -210,12 +211,34 @@ class FaceAnalyzer:
             if not success:
                 continue
 
-            timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
-            timestamp_sec = timestamp_ms / 1000.0
+            # Bazı codec'lerde CAP_PROP_POS_MSEC güvenilir değil (aynı/geri dönebiliyor).
+            # MediaPipe VIDEO mode: timestamp'ler monotonik artmalı.
+            raw_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
+            try:
+                raw_ms = float(raw_ms)
+            except Exception:
+                raw_ms = -1.0
+
+            if raw_ms is None or raw_ms <= 0:
+                # fallback: frame index + fps
+                frame_idx = cap.get(cv2.CAP_PROP_POS_FRAMES)
+                try:
+                    frame_idx = float(frame_idx)
+                except Exception:
+                    frame_idx = float(frame_count)
+                raw_ms = (frame_idx / float(fps)) * 1000.0 if fps > 0 else (frame_count * 33.333)
+
+            ts_ms = int(round(raw_ms))
+            if ts_ms <= last_ts_ms:
+                ts_ms = last_ts_ms + 1
+            last_ts_ms = ts_ms
+
+            timestamp_ms = ts_ms
+            timestamp_sec = float(ts_ms) / 1000.0
 
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
             detection_result = self.landmarker.detect_for_video(
-                mp_image, int(timestamp_ms)
+                mp_image, int(ts_ms)
             )
 
             if detection_result and detection_result.face_blendshapes:
@@ -240,6 +263,22 @@ class FaceAnalyzer:
                         facial_state = self._classify_facial_state(scores)
                         attention_state = self._attention_state_from_gaze(gaze)
                         stress_indicator = self._stress_indicator(scores)
+
+                        # FAZ-3: Yetkinlik karnesi için max-pooling'e uygun sayısal sinyaller
+                        smile_avg = (
+                            scores.get("mouthSmileLeft", 0) + scores.get("mouthSmileRight", 0)
+                        ) / 2
+                        brow_down = (
+                            scores.get("browDownLeft", 0) + scores.get("browDownRight", 0)
+                        ) / 2
+                        eye_wide = (
+                            scores.get("eyeWideLeft", 0) + scores.get("eyeWideRight", 0)
+                        ) / 2
+                        jaw_open = scores.get("jawOpen", 0)
+                        stress_score = (
+                            scores.get("mouthRollLower", 0) + scores.get("mouthShrugLower", 0)
+                        ) / 3
+
                         data_packet = {
                             "timestamp": round(timestamp_sec, 2),
                             "facial_state": facial_state,
@@ -248,6 +287,12 @@ class FaceAnalyzer:
                             # legacy-compatible fields (behavioral, not emotion)
                             "gaze": gaze,
                             "blink_total": blink_count,
+                            # numeric cues (0..1 approx)
+                            "smile_score": round(float(smile_avg), 4),
+                            "brow_down_score": round(float(brow_down), 4),
+                            "eye_wide_score": round(float(eye_wide), 4),
+                            "jaw_open_score": round(float(jaw_open), 4),
+                            "stress_score": round(float(stress_score), 4),
                         }
                     else:
                         emotion = self._classify_emotion(scores)

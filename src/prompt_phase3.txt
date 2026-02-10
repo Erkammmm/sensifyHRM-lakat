@@ -9,6 +9,7 @@ Girdi:
   - **text**: adayın söylediği içerik (yalnızca içerik)
   - **audio_signal**: valence/arousal state + enerji/hız/pitch stabilitesi (yalnızca sinyal)
   - **visual_signal**: facial_state/attention_state/stress_indicator (yalnızca sinyal)
+  - **fusion_summary**: (max-pooling) segment içindeki en belirgin ses/yüz tepe sinyallerinin kısa özeti (yalnızca sinyal)
 
 İstenen yaklaşım:
 - **Tutarlılık** analizi yap: “ne söylüyor” ↔ “nasıl söylüyor” ↔ “nasıl davranıyor”.
@@ -40,6 +41,15 @@ Girdi:
 
 ## Önerilen Takip Soruları (Doğrulama)
 - (3–8 madde: gözlemlenen sinyalleri doğrulamaya yönelik, tarafsız sorular)
+
+## Yetkinlik Karnesi (1–5 Puan)
+Amaç: Basit duygu etiketi değil, mülakat performansına dair 5 yetkinliği 1–5 arasında **olasılıksal ve temkinli** puanlamak.
+
+- **Dürüstlük / Bütünlük**: X/5 — (tek cümle teknik gerekçe; sinyal tutarlılığı + fusion_summary tepe sinyallerine referans ver)
+- **İşbirliği / Meslektaşlık**: X/5 — (tek cümle)
+- **Sosyal Çok Yönlülük**: X/5 — (tek cümle)
+- **Gelişim Odaklılık**: X/5 — (tek cümle)
+- **Genel İşe Alınabilirlik**: X/5 — (tek cümle)
 
 Notlar:
 - JSON’u aynen tekrar etme.

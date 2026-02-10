@@ -14,6 +14,7 @@ import math
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from typing import Optional, Dict, Any
 import uuid
 import aiofiles
@@ -271,13 +272,18 @@ async def health_check():
         "pipeline_ready": pipeline is not None,
     }
 
+@app.get("/favicon.ico")
+async def favicon():
+    # Browser'lar otomatik ister; logda 404 görünmesin diye 204 döndürüyoruz.
+    return Response(status_code=204)
+
 
 @app.post("/analyze")
 async def analyze_interview(
     file: UploadFile = File(..., description="Video dosyası (MP4, AVI, MOV, MKV, WEBM)"),
     interview_id: Optional[str] = None,
     phase3: bool = True,
-    llm_provider: str = "gemini",
+    llm_provider: str = "ollama",
 ):
     """
     Video yükle → analiz et → JSON + HTML rapor döndür.

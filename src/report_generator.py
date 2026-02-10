@@ -143,15 +143,18 @@ class ReportGenerator:
         critical_cards_html = ""
         exec_summary_html = ""
         soft_skill_cards_html = ""
+        competency_bars_html = ""
         if is_phase3 and ai_text:
             ai_sections = _split_markdown_sections(ai_text)
             critical = ai_sections.get("kritik_anlar", "").strip()
             executive = ai_sections.get("yonetici_ozeti", "").strip()
             soft_skill = ai_sections.get("soft_skill", "").strip()
+            competency = ai_sections.get("yetkinlik_karnesi", "").strip()
 
             critical_cards_html = _render_bullets_as_cards(critical, max_items=6)
             exec_summary_html = _render_bullets_as_list(executive, max_items=6)
             soft_skill_cards_html = _render_soft_skill_cards(soft_skill, max_items=8)
+            competency_bars_html = _render_competency_bars(competency)
 
         # FAZ-3: Thought Units tablosu (ürünleşme)
         thought_rows = ""
@@ -235,6 +238,7 @@ class ReportGenerator:
             critical_cards_html=critical_cards_html,
             exec_summary_html=exec_summary_html,
             soft_skill_cards_html=soft_skill_cards_html,
+            competency_bars_html=competency_bars_html,
             thought_rows=thought_rows,
             thought_count=len(thought_units) if thought_units else 0,
             v3_confidence=v3_scores.get("confidence", 50),
@@ -765,6 +769,15 @@ HTML_TEMPLATE_V3 = """
     .sev-warn .dot{background:#f1c40f}
     .sev-bad  .dot{background:#e74c3c}
 
+    /* Competency scorecard (progress bars) */
+    #competency-analysis .comp-row{padding:14px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.03);margin-bottom:12px}
+    #competency-analysis .comp-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
+    #competency-analysis .comp-name{font-weight:700}
+    #competency-analysis .comp-score{font-weight:800;color:var(--text)}
+    #competency-analysis .comp-bar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(255,255,255,.10)}
+    #competency-analysis .comp-fill{height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b);border-radius:999px}
+    #competency-analysis .comp-reason{margin-top:8px;color:var(--muted);font-size:13px;line-height:1.55}
+
     /* Ring KPI */
     .rings{display:flex;gap:14px;flex-wrap:wrap}
     .ring{
@@ -936,6 +949,17 @@ HTML_TEMPLATE_V3 = """
               <div class="muted">LLM çıktısı yok (llm_provider=none veya bağlantı/hata).</div>
             {% endif %}
           </div>
+            <div class="card" id="competency-analysis" style="margin-top:14px">
+              <h2>Yetkinlik Karnesi (LLM • 1–5)</h2>
+              <div class="muted" style="margin-bottom:10px">
+                Bu bölüm, duygu etiketi değil; çok modlu sinyallerin tutarlılığına göre üretilen karar-destek puanlamasıdır.
+              </div>
+              {% if competency_bars_html %}
+                <div class="stack">{{ competency_bars_html | safe }}</div>
+              {% else %}
+                <div class="muted">Yetkinlik karnesi bulunamadı (LLM çıktısı bu bölümü üretmemiş olabilir).</div>
+              {% endif %}
+            </div>
           <div class="footer">
             Not: Bu çıktı karar destek amaçlıdır; kesin hüküm veya klinik çıkarım içermez.
           </div>
@@ -1193,6 +1217,8 @@ def _split_markdown_sections(text: str) -> Dict[str, str]:
             return "oruntuler"
         if "kritik anlar" in h2 or "red flags" in h2 or "risk sinyali" in h2:
             return "kritik_anlar"
+        if "yetkinlik" in h2 and "karnesi" in h2:
+            return "yetkinlik_karnesi"
         if "soft skill" in h2 or "karnesi" in h2:
             return "soft_skill"
         if "takip soruları" in h2 or "dogrulama" in h2 or "doğrulama" in h2:
@@ -1299,6 +1325,74 @@ def _render_soft_skill_cards(section_text: str, max_items: int = 8) -> str:
             "</div>"
         )
     return "\n".join(cards)
+
+
+def _parse_competency_lines(section_text: str) -> List[Dict[str, str]]:
+    """
+    Beklenen satırlar:
+      - **Dürüstlük / Bütünlük**: 4.2/5 — kısa gerekçe
+    """
+    items: List[Dict[str, str]] = []
+    for raw in (section_text or "").replace("\r\n", "\n").split("\n"):
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith(("-", "•", "*")):
+            line = line.lstrip("-•*").strip()
+        # bold temizle
+        line = line.replace("**", "")
+        if ":" not in line:
+            continue
+        left, right = line.split(":", 1)
+        name = left.strip()
+        rest = right.strip()
+        score = ""
+        reason = rest
+        # skor: "X/5" yakala (başta)
+        # farklı dash karakterleri gelebilir (—, –, -)
+        parts = rest.split("—", 1)
+        if len(parts) == 1:
+            parts = rest.split("–", 1)
+        if len(parts) == 1:
+            parts = rest.split("-", 1)
+        if parts:
+            first = parts[0].strip()
+            if "/5" in first:
+                score = first
+                reason = parts[1].strip() if len(parts) > 1 else ""
+        items.append({"name": name, "score": score, "reason": reason})
+        if len(items) >= 10:
+            break
+    return items
+
+
+def _render_competency_bars(section_text: str) -> str:
+    items = _parse_competency_lines(section_text)
+    if not items:
+        return ""
+
+    rows = []
+    for it in items[:5]:
+        name = _escape_html(it.get("name", "") or "Yetkinlik")
+        score_txt = (it.get("score", "") or "").strip()
+        reason = _escape_html(it.get("reason", "") or "")
+        # parse numeric score
+        val = 0.0
+        try:
+            if "/5" in score_txt:
+                val = float(score_txt.split("/5", 1)[0].strip())
+        except Exception:
+            val = 0.0
+        val = max(0.0, min(5.0, val))
+        pct = int(round((val / 5.0) * 100.0))
+        rows.append(
+            '<div class="comp-row">'
+            f'<div class="comp-head"><div class="comp-name">{name}</div><div class="comp-score">{val:.1f}/5</div></div>'
+            f'<div class="comp-bar"><div class="comp-fill" style="width:{pct}%"></div></div>'
+            f'<div class="comp-reason">{reason}</div>'
+            "</div>"
+        )
+    return "\n".join(rows)
 
 
 if __name__ == "__main__":

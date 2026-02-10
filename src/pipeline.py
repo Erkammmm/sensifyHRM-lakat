@@ -223,6 +223,7 @@ class InterviewAnalysisPipeline:
                 text_segments=thought_units or text_data,
                 audio_signal_timeline=audio_signal_data,
                 visual_signal_timeline=face_timeline,
+                voice_analysis=voice_analysis,
             )
 
         # Geçici ses dosyasını temizle
