@@ -189,6 +189,38 @@ class ReportGenerator:
                 )
 
         template = Template(HTML_TEMPLATE_V3 if is_phase3 else HTML_TEMPLATE)
+
+        # FAZ-3 gaze detayları
+        gaze_pct = face_summary.get("gaze_percentages", {}) if isinstance(face_summary, dict) else {}
+        reading_events = face_summary.get("reading_suspicion_events", []) if isinstance(face_summary, dict) else []
+        reading_count = len(reading_events) if isinstance(reading_events, list) else 0
+        reading_total = 0.0
+        reading_speaking = 0
+        if isinstance(reading_events, list):
+            for ev in reading_events:
+                try:
+                    reading_total += float((ev or {}).get("duration_sec", 0.0) or 0.0)
+                except Exception:
+                    pass
+                if isinstance(ev, dict) and ev.get("speaking") is True:
+                    reading_speaking += 1
+
+        # Detaylar tablosu (en uzun 3 DOWN/LEFT/RIGHT/UP)
+        gaze_episode_rows = ""
+        if is_phase3 and isinstance(reading_events, list) and reading_events:
+            for ev in sorted(reading_events, key=lambda x: float((x or {}).get("duration_sec", 0.0) or 0.0), reverse=True)[:6]:
+                s0 = float((ev or {}).get("start", 0.0) or 0.0)
+                e0 = float((ev or {}).get("end", 0.0) or 0.0)
+                dur = float((ev or {}).get("duration_sec", max(0.0, e0 - s0)) or 0.0)
+                speaking = "Evet" if (ev or {}).get("speaking") else "Hayır"
+                gaze_episode_rows += (
+                    "<tr>"
+                    f"<td>{s0:.1f}s - {e0:.1f}s</td>"
+                    f"<td>{dur:.1f} sn</td>"
+                    f"<td>{speaking}</td>"
+                    "</tr>"
+                )
+
         html = template.render(
             interview_id=interview_id,
             phase=phase,
@@ -203,6 +235,16 @@ class ReportGenerator:
             blink_rate=f'{face_summary.get("blink_rate_per_min", 0):.1f}',
             dominant_face_emotion=face_summary.get("dominant_emotion", "?"),
             total_blinks=face_summary.get("total_blinks", 0),
+            gaze_on_screen=gaze_pct.get("ON_SCREEN", 0),
+            gaze_down=gaze_pct.get("DOWN", 0),
+            gaze_left=gaze_pct.get("LEFT", 0),
+            gaze_right=gaze_pct.get("RIGHT", 0),
+            gaze_up=gaze_pct.get("UP", 0),
+            gaze_unknown=gaze_pct.get("UNKNOWN", 0),
+            reading_count=reading_count,
+            reading_total=f"{reading_total:.1f}",
+            reading_speaking=reading_speaking,
+            gaze_episode_rows=gaze_episode_rows,
             # FAZ-3 sinyaller
             dominant_valence=audio_signal_summary.get("dominant_valence", "?"),
             dominant_arousal=audio_signal_summary.get("dominant_arousal", "?"),
@@ -778,6 +820,13 @@ HTML_TEMPLATE_V3 = """
     #competency-analysis .comp-fill{height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b);border-radius:999px}
     #competency-analysis .comp-reason{margin-top:8px;color:var(--muted);font-size:13px;line-height:1.55}
 
+    /* Gaze summary */
+    .gaze-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+    .gaze-pill{padding:10px 12px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.03)}
+    .gaze-pill .k{font-size:12px;color:var(--muted)}
+    .gaze-pill .v{font-size:18px;font-weight:800;margin-top:4px}
+    .gaze-note{color:var(--muted);font-size:12px;line-height:1.5;margin-top:10px}
+
     /* Ring KPI */
     .rings{display:flex;gap:14px;flex-wrap:wrap}
     .ring{
@@ -830,7 +879,7 @@ HTML_TEMPLATE_V3 = """
             <div class="card kpi" style="grid-column: span 3;">
               <div class="label">Odak Skoru</div>
               <div class="value">%{{ focus_score }}</div>
-              <div class="hint">Gaze üzerinden FOCUSED/AVERTED türetilir</div>
+              <div class="hint">Kalibrasyonlu head pose + eyeLook ile “ON_SCREEN” hesaplanır</div>
             </div>
             <div class="card kpi" style="grid-column: span 3;">
               <div class="label">Göz Kırpma / dk</div>
@@ -846,6 +895,33 @@ HTML_TEMPLATE_V3 = """
               <div class="label">Baskın Arousal</div>
               <div class="value">{{ dominant_arousal }}</div>
               <div class="hint">Konuşma enerjisi/hız/pitch stabilitesi ile birlikte değerlendirilir</div>
+            </div>
+
+            <div class="card" style="grid-column: span 12;">
+              <h2>Bakış Dağılımı (Kalibrasyonlu)</h2>
+              <div class="gaze-grid">
+                <div class="gaze-pill"><div class="k">Ekran (ON_SCREEN)</div><div class="v">%{{ gaze_on_screen }}</div></div>
+                <div class="gaze-pill"><div class="k">Aşağı (DOWN)</div><div class="v">%{{ gaze_down }}</div></div>
+                <div class="gaze-pill"><div class="k">Sol (LEFT)</div><div class="v">%{{ gaze_left }}</div></div>
+                <div class="gaze-pill"><div class="k">Sağ (RIGHT)</div><div class="v">%{{ gaze_right }}</div></div>
+                <div class="gaze-pill"><div class="k">Yukarı (UP)</div><div class="v">%{{ gaze_up }}</div></div>
+                <div class="gaze-pill"><div class="k">Belirsiz (UNKNOWN)</div><div class="v">%{{ gaze_unknown }}</div></div>
+              </div>
+              <div class="gaze-note">
+                Not: “Belirsiz” oranı, ölçümün güvenilir olmadığı (yüz kısmi, ışık, gözlük, açı vb.) anları gösterir.
+              </div>
+            </div>
+
+            <div class="card" style="grid-column: span 12;">
+              <h2>Okuma Şüphesi (Aşağı Bakış ≥ 2.5 sn)</h2>
+              <div class="muted" style="margin-bottom:10px">
+                Bu bölüm kesin hüküm değildir; “nottan okuma olasılığı” için davranışsal bir sinyaldir.
+              </div>
+              <div class="gaze-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+                <div class="gaze-pill"><div class="k">Olay Sayısı</div><div class="v">{{ reading_count }}</div></div>
+                <div class="gaze-pill"><div class="k">Toplam Süre</div><div class="v">{{ reading_total }} sn</div></div>
+                <div class="gaze-pill"><div class="k">Konuşurken (olay)</div><div class="v">{{ reading_speaking }}</div></div>
+              </div>
             </div>
 
             <div class="card" style="grid-column: span 12;">
@@ -1001,6 +1077,31 @@ HTML_TEMPLATE_V3 = """
             </div>
             {% else %}
             <div class="muted">Segment paketleri bulunamadı.</div>
+            {% endif %}
+          </div>
+
+          <div class="card" style="margin-top:14px">
+            <h2>Okuma Şüphesi Olayları (Kanıt)</h2>
+            <div class="muted" style="margin-bottom:10px">
+              Aşağı bakışın (DOWN) kesintisiz ≥ 2.5 sn sürdüğü aralıklar. “Konuşurken” sütunu VAD konuşma segmentleri ile örtüşmeye göre işaretlenir.
+            </div>
+            {% if gaze_episode_rows %}
+            <div style="overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Zaman Aralığı</th>
+                    <th>Süre</th>
+                    <th>Konuşurken</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {{ gaze_episode_rows | safe }}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+              <div class="muted">Okuma şüphesi olayı bulunamadı.</div>
             {% endif %}
           </div>
           <div class="footer">

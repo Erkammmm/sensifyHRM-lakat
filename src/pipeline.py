@@ -207,6 +207,34 @@ class InterviewAnalysisPipeline:
             video_path, phase3_enabled=bool(phase3_enabled)
         )
 
+        # FAZ-3: Okuma şüphesi olaylarında "konuşma ile eşzamanlı" flag'i ekle (VAD speech segments)
+        if phase3_enabled:
+            try:
+                ss = (voice_analysis or {}).get("raw_voice_features", {}).get("speech_silence", {}) or {}
+                speech_segments = ss.get("speech_segments", []) or []
+                events = (face_summary or {}).get("reading_suspicion_events", []) or []
+                if isinstance(events, list) and isinstance(speech_segments, list):
+                    for ev in events:
+                        try:
+                            s0 = float(ev.get("start", 0.0) or 0.0)
+                            e0 = float(ev.get("end", s0) or s0)
+                        except Exception:
+                            continue
+                        overlap = 0.0
+                        for seg in speech_segments:
+                            try:
+                                s1 = float((seg or {}).get("start", 0.0) or 0.0)
+                                e1 = float((seg or {}).get("end", s1) or s1)
+                            except Exception:
+                                continue
+                            inter = max(0.0, min(e0, e1) - max(s0, s1))
+                            overlap += inter
+                        dur = max(1e-6, e0 - s0)
+                        ev["speech_overlap_ratio"] = round(float(overlap / dur), 2)
+                        ev["speaking"] = bool((overlap / dur) >= 0.3)
+            except Exception:
+                pass
+
         # 5) Tutarsızlık analizi
         anomalies = []
         if phase3_enabled:
