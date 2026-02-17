@@ -1,0 +1,55 @@
+# Project Context
+This project is an AI-Powered Video Interview Analysis System.
+
+Tech Stack:
+- Vision: MediaPipe (Face Landmarks), OpenCV
+- Audio: Librosa (raw feature extraction), Whisper (STT), Turkish fine-tuned emotion models
+- NLP: LLM-based semantic and emotion analysis
+
+
+# Architecture Rules
+
+- Each domain must be isolated in its own module:
+  - vision/
+  - audio/
+  - nlp/
+- No cross-module hidden dependencies.
+- Never rewrite entire modules unless explicitly requested.
+- When adding a new feature:
+  1. First define the interface / class structure.
+  2. Then implement the logic.
+
+
+# Clean Code Rules
+
+- Follow DRY (Don't Repeat Yourself).
+- Apply Single Responsibility Principle.
+- Keep functions explicit and readable.
+- Avoid unnecessary abstraction layers.
+- Avoid creating helper functions unless reused.
+- Prefer flat and simple structure over deep class hierarchies.
+- Never over-engineer.
+- Prefer clarity over cleverness.
+
+
+# Data Handling Rules
+
+- Raw features must be normalized before downstream processing.
+- Always use type hints.
+- Do not introduce silent type coercion.
+
+
+# Refactoring Rules
+
+- When refactoring:
+  - Do NOT change functionality.
+  - Reduce unnecessary methods.
+  - Inline single-use trivial helpers.
+  - Keep files under reasonable size (~250-300 lines if possible).
+
+# Pipeline Rules
+
+- The pipeline must orchestrate modules only.
+- No heavy logic inside pipeline.
+- No feature extraction logic inside pipeline.
+- Keep pipeline linear and readable.

@@ -168,3 +168,14 @@ def _run_cli() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(_run_cli())
+
+
+def generate_analysis(report: dict) -> str:
+    """
+    Public entry: take full pipeline report dict, build minimal summary payload,
+    and send to Gemini returning the text response.
+    """
+    summary_payload = build_summary_payload(report)
+    summary_text = json.dumps(summary_payload, ensure_ascii=False)
+    phase = report.get("phase", "v2")
+    return generate_gemini_text(summary_text, phase=phase)

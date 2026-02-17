@@ -27,13 +27,20 @@ class FaceAnalyzer:
         print(f"[{self.__class__.__name__}] Başlatılıyor... Model yükleniyor...")
 
         if model_path is None:
-            # weights/ klasöründen model dosyasını bul
+            # weights/ klasöründen model dosyasını bulmaya çalış
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            model_path = os.path.join(base_dir, "..", "weights", "face_landmarker.task")
-            model_path = os.path.abspath(model_path)
-
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model dosyası bulunamadı: {model_path}")
+            candidate_src_weights = os.path.abspath(os.path.join(base_dir, "..", "weights", "face_landmarker.task"))
+            candidate_repo_weights = os.path.abspath(os.path.join(base_dir, "..", "..", "weights", "face_landmarker.task"))
+            # tercih sırası: src/weights sonra repo_root/weights
+            if os.path.exists(candidate_src_weights):
+                model_path = candidate_src_weights
+            elif os.path.exists(candidate_repo_weights):
+                model_path = candidate_repo_weights
+            else:
+                # Hata mesajını iki adreste aradığımızı belirtmek için ayrıntılı yaz
+                raise FileNotFoundError(
+                    f"Model dosyası bulunamadı. Aranan yollar:\n - {candidate_src_weights}\n - {candidate_repo_weights}"
+                )
 
         # MediaPipe C++ backend Unicode yolları açamıyor (Türkçe karakter sorunu).
         # Bu yüzden dosyayı Python ile okuyup model_asset_buffer olarak veriyoruz.
@@ -48,117 +55,8 @@ class FaceAnalyzer:
         )
         self.landmarker = vision.FaceLandmarker.create_from_options(options)
         print(f"[{self.__class__.__name__}] Hazır!")
-
-    @staticmethod
-    def _classify_emotion(scores):
-        """Blendshape skorlarından duygu çıkarımı (kural tabanlı)."""
-        brow_inner_up = scores.get("browInnerUp", 0)
-        brow_down_left = scores.get("browDownLeft", 0)
-        brow_down_right = scores.get("browDownRight", 0)
-        brow_outer_up = (
-            scores.get("browOuterUpLeft", 0) + scores.get("browOuterUpRight", 0)
-        ) / 2
-        eye_wide = (
-            scores.get("eyeWideLeft", 0) + scores.get("eyeWideRight", 0)
-        ) / 2
-        smile_avg = (
-            scores.get("mouthSmileLeft", 0) + scores.get("mouthSmileRight", 0)
-        ) / 2
-        nose_sneer = (
-            scores.get("noseSneerLeft", 0) + scores.get("noseSneerRight", 0)
-        ) / 2
-        jaw_open = scores.get("jawOpen", 0)
-
-        # Korku
-        if brow_inner_up > 0.2 and brow_outer_up > 0.1 and eye_wide > 0.1:
-            return "Korku"
-        # Tiksinti
-        if nose_sneer > 0.15:
-            return "Tiksinti"
-        # Mutlu
-        if smile_avg > 0.35:
-            return "Mutlu"
-        # Şaşkın
-        if brow_inner_up > 0.4 and jaw_open > 0.10:
-            return "Saskin"
-        # Öfkeli
-        if brow_down_left > 0.35 and brow_down_right > 0.35:
-            return "Ofkeli"
-        # Stresli
-        stress_score = (
-            scores.get("mouthRollLower", 0) + scores.get("mouthShrugLower", 0)
-        ) / 3
-        if stress_score > 0.25:
-            return "Stresli"
-
-        return "Notr"
-
-    @staticmethod
-    def _classify_facial_state(scores) -> str:
-        """
-        FAZ-3: Duygu etiketi değil, davranışsal facial_state üretir.
-        - POSITIVE: belirgin gülümseme
-        - TENSE: stres/gerginlik sinyali yüksek
-        - NEUTRAL: diğer
-        """
-        smile_avg = (
-            scores.get("mouthSmileLeft", 0) + scores.get("mouthSmileRight", 0)
-        ) / 2
-        stress_score = (
-            scores.get("mouthRollLower", 0) + scores.get("mouthShrugLower", 0)
-        ) / 3
-        brow_down = (
-            scores.get("browDownLeft", 0) + scores.get("browDownRight", 0)
-        ) / 2
-
-        if smile_avg > 0.35:
-            return "POSITIVE"
-        if stress_score > 0.25 or brow_down > 0.35:
-            return "TENSE"
-        return "NEUTRAL"
-
-    @staticmethod
-    def _stress_indicator(scores) -> str:
-        """
-        FAZ-3: Stress indicator state.
-        """
-        stress_score = (
-            scores.get("mouthRollLower", 0) + scores.get("mouthShrugLower", 0)
-        ) / 3
-        if stress_score >= 0.35:
-            return "HIGH"
-        if stress_score >= 0.22:
-            return "ELEVATED"
-        return "LOW"
-
-    @staticmethod
-    def _detect_gaze(scores):
-        """Göz bakış yönünü tespit eder."""
-        look_in_left = scores.get("eyeLookInLeft", 0)
-        look_in_right = scores.get("eyeLookInRight", 0)
-        look_out_left = scores.get("eyeLookOutLeft", 0)
-        look_out_right = scores.get("eyeLookOutRight", 0)
-        look_down = (
-            scores.get("eyeLookDownLeft", 0) + scores.get("eyeLookDownRight", 0)
-        ) / 2
-
-        if look_in_left > 0.5:
-            return "Saga bakiyor"
-        if look_in_right > 0.5:
-            return "Sola bakiyor"
-        if look_down > 0.6:
-            return "Asagi bakiyor"
-        if look_out_left > 0.5 or look_out_right > 0.5:
-            return "Yukari bakiyor"
-
-        return "Ekrana Bakiyor"
-
-    @staticmethod
-    def _attention_state_from_gaze(gaze: str) -> str:
-        """
-        FAZ-3: Attention state (FOCUSED / AVERTED) üretir.
-        """
-        return "FOCUSED" if isinstance(gaze, str) and "Ekrana" in gaze else "AVERTED"
+    # Note: small classification helpers were inlined into process_video
+    # to reduce abstraction layers and keep the pipeline orchestration simpler.
 
     def process_video(self, video_path, show_video=False, phase3_enabled: bool = False):
         """
@@ -234,23 +132,74 @@ class FaceAnalyzer:
 
                 # Periyodik kayıt
                 if timestamp_sec - last_record_time >= RAPOR_SIKLIGI:
-                    gaze = self._detect_gaze(scores)
+                    # gaze detection (inline)
+                    look_in_left = scores.get("eyeLookInLeft", 0)
+                    look_in_right = scores.get("eyeLookInRight", 0)
+                    look_out_left = scores.get("eyeLookOutLeft", 0)
+                    look_out_right = scores.get("eyeLookOutRight", 0)
+                    look_down = (scores.get("eyeLookDownLeft", 0) + scores.get("eyeLookDownRight", 0)) / 2
+                    if look_in_left > 0.5:
+                        gaze = "Saga bakiyor"
+                    elif look_in_right > 0.5:
+                        gaze = "Sola bakiyor"
+                    elif look_down > 0.6:
+                        gaze = "Asagi bakiyor"
+                    elif look_out_left > 0.5 or look_out_right > 0.5:
+                        gaze = "Yukari bakiyor"
+                    else:
+                        gaze = "Ekrana Bakiyor"
 
                     if phase3_enabled:
-                        facial_state = self._classify_facial_state(scores)
-                        attention_state = self._attention_state_from_gaze(gaze)
-                        stress_indicator = self._stress_indicator(scores)
+                        # facial state inline
+                        smile_avg = (scores.get("mouthSmileLeft", 0) + scores.get("mouthSmileRight", 0)) / 2
+                        stress_score = (scores.get("mouthRollLower", 0) + scores.get("mouthShrugLower", 0)) / 3
+                        brow_down = (scores.get("browDownLeft", 0) + scores.get("browDownRight", 0)) / 2
+                        if smile_avg > 0.35:
+                            facial_state = "POSITIVE"
+                        elif stress_score > 0.25 or brow_down > 0.35:
+                            facial_state = "TENSE"
+                        else:
+                            facial_state = "NEUTRAL"
+                        attention_state = "FOCUSED" if "Ekrana" in gaze else "AVERTED"
+                        if stress_score >= 0.35:
+                            stress_indicator = "HIGH"
+                        elif stress_score >= 0.22:
+                            stress_indicator = "ELEVATED"
+                        else:
+                            stress_indicator = "LOW"
                         data_packet = {
                             "timestamp": round(timestamp_sec, 2),
                             "facial_state": facial_state,
                             "attention_state": attention_state,
                             "stress_indicator": stress_indicator,
-                            # legacy-compatible fields (behavioral, not emotion)
                             "gaze": gaze,
                             "blink_total": blink_count,
                         }
                     else:
-                        emotion = self._classify_emotion(scores)
+                        # emotion inline
+                        brow_inner_up = scores.get("browInnerUp", 0)
+                        brow_down_left = scores.get("browDownLeft", 0)
+                        brow_down_right = scores.get("browDownRight", 0)
+                        brow_outer_up = (scores.get("browOuterUpLeft", 0) + scores.get("browOuterUpRight", 0)) / 2
+                        eye_wide = (scores.get("eyeWideLeft", 0) + scores.get("eyeWideRight", 0)) / 2
+                        smile_avg = (scores.get("mouthSmileLeft", 0) + scores.get("mouthSmileRight", 0)) / 2
+                        nose_sneer = (scores.get("noseSneerLeft", 0) + scores.get("noseSneerRight", 0)) / 2
+                        jaw_open = scores.get("jawOpen", 0)
+                        emotion = "Notr"
+                        if brow_inner_up > 0.2 and brow_outer_up > 0.1 and eye_wide > 0.1:
+                            emotion = "Korku"
+                        elif nose_sneer > 0.15:
+                            emotion = "Tiksinti"
+                        elif smile_avg > 0.35:
+                            emotion = "Mutlu"
+                        elif brow_inner_up > 0.4 and jaw_open > 0.10:
+                            emotion = "Saskin"
+                        elif brow_down_left > 0.35 and brow_down_right > 0.35:
+                            emotion = "Ofkeli"
+                        else:
+                            stress_score2 = (scores.get("mouthRollLower", 0) + scores.get("mouthShrugLower", 0)) / 3
+                            if stress_score2 > 0.25:
+                                emotion = "Stresli"
                         data_packet = {
                             "timestamp": round(timestamp_sec, 2),
                             "emotion": emotion,

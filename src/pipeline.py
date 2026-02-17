@@ -14,14 +14,81 @@ import uuid
 from typing import Dict, Optional
 from collections import Counter
 
-from .text_analyzer import TextAnalyzer
-from .audio_analyzer import AudioAnalyzer
-from .face_analyzer import FaceAnalyzer
-from .voice_analyzer import VoiceAnalyzer
-from .video_processor import VideoProcessor
-from .audio_signal_fusion import AudioSignalFusion
-from .contextual_aggregator import build_segment_signal_packages
-from .thought_unit_merger import merge_into_thought_units
+from .audio.text_analyzer import TextAnalyzer
+from .audio.audio_analyzer import AudioAnalyzer
+from .vision.face_analyzer import FaceAnalyzer
+from .audio.voice_analyzer import VoiceAnalyzer
+from .vision.video_processor import VideoProcessor
+from .audio.audio_signal_fusion import AudioSignalFusion
+from .nlp.contextual_aggregator import build_segment_signal_packages
+from .audio.thought_unit_merger import merge_into_thought_units
+def analyze_consistency(text_sentiment, face_emotion) -> str:
+    """
+    Metin duygusunu yüz ifadesiyle karşılaştırarak tutarsızlık tespit eder.
+
+    Args:
+        text_sentiment: "positive" veya "negative"
+        face_emotion: Yüz analizi duygu etiketi (Türkçe)
+
+    Returns:
+        str: "Tutarli", "ŞÜPHELİ (...)" veya "Nötr/Belirsiz"
+    """
+    positive_face = {"Mutlu", "Saskin"}
+    negative_face = {"Uzgun", "Korku", "Tiksinti", "Ofkeli", "Stresli"}
+
+    if text_sentiment == "positive":
+        if face_emotion in positive_face:
+            return "Tutarli"
+        if face_emotion in negative_face:
+            return "ŞÜPHELİ (Pozitif Söz / Negatif Yüz)"
+
+    elif text_sentiment == "negative":
+        if face_emotion in negative_face:
+            return "Tutarli"
+        if face_emotion == "Mutlu":
+            return "ŞÜPHELİ (Negatif Söz / Gülen Yüz - Sarkazm?)"
+
+    return "Nötr/Belirsiz"
+
+
+def find_anomalies(text_data, face_timeline) -> list:
+    """
+    Metin ve yüz verilerini zaman bazında eşleştirip tutarsızlıkları bulur.
+
+    Returns:
+        list[dict]: Bulunan anomaliler
+    """
+    anomalies = []
+    if not text_data or not face_timeline:
+        return anomalies
+
+    for segment in text_data:
+        seg_start = segment["start"]
+        seg_end = segment["end"]
+
+        # Bu zaman aralığındaki yüz verisini bul
+        face_in_range = [f for f in face_timeline if seg_start <= f.get("timestamp", 0) <= seg_end]
+        if not face_in_range:
+            continue
+
+        # En sık yüz duygusunu bul
+        face_emotions = [f.get("emotion") for f in face_in_range]
+        dominant_face = Counter(face_emotions).most_common(1)[0][0]
+
+        consistency = analyze_consistency(segment.get("sentiment"), dominant_face)
+
+        if "ŞÜPHELİ" in consistency:
+            anomalies.append(
+                {
+                    "time_range": f"{seg_start:.1f}s - {seg_end:.1f}s",
+                    "text": segment.get("text", ""),
+                    "text_sentiment": segment.get("sentiment"),
+                    "face_emotion": dominant_face,
+                    "result": consistency,
+                }
+            )
+
+    return anomalies
 
 
 class InterviewAnalysisPipeline:
@@ -52,80 +119,11 @@ class InterviewAnalysisPipeline:
         if self._audio_signal_fusion is None:
             self._audio_signal_fusion = AudioSignalFusion()
         return self._audio_signal_fusion
-
     # ------------------------------------------------------------------
-    # Tutarsızlık Analizi
+    # Pipeline sınıfı sadece orkestrasyon yapar; tutarsızlık tespiti ve
+    # kıyaslama mantığı modül seviyesinde fonksiyonlara taşındı. Bu sayede
+    # `process_interview` daha lineer ve okunaklı kaldı.
     # ------------------------------------------------------------------
-    @staticmethod
-    def analyze_consistency(text_sentiment, face_emotion):
-        """
-        Metin duygusunu yüz ifadesiyle karşılaştırarak tutarsızlık tespit eder.
-
-        Args:
-            text_sentiment: "positive" veya "negative"
-            face_emotion: Yüz analizi duygu etiketi (Türkçe)
-
-        Returns:
-            str: "Tutarli", "ŞÜPHELİ (...)" veya "Nötr/Belirsiz"
-        """
-        positive_face = {"Mutlu", "Saskin"}
-        negative_face = {"Uzgun", "Korku", "Tiksinti", "Ofkeli", "Stresli"}
-
-        if text_sentiment == "positive":
-            if face_emotion in positive_face:
-                return "Tutarli"
-            if face_emotion in negative_face:
-                return "ŞÜPHELİ (Pozitif Söz / Negatif Yüz)"
-
-        elif text_sentiment == "negative":
-            if face_emotion in negative_face:
-                return "Tutarli"
-            if face_emotion == "Mutlu":
-                return "ŞÜPHELİ (Negatif Söz / Gülen Yüz - Sarkazm?)"
-
-        return "Nötr/Belirsiz"
-
-    def _find_anomalies(self, text_data, face_timeline):
-        """
-        Metin ve yüz verilerini zaman bazında eşleştirip tutarsızlıkları bulur.
-
-        Returns:
-            list[dict]: Bulunan anomaliler
-        """
-        anomalies = []
-        if not text_data or not face_timeline:
-            return anomalies
-
-        for segment in text_data:
-            seg_start = segment["start"]
-            seg_end = segment["end"]
-
-            # Bu zaman aralığındaki yüz verisini bul
-            face_in_range = [
-                f for f in face_timeline
-                if seg_start <= f["timestamp"] <= seg_end
-            ]
-            if not face_in_range:
-                continue
-
-            # En sık yüz duygusunu bul
-            face_emotions = [f["emotion"] for f in face_in_range]
-            dominant_face = Counter(face_emotions).most_common(1)[0][0]
-
-            consistency = self.analyze_consistency(
-                segment["sentiment"], dominant_face
-            )
-
-            if "ŞÜPHELİ" in consistency:
-                anomalies.append({
-                    "time_range": f"{seg_start:.1f}s - {seg_end:.1f}s",
-                    "text": segment["text"],
-                    "text_sentiment": segment["sentiment"],
-                    "face_emotion": dominant_face,
-                    "result": consistency,
-                })
-
-        return anomalies
 
     # ------------------------------------------------------------------
     # Ana Analiz
@@ -213,7 +211,7 @@ class InterviewAnalysisPipeline:
             print("[Adım 5/5] Tutarsızlık analizi (FAZ-3) kapalı: sentiment/emotion label kullanılmıyor.")
         else:
             print("[Adım 5/5] Tutarsızlık analizi yapılıyor...")
-            anomalies = self._find_anomalies(text_data, face_timeline)
+            anomalies = find_anomalies(text_data, face_timeline)
 
         # FAZ-3 Contextual Aggregator: Segment Signal Packages (LLM input)
         segment_signal_packages = []

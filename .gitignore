@@ -67,6 +67,11 @@ Thumbs.db
 # Generated reports
 reports/
 
+# Keep directory placeholders (so folders exist after fresh clone)
+!temp_uploads/.gitkeep
+!reports/.gitkeep
+!reports/charts/.gitkeep
+
 # Eski / silinmiş klasörler
 colab_bundle/
 best_mode_from_colab/

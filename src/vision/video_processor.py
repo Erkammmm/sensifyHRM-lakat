@@ -5,7 +5,7 @@ Video dosyalarını frame'lere ayırır ve ön işleme yapar.
 
 import cv2
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 import os
 import math
 
@@ -60,10 +60,10 @@ class VideoProcessor:
             effective_target_fps = min(effective_target_fps, 5.0)
         elif duration_seconds >= 600:  # 10 dk+
             effective_target_fps = min(effective_target_fps, 10.0)
-        
+
         # Frame'leri saklamak için liste
-        frames = []
-        
+        frames: List[np.ndarray] = []
+
         # Frame skip hesaplama (eğer orijinal FPS hedef FPS'den yüksekse)
         frame_skip = max(1, int(original_fps / effective_target_fps)) if effective_target_fps > 0 else 1
         
@@ -73,10 +73,8 @@ class VideoProcessor:
 
         while True:
             ret, frame = cap.read()
-            
             if not ret:
                 break
-            
             # Sadece belirli frame'leri al (FPS normalizasyonu için)
             if frame_count % frame_skip == 0:
                 # Frame'i yeniden boyutlandır (bellek hatasında çözünürlüğü düşür)
@@ -88,7 +86,6 @@ class VideoProcessor:
                     target_height = max(180, target_height // 2)
                     resized_frame = cv2.resize(frame, (target_width, target_height))
                 frames.append(resized_frame)
-            
             frame_count += 1
         
         cap.release()
@@ -106,10 +103,8 @@ class VideoProcessor:
             (frame, timestamp) tuple'larının listesi
         """
         cap = cv2.VideoCapture(video_path)
-        
         if not cap.isOpened():
             raise ValueError(f"Video dosyası açılamadı: {video_path}")
-        
         original_fps = cap.get(cv2.CAP_PROP_FPS)
         if not math.isfinite(original_fps) or original_fps <= 0:
             original_fps = float(self.target_fps)
@@ -124,23 +119,18 @@ class VideoProcessor:
             effective_target_fps = min(effective_target_fps, 10.0)
 
         frame_skip = max(1, int(original_fps / effective_target_fps)) if effective_target_fps > 0 else 1
-        
-        frames_with_timestamps = []
+        frames_with_timestamps: List[Tuple[np.ndarray, float]] = []
         frame_count = 0
-        
         target_width = self.target_width
         target_height = self.target_height
 
         while True:
             ret, frame = cap.read()
-            
             if not ret:
                 break
-            
             if frame_count % frame_skip == 0:
                 # Timestamp hesapla (saniye cinsinden)
                 timestamp = frame_count / original_fps
-                
                 try:
                     resized_frame = cv2.resize(frame, (target_width, target_height))
                 except Exception:
@@ -148,7 +138,6 @@ class VideoProcessor:
                     target_height = max(180, target_height // 2)
                     resized_frame = cv2.resize(frame, (target_width, target_height))
                 frames_with_timestamps.append((resized_frame, timestamp))
-            
             frame_count += 1
         
         cap.release()

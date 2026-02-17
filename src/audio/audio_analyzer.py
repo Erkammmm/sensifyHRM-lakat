@@ -16,7 +16,7 @@ import gc
 import numpy as np
 import librosa
 import torch
-from typing import Dict
+from typing import Dict, List, Any, Optional, Tuple
 from collections import Counter
 from transformers import (
     AutoModelForAudioClassification,
@@ -99,73 +99,20 @@ class AudioAnalyzer:
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
 
-    @staticmethod
-    def _convert_video_to_audio(video_path):
-        """Videodan geçici bir WAV dosyası oluşturur (ffmpeg)."""
-        unique_name = f"temp_{str(uuid.uuid4())[:8]}.wav"
-        cmd = [
-            "ffmpeg", "-i", video_path,
-            "-vn", "-acodec", "pcm_s16le",
-            "-ar", str(TARGET_SR), "-ac", "1",
-            unique_name, "-y", "-hide_banner", "-loglevel", "error",
-        ]
-        try:
-            subprocess.run(cmd, check=True)
-            return unique_name
-        except Exception as e:
-            print(f"FFmpeg Hatası: {e}")
-            return None
-
-    def _predict_chunk(self, audio_array):
-        """Tek bir ses parçası için duygu tahmini yapar."""
-        self._ensure_model()
-        # Sessizlik kontrolü
-        if np.isnan(audio_array).any():
-            return "SESSİZLİK", 0.0
-        rms_val = np.mean(librosa.feature.rms(y=audio_array))
-        if rms_val < 0.002:
-            return "SESSİZLİK", 0.0
-
-        inputs = self.feature_extractor(
-            audio_array, sampling_rate=TARGET_SR,
-            return_tensors="pt", padding=True,
-        ).to(self.device)
-
-        with torch.no_grad():
-            logits = self.model(**inputs).logits
-
-        probs = torch.nn.functional.softmax(logits, dim=-1)
-        score, predicted_id = torch.max(probs, dim=-1)
-        raw_label = self.config.id2label[predicted_id.item()]
-
-        # Model label normalize + Türkçe etiket eşleme
-        l = (raw_label or "").strip().lower()
-        normalize = {
-            "anger": "angry",
-            "fearful": "fear",
-            "joy": "happy",
-        }
-        l = normalize.get(l, l)
-
-        # Bu model çoğunlukla: Angry/Calm/Happy/Sad gibi 4 sınıf döndürür.
-        tr_mapping = {
-            "angry": "KIZGIN",
-            "calm": "SAKİN",
-            "happy": "MUTLU",
-            "sad": "ÜZGÜN",
-            # fallback (diğer modellerle uyum)
-            "neutral": "NÖTR",
-            "fear": "KORKU",
-            "disgust": "TİKSİNME",
-            "surprised": "ŞAŞIRMA",
-        }
-        return tr_mapping.get(l, raw_label), score.item()
+    def _set_deterministic(self, seed=42):
+        """Sonuçların tekrarlanabilir olması için seed ayarla."""
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
 
     def process_video(self, video_path):
         """
         Video/ses dosyasını alır, ses analizi yapar ve yapılandırılmış zaman serisi döndürür.
+
         Returns:
-            list[dict]: {"start","end","emotion","confidence"}
+            List[Dict[str, Any]]: {"start","end","emotion","confidence"}
         """
         gc.collect()
         if self.device == "cuda":
@@ -176,8 +123,30 @@ class AudioAnalyzer:
             return []
 
         print(f"Ses işleniyor: {video_path}")
-        wav_file = self._convert_video_to_audio(video_path)
-        if not wav_file:
+        # inline: convert video -> temporary wav (ffmpeg)
+        unique_name = f"temp_{str(uuid.uuid4())[:8]}.wav"
+        cmd = [
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-vn",
+            "-acodec",
+            "pcm_s16le",
+            "-ar",
+            str(TARGET_SR),
+            "-ac",
+            "1",
+            unique_name,
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+        ]
+        try:
+            subprocess.run(cmd, check=True)
+            wav_file = unique_name
+        except Exception as e:
+            print(f"FFmpeg Hatası: {e}")
             return []
 
         try:
@@ -198,8 +167,37 @@ class AudioAnalyzer:
             start_sample = int(cursor * sr)
             end_sample = int((cursor + CHUNK_SEC) * sr)
             chunk = y[start_sample:end_sample].copy()
-
-            emotion, confidence = self._predict_chunk(chunk)
+            # inline prediction logic (single-use helper inlined)
+            self._ensure_model()
+            if np.isnan(chunk).any():
+                emotion, confidence = "SESSİZLİK", 0.0
+            else:
+                rms_val = np.mean(librosa.feature.rms(y=chunk)) if chunk.size else 0.0
+                if rms_val < 0.002:
+                    emotion, confidence = "SESSİZLİK", 0.0
+                else:
+                    inputs = self.feature_extractor(
+                        chunk, sampling_rate=TARGET_SR, return_tensors="pt", padding=True
+                    ).to(self.device)
+                    with torch.no_grad():
+                        logits = self.model(**inputs).logits
+                    probs = torch.nn.functional.softmax(logits, dim=-1)
+                    score, predicted_id = torch.max(probs, dim=-1)
+                    raw_label = self.config.id2label[predicted_id.item()]
+                    l = (raw_label or "").strip().lower()
+                    normalize = {"anger": "angry", "fearful": "fear", "joy": "happy"}
+                    l = normalize.get(l, l)
+                    tr_mapping = {
+                        "angry": "KIZGIN",
+                        "calm": "SAKİN",
+                        "happy": "MUTLU",
+                        "sad": "ÜZGÜN",
+                        "neutral": "NÖTR",
+                        "fear": "KORKU",
+                        "disgust": "TİKSİNME",
+                        "surprised": "ŞAŞIRMA",
+                    }
+                    emotion, confidence = tr_mapping.get(l, raw_label), score.item()
 
             if emotion != "HATALI":
                 data_packet = {
@@ -219,7 +217,7 @@ class AudioAnalyzer:
         return timeline
 
     @staticmethod
-    def get_summary(timeline):
+    def get_summary(timeline: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Ses duygu analizi sonuçlarının özetini döndürür."""
         if not timeline:
             return {

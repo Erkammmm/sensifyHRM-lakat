@@ -122,12 +122,13 @@ python test_example.py video.mp4 --ollama
 # Build
 docker build -t sensifyhr .
 
-# Çalıştır (GPU)
-docker run --gpus all -p 8000:8000 --env-file .env sensifyhr
-
-# Çalıştır (CPU only)
+# Çalıştır (CPU)
 docker run -p 8000:8000 -e CUDA_VISIBLE_DEVICES="" --env-file .env sensifyhr
 ```
+
+Not:
+- Bu Docker imajı **varsayılan CPU** hedefler (python:slim tabanlı).
+- GPU ile çalıştırmak isterseniz CUDA tabanlı bir base image + CUDA'lı PyTorch kurulumu ile ayrı bir Dockerfile varyantı önerilir.
 
 ---
 
@@ -136,29 +137,40 @@ docker run -p 8000:8000 -e CUDA_VISIBLE_DEVICES="" --env-file .env sensifyhr
 ```
 sensifyHRMülakay/
 ├── src/
-│   ├── text_analyzer.py          # STT (turbo) -> segment text
-│   ├── audio_signal_fusion.py    # HuBERT SER projection + librosa -> audio_signal
-│   ├── contextual_aggregator.py  # Segment signal package builder (LLM input)
-│   ├── face_analyzer.py          # Visual signal (facial/attention/stress) + gaze/blink
-│   ├── voice_analyzer.py         # Librosa ham ses özellikleri (detay grafikler)
-│   ├── video_processor.py        # Audio çıkarma (WAV)
-│   ├── pipeline.py               # Ana pipeline
-│   ├── ollama_ai.py              # Ollama + Gemma LLM reasoning (chunking + synthesis)
-│   ├── gemini.py                 # Opsiyonel: Gemini LLM
-│   ├── report_generator.py       # Product Mode HTML + JSON
-│   ├── plot.py                   # Signal grafikleri + teknik grafikler
-│   └── prompt_phase3.txt         # v3 prompt (signal reasoning, TR/HR)
+│   ├── vision/                   # 👁️ Görsel analiz domain
+│   │   ├── face_analyzer.py      # Visual signal (facial/attention/stress) + gaze/blink
+│   │   └── video_processor.py    # Video işleme + audio çıkarma (WAV)
+│   ├── audio/                    # 🎛️ Ses analiz domain
+│   │   ├── text_analyzer.py      # STT (turbo) -> segment text
+│   │   ├── audio_signal_fusion.py# HuBERT SER projection + librosa -> audio_signal
+│   │   ├── voice_analyzer.py     # Librosa ham ses özellikleri (detay grafikler)
+│   │   ├── audio_analyzer.py     # Legacy: wav2vec2 emotion (v2 mode)
+│   │   └── thought_unit_merger.py# Segment birleştirme
+│   ├── nlp/                      # 🤖 NLP & LLM reasoning domain
+│   │   ├── contextual_aggregator.py # Segment signal package builder (LLM input)
+│   │   ├── ollama_ai.py          # Ollama + Gemma LLM reasoning
+│   │   ├── gemini.py             # Opsiyonel: Gemini LLM
+│   │   ├── prompt_phase3.txt     # v3 prompt (signal reasoning, TR/HR)
+│   │   └── prompt.txt            # v2 legacy prompt
+│   ├── reporting/                # 📊 Raporlama domain
+│   │   ├── report_generator.py   # Product Mode HTML + JSON
+│   │   └── plot.py               # Signal grafikleri + teknik grafikler
+│   └── pipeline.py               # Ana orchestrator (domain'leri koordine eder)
 ├── api/
-│   └── main.py               # FastAPI endpoint'leri
+│   └── main.py                   # FastAPI endpoint'leri
 ├── weights/
-│   └── face_landmarker.task   # MediaPipe model dosyası
-├── stajyer_çalışma/           # Referans: stajyer çalışma dosyaları
+│   └── face_landmarker.task      # MediaPipe model dosyası
 ├── Dockerfile
-├── .env                       # GEMINI_API_KEY (gitignore'da)
-├── requirements.txt           # Temiz gereksinimler
-├── requirements.lock.sonn.txt # Lock dosyası (tam sürümler)
-└── test_example.py            # Hızlı test scripti
+├── .env                          # GEMINI_API_KEY (gitignore'da)
+├── requirements.txt              # Temiz gereksinimler
+├── requirements.lock.sonn.txt    # Lock dosyası (tam sürümler)
+└── test_example.py               # Hızlı test scripti
 ```
+
+Runtime klasörler (git'e girmez):
+- `reports/`: Üretilen raporlar (JSON + HTML + grafikler)
+- `temp_uploads/`: API yüklemeleri için geçici dosyalar (analiz sonrası otomatik temizlenir)
+- `test_videolar/`: Lokal test videoları (git'e girmez, sadece README tracked)
 
 ---
 

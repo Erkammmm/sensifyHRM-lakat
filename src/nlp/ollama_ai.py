@@ -258,3 +258,21 @@ if __name__ == "__main__":
         print("OllamaAI modülü hazır.")
     except Exception as e:
         print(f"OllamaAI başlatılamadı: {e}")
+
+
+def generate_analysis(report: Dict, job_description: str = "", chunk_size: int = 10) -> str:
+    """
+    Public entry: accept full pipeline report and return AI analysis text.
+    Detects phase and delegates to proper evaluator.
+    """
+    ai = OllamaAI()
+    phase = (report.get("phase") or "v2").lower()
+    if phase == "v3":
+        packages = report.get("segment_signal_packages", []) or []
+        return ai.evaluate_phase3(packages, job_description=job_description, chunk_size=chunk_size)
+    else:
+        text_segments = report.get("text_analysis", {}).get("segments", [])
+        audio_timeline = report.get("audio_emotion_analysis", {}).get("timeline", [])
+        face_summary = report.get("face_analysis", {}).get("summary", {})
+        anomalies = report.get("anomalies", [])
+        return ai.evaluate_candidate(text_segments, audio_timeline, face_summary, anomalies, job_description=job_description)

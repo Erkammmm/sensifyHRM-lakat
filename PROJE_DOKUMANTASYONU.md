@@ -17,30 +17,59 @@ v3 ana paradigma:
 
 ```
 sensifyHRMülakay/
-├── src/                        # Kaynak kodlar
-│   ├── __init__.py
-│   ├── text_analyzer.py        # STT (turbo) -> segment text
-│   ├── audio_signal_fusion.py  # v3: HuBERT SER projection + librosa -> audio_signal
-│   ├── contextual_aggregator.py# v3: segment signal package builder (LLM input)
-│   ├── face_analyzer.py        # visual signal + gaze/blink
-│   ├── voice_analyzer.py       # Librosa ham ses özellikleri
-│   ├── video_processor.py      # Video işleme yardımcıları
-│   ├── pipeline.py             # Ana pipeline (orchestrator)
-│   ├── ollama_ai.py            # Ollama + Gemma istemcisi
-│   ├── gemini.py               # Opsiyonel: Gemini istemcisi
-│   ├── report_generator.py     # HTML + JSON rapor
-│   ├── plot.py                 # Matplotlib grafik üretici
-│   └── prompt_phase3.txt       # v3 prompt (signal reasoning, TR/HR)
+├── src/                        # Kaynak kodlar (domain-based)
+│   ├── vision/                 # Görsel analiz domain
+│   │   ├── face_analyzer.py    # Visual signal + gaze/blink
+│   │   └── video_processor.py  # Video işleme
+│   ├── audio/                  # Ses analiz domain
+│   │   ├── text_analyzer.py    # STT (turbo)
+│   │   ├── audio_signal_fusion.py # HuBERT SER projection + librosa
+│   │   ├── voice_analyzer.py   # Librosa ham ses özellikleri
+│   │   ├── audio_analyzer.py   # Legacy: wav2vec2 emotion (v2)
+│   │   └── thought_unit_merger.py # Segment birleştirme
+│   ├── nlp/                    # NLP & LLM reasoning domain
+│   │   ├── contextual_aggregator.py # Segment signal package builder
+│   │   ├── ollama_ai.py        # Ollama + Gemma
+│   │   ├── gemini.py           # Opsiyonel: Gemini
+│   │   ├── prompt_phase3.txt   # v3 prompt
+│   │   └── prompt.txt          # v2 legacy prompt
+│   ├── reporting/              # Raporlama domain
+│   │   ├── report_generator.py # HTML + JSON rapor
+│   │   └── plot.py             # Matplotlib grafik üretici
+│   └── pipeline.py             # Ana orchestrator
 ├── api/
 │   └── main.py                 # FastAPI endpoint'leri
 ├── weights/
 │   └── face_landmarker.task    # MediaPipe model
-├── stajyer_çalışma/            # Referans dosyalar
 ├── Dockerfile
 ├── requirements.txt
 ├── requirements.lock.sonn.txt
 └── test_example.py
 ```
+
+## 3. CI / GitLab Entegrasyonu
+
+Proje GitLab üzerinde çalışacak şekilde hazırlandı. Aşağıdaki dosya ve kurallar repoya eklidir:
+
+- `.gitlab-ci.yml` — Lint, Test ve Docker build/push aşamalarını içerir.
+
+Gereken GitLab CI değişkenleri (Project → Settings → CI / CD → Variables):
+
+- `CI_REGISTRY` (opsiyonel) — Docker registry URL (ör. registry.gitlab.com)
+- `CI_REGISTRY_USER` — Registry kullanıcı adı (ör. gitlab-ci-token veya kullanıcı)
+- `CI_REGISTRY_PASSWORD` — Registry erişim token veya parola
+
+Pipeline davranışı:
+- `lint` ve `test` aşamaları merge request ve ana branch için çalışır.
+- `build` aşaması ana branch (default branch) ve schedule edilen pipeline'larda çalışır; eğer `CI_REGISTRY` sağlanmışsa image push edilir.
+
+Notlar:
+- Eğer şirket runner'ınız Docker-in-Docker (dind) desteklemiyorsa `build` aşamasını runner konfigürasyonuna göre uyarlamanız gerekir (ör. Kaniko veya özel runner).
+- Secrets/credential'ları GitLab CI Variables olarak ayarlayın; `.env` dosyası repo'ya eklenmemeli.
+
+Runtime klasörleri (git’e girmez):
+- `reports/`: üretilen HTML/JSON raporlar + `reports/charts/`
+- `temp_uploads/`: API yüklemeleri için geçici dosyalar (analiz sonrası otomatik temizlenir)
 
 ---
 

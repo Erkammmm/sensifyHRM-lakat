@@ -1,6 +1,6 @@
 # =============================================
-# SensifyHR Mülakat Analiz Sistemi v2.0
-# Docker Image (GPU CUDA 12.1 desteği)
+# SensifyHR Mülakat Analiz Sistemi v3.x
+# Docker Image (varsayılan: CPU). GPU için CUDA tabanlı imaj + CUDA'lı PyTorch kurulumunu ayrıca uyarlamanız gerekir.
 # =============================================
 
 FROM python:3.10-slim
@@ -41,8 +41,8 @@ RUN pip install --no-cache-dir openai-whisper ollama 2>/dev/null || true
 # Uygulama kodları
 COPY . .
 
-# Gerekli klasörler
-RUN mkdir -p temp_uploads uploads reports
+# Gerekli klasörler (uploads yok: API temp_uploads kullanır ve analiz sonrası temizler)
+RUN mkdir -p temp_uploads reports
 
 # MediaPipe model dosyasını indir (weights/ altına)
 RUN python -c "import urllib.request; urllib.request.urlretrieve( \

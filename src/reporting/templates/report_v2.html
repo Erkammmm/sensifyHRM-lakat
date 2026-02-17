@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mülakat Analiz Raporu - {{ interview_id }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.7;
+            color: #333;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            border-radius: 12px;
+        }
+        .header {
+            border-bottom: 3px solid #2c3e50;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.2em;
+            margin-bottom: 5px;
+        }
+        .header .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .meta-item {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+        .section {
+            margin-bottom: 35px;
+        }
+        .section h2 {
+            color: #2c3e50;
+            font-size: 1.6em;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        .section h3 {
+            color: #34495e;
+            font-size: 1.2em;
+            margin-top: 15px;
+            margin-bottom: 8px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+        }
+        .stat-card.green { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+        .stat-card.orange { background: linear-gradient(135deg, #f2994a 0%, #f2c94c 100%); }
+        .stat-card.red { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
+        .stat-card.blue { background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%); }
+        .stat-card .label {
+            font-size: 0.85em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        .stat-card .value {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+        .chart-container {
+            margin: 20px 0;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 0.9em;
+        }
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        th {
+            background: #2c3e50;
+            color: white;
+            font-weight: 600;
+        }
+        tr:hover { background: #f8f9fa; }
+        .anomaly-badge {
+            display: inline-block;
+            background: #e74c3c;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .ai-analysis {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            margin-top: 20px;
+        }
+        .ai-analysis p {
+            margin-bottom: 12px;
+            text-align: justify;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #ecf0f1;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1>🎯 SensifyHR Mülakat Analiz Raporu</h1>
+        <p class="subtitle">Multimodal AI Mülakat Değerlendirme Sistemi</p>
+        <div class="meta-grid">
+            <div class="meta-item"><strong>Mülakat ID:</strong> {{ interview_id }}</div>
+            <div class="meta-item"><strong>Tarih:</strong> {{ analysis_date }}</div>
+            <div class="meta-item"><strong>Analiz Süresi:</strong> {{ duration_seconds }}s</div>
+            <div class="meta-item"><strong>Video:</strong> {{ video_resolution }} @ {{ video_fps }} FPS</div>
+            <div class="meta-item"><strong>Video Süresi:</strong> {{ video_duration }}s</div>
+        </div>
+    </div>
+
+    <!-- KPI KARTLARI -->
+    <div class="section">
+        <h2>📊 Genel Özet</h2>
+        <div class="stats-grid">
+            <div class="stat-card green">
+                <div class="label">👁️ Odak Skoru</div>
+                <div class="value">%{{ focus_score }}</div>
+            </div>
+            <div class="stat-card blue">
+                <div class="label">👁️ Göz Kırpma/dk</div>
+                <div class="value">{{ blink_rate }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">😊 Baskın Yüz Duygusu</div>
+                <div class="value">{{ dominant_face_emotion }}</div>
+            </div>
+            <div class="stat-card orange">
+                <div class="label">🎤 Baskın Ses Duygusu</div>
+                <div class="value">{{ dominant_audio_emotion }}</div>
+            </div>
+            <div class="stat-card green">
+                <div class="label">📝 Baskın Metin Duygusu</div>
+                <div class="value">{{ dominant_sentiment }}</div>
+            </div>
+            <div class="stat-card red">
+                <div class="label">⚠️ Tutarsızlık</div>
+                <div class="value">{{ anomaly_count }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- YÜZ ANALİZİ -->
+    <div class="section">
+        <h2>😊 Yüz Analizi (MediaPipe)</h2>
+        <div class="stats-grid">
+            <div class="stat-card green">
+                <div class="label">Baskın Duygu</div>
+                <div class="value">{{ dominant_face_emotion }}</div>
+            </div>
+            <div class="stat-card blue">
+                <div class="label">Toplam Göz Kırpma</div>
+                <div class="value">{{ total_blinks }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Odak Skoru</div>
+                <div class="value">%{{ focus_score }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SES DUYGU ANALİZİ -->
+    <div class="section">
+        <h2>🎤 Ses Duygu Analizi (HuBERT SER)</h2>
+        <div class="stats-grid">
+            <div class="stat-card orange">
+                <div class="label">Baskın Duygu</div>
+                <div class="value">{{ dominant_audio_emotion }}</div>
+            </div>
+            <div class="stat-card blue">
+                <div class="label">Ort. Güven</div>
+                <div class="value">{{ audio_avg_confidence }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Analiz Parçası</div>
+                <div class="value">{{ audio_total_chunks }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- METİN ANALİZİ -->
+    <div class="section">
+        <h2>📝 Metin Analizi (Whisper + BERT)</h2>
+        <div class="stats-grid">
+            <div class="stat-card green">
+                <div class="label">Toplam Cümle</div>
+                <div class="value">{{ total_sentences }}</div>
+            </div>
+            <div class="stat-card green">
+                <div class="label">Pozitif</div>
+                <div class="value">%{{ positive_pct }}</div>
+            </div>
+            <div class="stat-card red">
+                <div class="label">Negatif</div>
+                <div class="value">%{{ negative_pct }}</div>
+            </div>
+        </div>
+
+        {% if text_table_rows %}
+        <h3>Cümle Detayları</h3>
+        <table>
+            <thead>
+                <tr><th>Zaman</th><th>Cümle</th><th>Duygu</th><th>Güven</th></tr>
+            </thead>
+            <tbody>
+                {{ text_table_rows | safe }}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+
+    <!-- SES ÖZELLİKLERİ -->
+    <div class="section">
+        <h2>🔊 Ses Özellikleri (Librosa)</h2>
+        <div class="stats-grid">
+            <div class="stat-card green">
+                <div class="label">Konuşma Süresi</div>
+                <div class="value">{{ speech_seconds }}s</div>
+            </div>
+            <div class="stat-card red">
+                <div class="label">Sessizlik Süresi</div>
+                <div class="value">{{ silence_seconds }}s</div>
+            </div>
+            <div class="stat-card blue">
+                <div class="label">Konuşma/Sessizlik</div>
+                <div class="value">{{ speech_ratio }}</div>
+            </div>
+            <div class="stat-card orange">
+                <div class="label">Ort. Duraklama</div>
+                <div class="value">{{ avg_silence }}s</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">RMS Enerji (Ort)</div>
+                <div class="value">{{ rms_mean }}</div>
+            </div>
+            <div class="stat-card blue">
+                <div class="label">Pitch (Ort)</div>
+                <div class="value">{{ pitch_mean }} Hz</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TUTARSIZLIK -->
+    {% if anomaly_count > 0 %}
+    <div class="section">
+        <h2>⚠️ Tutarsızlık Analizi</h2>
+        <p><span class="anomaly-badge">{{ anomaly_count }} tutarsızlık tespit edildi</span></p>
+        <table>
+            <thead>
+                <tr><th>Zaman</th><th>Cümle</th><th>Metin Duygusu</th><th>Yüz Duygusu</th><th>Sonuç</th></tr>
+            </thead>
+            <tbody>
+                {{ anomaly_rows | safe }}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="section">
+        <h2>✅ Tutarsızlık Analizi</h2>
+        <p>Metin ve yüz duyguları arasında anlamlı bir tutarsızlık tespit edilmedi.</p>
+    </div>
+    {% endif %}
+
+    <!-- GRAFİKLER -->
+    <div class="section">
+        <h2>📈 Görselleştirmeler</h2>
+        {{ charts_html | safe }}
+    </div>
+
+    <!-- AI DEĞERLENDİRME -->
+    {% if ai_hr_text %}
+    <div class="section">
+        <h2>🤖 AI Destekli İK Değerlendirmesi</h2>
+        <div class="ai-analysis">
+            <p>{{ ai_hr_text | safe }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- FOOTER -->
+    <div class="footer">
+        <p>🎯 SensifyHR Mülakat Analiz Sistemi v2.0 - {{ analysis_date }}</p>
+        <p>Bu rapor yapay zekâ destekli analiz sonuçlarına dayalıdır ve karar destek amaçlıdır.</p>
+    </div>
+
+</div>
+</body>
+</html>

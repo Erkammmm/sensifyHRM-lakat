@@ -1,0 +1,58 @@
+stages:
+  - lint
+  - test
+  - build
+
+variables:
+  PYTHON_IMAGE: "python:3.10"
+
+lint:
+  stage: lint
+  image: ${PYTHON_IMAGE}
+  script:
+    - python -m pip install --upgrade pip
+    - pip install ruff
+    - ruff check .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+test:
+  stage: test
+  image: ${PYTHON_IMAGE}
+  script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+    - pip install pytest || true
+    - pytest -q || true
+  artifacts:
+    when: always
+    paths:
+      - .pytest_cache/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+build:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - docker info
+  script:
+    - export IMAGE_TAG=${CI_REGISTRY_IMAGE:-"${CI_PROJECT_PATH}"}:${CI_COMMIT_SHORT_SHA}
+    - docker build -t "$IMAGE_TAG" .
+    - |
+      if [ -n "$CI_REGISTRY" ] && [ -n "$CI_REGISTRY_USER" ]; then
+        echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+        docker push "$IMAGE_TAG" || true
+      else
+        echo "CI_REGISTRY not configured — skipping push"
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+

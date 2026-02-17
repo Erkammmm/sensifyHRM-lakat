@@ -87,14 +87,7 @@ def _normalize_label(label: str) -> str:
 
 
 @dataclass
-class SerProjectionResult:
-    valence_score: float
-    arousal_score: float
-    valence_state: str
-    arousal_state: str
-    # debug only
-    top_label: str
-    top_score: float
+class SerProjectionResult: pass
 
 
 class HuBERTSerProjector:
@@ -132,7 +125,7 @@ class HuBERTSerProjector:
         self.model.eval()
         print(f"[HuBERTSerProjector] Hazır! Cihaz: {self.device.upper()}")
 
-    def project(self, audio: np.ndarray, sr: int) -> SerProjectionResult:
+    def project(self, audio: np.ndarray, sr: int) -> Dict[str, Any]:
         if audio.size == 0:
             return SerProjectionResult(
                 valence_score=0.0,
@@ -183,14 +176,14 @@ class HuBERTSerProjector:
         top_label = normalized[top_idx] if normalized else "neutral"
         top_score = float(probs_np[top_idx]) if probs_np.size else 0.0
 
-        return SerProjectionResult(
-            valence_score=float(valence),
-            arousal_score=float(arousal),
-            valence_state=_bucketize_valence(float(valence)),
-            arousal_state=_bucketize_arousal(float(arousal)),
-            top_label=top_label,
-            top_score=top_score,
-        )
+        return {
+            "valence_score": float(valence),
+            "arousal_score": float(arousal),
+            "valence_state": _bucketize_valence(float(valence)),
+            "arousal_state": _bucketize_arousal(float(arousal)),
+            "top_label": top_label,
+            "top_score": top_score,
+        }
 
 
 def _download_and_load_state_dict(model_id: str) -> Dict[str, torch.Tensor]:
@@ -399,13 +392,13 @@ class AudioSignalFusion:
 
             # SER projeksiyonunu yumuşat (zayıf sinyal dalgalanmasını azaltır)
             if val_ema is None:
-                val_ema = float(proj.valence_score)
+                val_ema = float(proj.get("valence_score", 0.0))
             else:
-                val_ema = (alpha * float(proj.valence_score)) + ((1.0 - alpha) * float(val_ema))
+                val_ema = (alpha * float(proj.get("valence_score", 0.0))) + ((1.0 - alpha) * float(val_ema))
             if aro_ema is None:
-                aro_ema = float(proj.arousal_score)
+                aro_ema = float(proj.get("arousal_score", 0.0))
             else:
-                aro_ema = (alpha * float(proj.arousal_score)) + ((1.0 - alpha) * float(aro_ema))
+                aro_ema = (alpha * float(proj.get("arousal_score", 0.0))) + ((1.0 - alpha) * float(aro_ema))
 
             val_state = _bucketize_valence(float(val_ema))
             aro_state = _bucketize_arousal(float(aro_ema))
@@ -421,12 +414,12 @@ class AudioSignalFusion:
                     "pitch_stability": phys["pitch_stability"],
                     # Debug değerler (rapora yazdırmak zorunlu değil)
                     "debug": {
-                        "valence_score_raw": round(proj.valence_score, 3),
-                        "arousal_score_raw": round(proj.arousal_score, 3),
+                        "valence_score_raw": round(proj.get("valence_score", 0.0), 3),
+                        "arousal_score_raw": round(proj.get("arousal_score", 0.0), 3),
                         "valence_score_ema": round(float(val_ema), 3),
                         "arousal_score_ema": round(float(aro_ema), 3),
-                        "ser_top_label": proj.top_label,
-                        "ser_top_score": round(proj.top_score, 3),
+                        "ser_top_label": proj.get("top_label", ""),
+                        "ser_top_score": round(proj.get("top_score", 0.0), 3),
                     },
                 }
             )

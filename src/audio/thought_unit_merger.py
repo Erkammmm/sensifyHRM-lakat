@@ -28,15 +28,6 @@ TARGET_BLOCK_SEC = float(os.getenv("SENSIFYHR_TARGET_BLOCK_SEC", "20.0"))
 _END_PUNCT_RE = re.compile(r"[.!?…]+$")
 
 
-def _ends_sentence(text: str) -> bool:
-    t = (text or "").strip()
-    return bool(_END_PUNCT_RE.search(t))
-
-
-def _norm_ws(text: str) -> str:
-    return " ".join((text or "").strip().split())
-
-
 def merge_into_thought_units(stt_segments: List[Dict]) -> List[Dict]:
     """
     Input: [{start,end,text}, ...]
@@ -50,25 +41,14 @@ def merge_into_thought_units(stt_segments: List[Dict]) -> List[Dict]:
     segs.sort(key=lambda x: float(x.get("start", 0.0) or 0.0))
 
     out: List[Dict] = []
-
-    cur_start = None
-    cur_end = None
+    cur_start: Optional[float] = None
+    cur_end: Optional[float] = None
     cur_text_parts: List[str] = []
-
-    def flush():
-        nonlocal cur_start, cur_end, cur_text_parts
-        if cur_start is None or cur_end is None:
-            cur_start, cur_end, cur_text_parts = None, None, []
-            return
-        text = _norm_ws(" ".join(cur_text_parts))
-        if text:
-            out.append({"start": float(cur_start), "end": float(cur_end), "text": text})
-        cur_start, cur_end, cur_text_parts = None, None, []
 
     for i, seg in enumerate(segs):
         s = float(seg.get("start", 0.0) or 0.0)
         e = float(seg.get("end", s) or s)
-        t = _norm_ws(seg.get("text", ""))
+        t = " ".join((seg.get("text", "") or "").strip().split())
         if not t:
             continue
 
@@ -95,8 +75,11 @@ def merge_into_thought_units(stt_segments: List[Dict]) -> List[Dict]:
             cur_dur = max(0.0, float(cur_end) - float(cur_start))
 
             # hedefe ulaştıysa ve cümle bitişi varsa blok kapat
-            if cur_dur >= TARGET_BLOCK_SEC and _ends_sentence(t):
-                flush()
+            if cur_dur >= TARGET_BLOCK_SEC and bool(_END_PUNCT_RE.search(t.strip())):
+                text = " ".join(cur_text_parts).strip()
+                if text:
+                    out.append({"start": float(cur_start), "end": float(cur_end), "text": text})
+                cur_start, cur_end, cur_text_parts = None, None, []
             continue
 
         # join edemiyorsak: blok çok kısa kalmasın diye flush kuralı
@@ -106,10 +89,18 @@ def merge_into_thought_units(stt_segments: List[Dict]) -> List[Dict]:
             cur_end = max(float(cur_end), e)
             continue
 
-        flush()
+        # flush
+        if cur_start is not None and cur_end is not None:
+            text = " ".join(cur_text_parts).strip()
+            if text:
+                out.append({"start": float(cur_start), "end": float(cur_end), "text": text})
         cur_start, cur_end = s, e
         cur_text_parts = [t]
 
-    flush()
+    # final flush
+    if cur_start is not None and cur_end is not None:
+        text = " ".join(cur_text_parts).strip()
+        if text:
+            out.append({"start": float(cur_start), "end": float(cur_end), "text": text})
     return out
 

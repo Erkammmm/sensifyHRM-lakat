@@ -102,3 +102,14 @@ def build_segment_signal_packages(
 
     return packages
 
+
+def generate_analysis(
+    text_segments: List[Dict],
+    audio_signal_timeline: List[Dict],
+    visual_signal_timeline: List[Dict],
+) -> List[Dict]:
+    """
+    Public entry: build segment signal packages for LLM input.
+    Alias for `build_segment_signal_packages` to provide a single clear entry point.
+    """
+    return build_segment_signal_packages(text_segments, audio_signal_timeline, visual_signal_timeline)

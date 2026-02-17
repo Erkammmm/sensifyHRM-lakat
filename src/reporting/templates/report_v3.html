@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SensifyHR v3.0 Raporu - {{ interview_id }}</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --card:#0f1a33;
+      --card2:#0c152b;
+      --text:#e8eefc;
+      --muted:#a9b6d3;
+      --accent:#7c5cff;
+      --accent2:#34d399;
+      --danger:#fb7185;
+      --warn:#fbbf24;
+      --border:rgba(255,255,255,.08);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 10% 10%, rgba(124,92,255,.18), transparent 60%),
+                  radial-gradient(1000px 700px at 90% 20%, rgba(52,211,153,.14), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+      padding:28px;
+    }
+    .container{max-width:1200px;margin:0 auto}
+    .header{
+      display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+      margin-bottom:18px;
+    }
+    .title h1{margin:0;font-size:26px;letter-spacing:.2px}
+    .title p{margin:6px 0 0;color:var(--muted)}
+    .badge{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:8px 12px;border:1px solid var(--border); border-radius:999px;
+      background:rgba(255,255,255,.03); color:var(--muted); font-size:13px;
+    }
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:16px;
+      box-shadow:0 10px 30px rgba(0,0,0,.25);
+    }
+    .kpi{display:flex;flex-direction:column;gap:8px}
+    .kpi .label{color:var(--muted);font-size:12px}
+    .kpi .value{font-size:22px;font-weight:700}
+    .kpi .hint{color:var(--muted);font-size:12px}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--muted)}
+    .pill.ok{color:#b7f7d6;border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.08)}
+    .pill.warn{color:#fde68a;border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.08)}
+    .pill.bad{color:#fecdd3;border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.08)}
+    .tabs{margin-top:10px}
+    .tabs input{display:none}
+    .tab-labels{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+    .tab-labels label{
+      cursor:pointer;
+      padding:10px 12px;border-radius:10px;border:1px solid var(--border);
+      background:rgba(255,255,255,.03); color:var(--muted);
+      font-size:13px; user-select:none;
+    }
+    #tab1:checked ~ .tab-labels label[for="tab1"],
+    #tab2:checked ~ .tab-labels label[for="tab2"],
+    #tab3:checked ~ .tab-labels label[for="tab3"]{
+      color:var(--text);
+      border-color:rgba(124,92,255,.5);
+      background:rgba(124,92,255,.14);
+    }
+    .tab-content{display:none}
+    #tab1:checked ~ .contents #content1{display:block}
+    #tab2:checked ~ .contents #content2{display:block}
+    #tab3:checked ~ .contents #content3{display:block}
+    h2{margin:0 0 10px;font-size:16px}
+    h3{margin:14px 0 8px;font-size:14px;color:var(--muted);font-weight:600}
+    .muted{color:var(--muted)}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:10px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top}
+    th{color:var(--muted);font-weight:600;text-align:left}
+    tr:hover td{background:rgba(255,255,255,.03)}
+    .ai{background:linear-gradient(180deg, rgba(124,92,255,.10), rgba(255,255,255,.02));border:1px solid rgba(124,92,255,.25);}
+    .cards{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+    .card-mini{grid-column:span 6;padding:14px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.03);}
+    .card-mini h4{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:700}
+    .card-mini .body{font-size:13px;line-height:1.65;color:var(--text)}
+    .list{margin:0;padding-left:18px}
+    .list li{margin:6px 0;color:var(--text)}
+    .footer{margin-top:16px;color:var(--muted);font-size:12px}
+    .chart-container{margin:12px 0}
+    .chart-container img{border-radius:12px;border:1px solid var(--border)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace}
+    .badge{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.03);font-size:12px;white-space:nowrap}
+    .dot{width:10px;height:10px;border-radius:999px;display:inline-block}
+    .sev-good .dot{background:#2ecc71}
+    .sev-warn .dot{background:#f1c40f}
+    .sev-bad  .dot{background:#e74c3c}
+    .rings{display:flex;gap:14px;flex-wrap:wrap}
+    .ring{width:160px;height:160px;border-radius:999px;display:grid;place-items:center;background:conic-gradient(var(--accent) calc(var(--p) * 1%), rgba(255,255,255,.06) 0);border:1px solid var(--border);position:relative;}
+    .ring::after{content:"";position:absolute; inset:14px;background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(255,255,255,.02));border-radius:999px;border:1px solid rgba(255,255,255,.06);}
+    .ring .inner{position:relative; z-index:2; text-align:center}
+    .ring .pct{font-size:28px;font-weight:800}
+    .ring .name{font-size:12px;color:var(--muted);margin-top:4px}
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">
+        <h1>SensifyHR v3.0 – Davranışsal Sinyal Raporu</h1>
+        <p class="muted">Mülakat ID: <span class="mono">{{ interview_id }}</span> • Süre: {{ duration_seconds }}s • Tarih: {{ analysis_date }}</p>
+      </div>
+      <div class="badge">
+        <span>Phase:</span>
+        <strong>v3</strong>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <input type="radio" id="tab1" name="tabs" checked>
+      <input type="radio" id="tab2" name="tabs">
+      <input type="radio" id="tab3" name="tabs">
+
+      <div class="tab-labels">
+        <label for="tab1">Dashboard</label>
+        <label for="tab2">LLM Değerlendirme</label>
+        <label for="tab3">Detaylar</label>
+      </div>
+
+      <div class="contents">
+        <!-- Dashboard and content placeholders -->
+        {{ charts_html | safe }}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -70,6 +70,7 @@ class VoiceAnalyzer:
         return audio * (self.max_norm / max_val)
 
     def _downsample_series(self, values: np.ndarray, max_points: int = 4000) -> np.ndarray:
+        # Removed: function inlined in _extract_waveform. Kept for backward compatibility.
         if values.size <= max_points:
             return values
         idx = np.linspace(0, values.size - 1, max_points).astype(int)
@@ -79,7 +80,12 @@ class VoiceAnalyzer:
         """Ham waveform serisini (downsample edilmiş) çıkarır."""
         if audio.size == 0:
             return {"times": [], "values": []}
-        values = self._downsample_series(audio, max_points=4000)
+        # inline downsample logic (avoid extra helper indirection)
+        values = audio
+        max_points = 4000
+        if values.size > max_points:
+            idx = np.linspace(0, values.size - 1, max_points).astype(int)
+            values = values[idx]
         times = np.linspace(0, len(audio) / float(self.sample_rate), num=values.size, endpoint=False)
         return {"times": times.tolist(), "values": values.tolist()}
 

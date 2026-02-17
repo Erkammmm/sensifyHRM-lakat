@@ -23,13 +23,13 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.pipeline import InterviewAnalysisPipeline
-from src.report_generator import ReportGenerator
+from src.reporting.report_generator import ReportGenerator
 
 # FastAPI uygulaması
 app = FastAPI(
     title="SensifyHR Mülakat Analiz API",
-    description="Multimodal AI Mülakat Değerlendirme Sistemi (Metin + Ses + Yüz)",
-    version="2.0.0",
+    description="Multimodal AI Mülakat Değerlendirme Sistemi (v3: signal fusion + LLM reasoning, v2: legacy sentiment/emotion opsiyonel)",
+    version="3.0.0",
 )
 
 # Global instance'lar
@@ -42,7 +42,10 @@ analysis_status = {}
 # Yardımcılar
 # =====================================================================
 def _save_upload(file: UploadFile, interview_id: str) -> str:
-    """Yüklenen videoyu uploads klasörüne kaydeder."""
+    """Yüklenen videoyu geçici olarak temp_uploads klasörüne kaydeder.
+
+    Not: Diskte kalıcı video biriktirmemek için analiz bitince bu dosya silinir.
+    """
     allowed_ext = [".mp4", ".avi", ".mov", ".mkv", ".webm"]
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed_ext:
@@ -50,9 +53,9 @@ def _save_upload(file: UploadFile, interview_id: str) -> str:
             status_code=400,
             detail=f"Desteklenmeyen format. İzin: {', '.join(allowed_ext)}",
         )
-    uploads_dir = "uploads"
-    os.makedirs(uploads_dir, exist_ok=True)
-    return os.path.join(uploads_dir, f"{interview_id}{ext}")
+    temp_dir = "temp_uploads"
+    os.makedirs(temp_dir, exist_ok=True)
+    return os.path.join(temp_dir, f"{interview_id}{ext}")
 
 
 def _update_status(interview_id: str, status: str, **extra: Any) -> None:
@@ -112,51 +115,31 @@ def _strip_voice_series(data: Dict) -> Dict:
 
 
 def _run_gemini(report_paths: Dict[str, str]) -> Dict[str, Any]:
-    """Gemini'yi ayrı process ile çalıştırır (protobuf izolasyonu)."""
+    """Generate analysis text via Gemini (library entry)."""
     if not report_paths.get("json"):
         return {}
+    try:
+        json_path = report_paths["json"]
+        if not os.path.exists(json_path):
+            return {"status": "error", "message": "gemini_json_not_found", "provider": "gemini"}
+        with open(json_path, "r", encoding="utf-8") as f:
+            report = json.load(f)
+        from src.nlp.gemini import generate_analysis as _generate_gemini_analysis
 
-    gemini_script = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "src", "gemini.py")
-    )
-    env = os.environ.copy()
-    env["PYTHONIOENCODING"] = "utf-8"
-    env["PYTHONUTF8"] = "1"
-
-    result = subprocess.run(
-        [sys.executable, gemini_script, report_paths["json"]],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
-    )
-    if result.returncode == 0:
-        gemini_text = result.stdout.strip()
-        return {"analysis": gemini_text, "provider": "gemini"} if gemini_text else {}
-    return {"status": "error", "message": result.stderr.strip(), "provider": "gemini"}
+        text = _generate_gemini_analysis(report)
+        text = (text or "").strip()
+        return {"analysis": text, "provider": "gemini"} if text else {}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc), "provider": "gemini"}
 
 
 def _run_ollama(full_report: Dict[str, Any]) -> Dict[str, Any]:
-    """Yerel Ollama/Gemma ile değerlendirme yapar (Gemini alternatifi/fallback)."""
+    """Run local Ollama/Gemma analysis via unified entrypoint."""
     try:
-        from src.ollama_ai import OllamaAI
-
-        ai = OllamaAI()  # default: gemma3:12b
-
-        # FAZ-3: segment signal packages üzerinden reasoning
-        if (full_report.get("phase") or "").lower() == "v3":
-            packages = full_report.get("segment_signal_packages", [])
-            result_text = ai.evaluate_phase3(segment_signal_packages=packages)
-        else:
-            text_segments = full_report.get("text_analysis", {}).get("segments", [])
-            audio_timeline = full_report.get("audio_emotion_analysis", {}).get("timeline", [])
-            face_summary = full_report.get("face_analysis", {}).get("summary", {})
-            anomalies = full_report.get("anomalies", [])
-            result_text = ai.evaluate_candidate(
-                text_data=text_segments,
-                audio_data=audio_timeline,
-                face_summary=face_summary,
-                anomalies=anomalies,
-            )
-        result_text = (result_text or "").strip()
-        return {"analysis": result_text, "provider": "ollama"} if result_text else {}
+        from src.nlp.ollama_ai import generate_analysis as _generate_ollama_analysis
+        text = _generate_ollama_analysis(full_report)
+        text = (text or "").strip()
+        return {"analysis": text, "provider": "ollama"} if text else {}
     except Exception as exc:
         return {"status": "error", "message": str(exc), "provider": "ollama"}
 
@@ -250,10 +233,17 @@ async def root():
     """Ana endpoint."""
     return {
         "service": "SensifyHR Mülakat Analiz API",
-        "version": "2.0.0",
+        "version": "3.0.0",
         "status": "running",
-        "modules": ["TextAnalyzer (Whisper+BERT)", "AudioAnalyzer (wav2vec2)",
-                     "FaceAnalyzer (MediaPipe)", "VoiceAnalyzer (Librosa)"],
+        "default_mode": "v3 (phase3=true)",
+        "modules": [
+            "TextAnalyzer (STT-only in v3; sentiment in v2 legacy)",
+            "AudioSignalFusion (v3: HuBERT SER projection + librosa states)",
+            "AudioAnalyzer (v2 legacy: SER emotion timeline)",
+            "FaceAnalyzer (v3: visual signal; v2 legacy: rule-based emotion)",
+            "VoiceAnalyzer (librosa raw voice features)",
+            "LLM (optional): Gemini (subprocess) / Ollama (local)",
+        ],
         "endpoints": {
             "analyze": "POST /analyze",
             "status": "GET /status/{interview_id}",
@@ -297,8 +287,12 @@ async def analyze_interview(
     try:
         # 1) Dosyayı kaydet
         async with aiofiles.open(video_path, "wb") as out:
-            content = await file.read()
-            await out.write(content)
+            # Büyük videolarda RAM şişmesini önlemek için chunk yaz
+            while True:
+                chunk = await file.read(1024 * 1024)  # 1MB
+                if not chunk:
+                    break
+                await out.write(chunk)
 
         _update_status(interview_id, "processing",
                        started_at=datetime.utcnow().isoformat() + "Z")
@@ -376,12 +370,6 @@ async def analyze_interview(
             completed_at=datetime.utcnow().isoformat() + "Z",
         )
 
-        if os.path.exists(video_path):
-            try:
-                os.remove(video_path)
-            except Exception:
-                pass
-
         return JSONResponse(
             content=_sanitize_for_json({
                 "interview_id": interview_id,
@@ -391,6 +379,13 @@ async def analyze_interview(
             }),
             status_code=500,
         )
+    finally:
+        # Geçici yüklenen videoyu her durumda temizle (disk şişmesini önler)
+        if os.path.exists(video_path):
+            try:
+                os.remove(video_path)
+            except Exception:
+                pass
 
 
 @app.get("/status/{interview_id}")

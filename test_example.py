@@ -80,7 +80,7 @@ def test_pipeline(video_path: str, use_ollama: bool = False):
         print("🤖 OLLAMA + GEMMA DEĞERLENDİRMESİ")
         print("=" * 60)
         try:
-            from src.ollama_ai import OllamaAI
+            from src.nlp.ollama_ai import OllamaAI
             ai = OllamaAI()
             result = ai.evaluate_candidate(
                 text_data=report.get("text_analysis", {}).get("segments", []),

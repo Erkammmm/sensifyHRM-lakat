@@ -37,7 +37,6 @@ def _is_cuda_oom(exc: Exception) -> bool:
 
 def _get_audio_duration_seconds(path: str) -> float:
     try:
-        # STT yolumuz zaten WAV üretiyor; hızlı duration için librosa yeterli
         return float(librosa.get_duration(path=path))
     except Exception:
         return 0.0
@@ -239,7 +238,7 @@ class TextAnalyzer:
         )
         print(f"[{self.__class__.__name__}] transformers ASR ({model_id}) yüklendi -> {('CUDA' if device_idx==0 else 'CPU')}")
 
-    def process_video(self, video_path, phase3_enabled: bool = False):
+    def process_video(self, video_path: str, phase3_enabled: bool = False) -> List[Dict[str, Any]]:
         """
         Video/ses dosyasını alır:
         Phase-2 (varsayılan):
@@ -424,7 +423,7 @@ class TextAnalyzer:
         return segments_data
 
     @staticmethod
-    def get_summary(segments_data):
+    def get_summary(segments_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Metin analizi sonuçlarının özetini döndürür.
 
