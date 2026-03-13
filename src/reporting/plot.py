@@ -220,18 +220,20 @@ def plot_face_emotion_timeline(face_timeline: List[Dict], output_dir: str) -> Op
     if not face_timeline:
         return None
 
-    # Phase-3: emotion alanı yok (visual signal mode)
-    if not isinstance(face_timeline[0], dict) or "emotion" not in face_timeline[0]:
+    # FAZ-4 uses emotion_label; FAZ-3 uses emotion. Skip if neither present.
+    emo_key = "emotion_label" if "emotion_label" in face_timeline[0] else ("emotion" if "emotion" in face_timeline[0] else None)
+    if not emo_key:
         return None
+    ts_key = "timestamp_sec" if "timestamp_sec" in face_timeline[0] else "timestamp"
 
     fig, ax = plt.subplots(figsize=(14, 5))
 
-    unique_emotions = list(set(f["emotion"] for f in face_timeline))
+    unique_emotions = list(set(f[emo_key] for f in face_timeline if f.get(emo_key)))
     emotion_to_idx = {e: i for i, e in enumerate(unique_emotions)}
 
-    times = [f["timestamp"] for f in face_timeline]
-    indices = [emotion_to_idx[f["emotion"]] for f in face_timeline]
-    colors = [EMOTION_COLORS.get(f["emotion"], "#95a5a6") for f in face_timeline]
+    times = [f.get(ts_key, 0) for f in face_timeline]
+    indices = [emotion_to_idx.get(f.get(emo_key, ""), 0) for f in face_timeline]
+    colors = [EMOTION_COLORS.get(f.get(emo_key, ""), "#95a5a6") for f in face_timeline]
 
     ax.scatter(times, indices, c=colors, s=25, alpha=0.7, zorder=5)
 
@@ -257,11 +259,12 @@ def plot_face_emotion_distribution(face_timeline: List[Dict], output_dir: str) -
     if not face_timeline:
         return None
 
-    # Phase-3: emotion alanı yok (visual signal mode)
-    if not isinstance(face_timeline[0], dict) or "emotion" not in face_timeline[0]:
+    # FAZ-4 uses emotion_label; FAZ-3 uses emotion. Skip if neither present.
+    emo_key = "emotion_label" if "emotion_label" in face_timeline[0] else ("emotion" if "emotion" in face_timeline[0] else None)
+    if not emo_key:
         return None
 
-    emotions = [f["emotion"] for f in face_timeline]
+    emotions = [f.get(emo_key, "") for f in face_timeline if f.get(emo_key)]
     counter = Counter(emotions)
     labels = list(counter.keys())
     sizes = list(counter.values())
@@ -285,7 +288,11 @@ def plot_gaze_distribution(face_timeline: List[Dict], output_dir: str) -> Option
     if not face_timeline:
         return None
 
-    gazes = [f["gaze"] for f in face_timeline]
+    # FAZ-4: gaze_direction (str label); FAZ-3 fallback: gaze
+    gaze_key = "gaze_direction" if "gaze_direction" in face_timeline[0] else "gaze"
+    gazes = [f.get(gaze_key, "") for f in face_timeline if f.get(gaze_key)]
+    if not gazes:
+        return None
     counter = Counter(gazes)
     labels = list(counter.keys())
     values = list(counter.values())
@@ -315,7 +322,13 @@ def plot_blink_timeline(face_timeline: List[Dict], output_dir: str) -> Optional[
     if not face_timeline:
         return None
 
-    times = [f["timestamp"] for f in face_timeline]
+    # FAZ-4 has no blink_total; skip gracefully
+    if "blink_total" not in face_timeline[0]:
+        return None
+
+    # FAZ-4: timestamp_sec; FAZ-3 fallback: timestamp
+    ts_key = "timestamp_sec" if "timestamp_sec" in face_timeline[0] else "timestamp"
+    times = [f.get(ts_key, 0) for f in face_timeline]
     blinks = [f["blink_total"] for f in face_timeline]
 
     fig, ax = plt.subplots(figsize=(14, 4))

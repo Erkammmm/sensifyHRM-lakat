@@ -1,0 +1,41 @@
+# Büyük model dosyaları
+weights/
+*.task
+*.pt
+*.pth
+*.onnx
+*.bin
+
+# Çıktı ve geçici dosyalar
+reports/
+temp_uploads/
+outputs/
+*.json
+*.html
+
+# Test videoları
+test_videolar/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wav
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Ortam ve gizli dosyalar
+.env
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/

@@ -1,26 +1,28 @@
 """
-FAZ-3 Audio Signal Fusion
+FAZ-3 Audio Signal Fusion  (FAZ-4 güncelleme: librosa → torchaudio)
 
 Amaç:
   - Duygu sınıflandırması YOK
   - Ses + öğrenilmiş zayıf sinyal (HuBERT SER) -> Valence/Arousal sinyali
-  - Fiziksel ses özellikleri (librosa) -> yorumlanabilir discrete state'ler
+  - Fiziksel ses özellikleri (torchaudio) -> yorumlanabilir discrete state'ler
   - Nihai çıktı: emotion label değil, sinyal state paketleri
 
 Not:
   - SER modelinin çıktıları "duygu" olarak raporlanmaz.
   - Sadece valence/arousal projeksiyonu için zayıf sinyal olarak kullanılır.
+  - HuBERT SER modeli ve inference mantığı değiştirilmedi.
+  - Yalnızca librosa önişleme adımları torchaudio karşılıklarıyla değiştirildi.
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import librosa
 import torch
+import torchaudio
 from transformers import AutoConfig, Wav2Vec2FeatureExtractor, AutoModelForAudioClassification
 from huggingface_hub import hf_hub_download
 
@@ -30,16 +32,18 @@ SER_MODEL_ID = "SeaBenSea/hubert-large-turkish-speech-emotion-recognition"
 
 TARGET_SR = 16000
 CHUNK_SEC = 3.0
-STEP_SEC = 1.0
+STEP_SEC = 3.0  # non-overlapping chunks (FAZ-4 optimisation: was 1.0)
 EMA_ALPHA = float(os.getenv("SENSIFYHR_AUDIO_SIGNAL_EMA_ALPHA", "0.65"))
 
 EMOTION_TO_SIGNAL: Dict[str, Dict[str, float]] = {
-    "happy": {"valence": +1.0, "arousal": +0.6},
-    "sad": {"valence": -0.8, "arousal": -0.4},
-    "fear": {"valence": -0.7, "arousal": +0.7},
-    "angry": {"valence": -0.9, "arousal": +0.9},
-    "neutral": {"valence": 0.0, "arousal": 0.0},
+    "happy":   {"valence": +1.0, "arousal": +0.6},
+    "sad":     {"valence": -0.8, "arousal": -0.4},
+    "fear":    {"valence": -0.7, "arousal": +0.7},
+    "angry":   {"valence": -0.9, "arousal": +0.9},
+    "neutral": {"valence":  0.0, "arousal":  0.0},
 }
+
+_EPS = 1e-8
 
 
 def _bucketize_valence(v: float) -> str:
@@ -73,12 +77,12 @@ def _normalize_label(label: str) -> str:
 
     # Bazı modellerde fearful/fear, anger/angry, joy/happy vb. görülebiliyor.
     mapping = {
-        "fearful": "fear",
-        "anger": "angry",
-        "joy": "happy",
+        "fearful":   "fear",
+        "anger":     "angry",
+        "joy":       "happy",
         "happiness": "happy",
-        "sadness": "sad",
-        "calm": "neutral",
+        "sadness":   "sad",
+        "calm":      "neutral",
     }
     l = mapping.get(l, l)
     if l not in EMOTION_TO_SIGNAL:
@@ -93,6 +97,7 @@ class SerProjectionResult: pass
 class HuBERTSerProjector:
     """
     HuBERT tabanlı SER modelini yükler ve çıktıları valence/arousal sinyaline projekte eder.
+    Model ve inference mantığı değiştirilmedi.
     """
 
     def __init__(self, model_id: str = SER_MODEL_ID):
@@ -127,26 +132,27 @@ class HuBERTSerProjector:
 
     def project(self, audio: np.ndarray, sr: int) -> Dict[str, Any]:
         if audio.size == 0:
-            return SerProjectionResult(
-                valence_score=0.0,
-                arousal_score=0.0,
-                valence_state="NEUTRAL",
-                arousal_state="LOW",
-                top_label="neutral",
-                top_score=0.0,
-            )
+            return {
+                "valence_score": 0.0,
+                "arousal_score": 0.0,
+                "valence_state": "NEUTRAL",
+                "arousal_state": "LOW",
+                "top_label": "neutral",
+                "top_score": 0.0,
+            }
 
         # Sessizlik kontrolü (çok düşük enerji -> nötr)
-        rms_val = float(np.mean(librosa.feature.rms(y=audio))) if audio.size else 0.0
+        # [librosa.feature.rms → numpy RMS]
+        rms_val = float(np.sqrt(np.mean(audio ** 2))) if audio.size else 0.0
         if rms_val < 0.002:
-            return SerProjectionResult(
-                valence_score=0.0,
-                arousal_score=0.0,
-                valence_state="NEUTRAL",
-                arousal_state="LOW",
-                top_label="neutral",
-                top_score=0.0,
-            )
+            return {
+                "valence_score": 0.0,
+                "arousal_score": 0.0,
+                "valence_state": "NEUTRAL",
+                "arousal_state": "LOW",
+                "top_label": "neutral",
+                "top_score": 0.0,
+            }
 
         inputs = self.feature_extractor(
             audio,
@@ -172,7 +178,7 @@ class HuBERTSerProjector:
             arousal += float(p) * float(sig["arousal"])
 
         # debug: top-1
-        top_idx = int(np.argmax(probs_np)) if probs_np.size else 0
+        top_idx   = int(np.argmax(probs_np)) if probs_np.size else 0
         top_label = normalized[top_idx] if normalized else "neutral"
         top_score = float(probs_np[top_idx]) if probs_np.size else 0.0
 
@@ -181,8 +187,8 @@ class HuBERTSerProjector:
             "arousal_score": float(arousal),
             "valence_state": _bucketize_valence(float(valence)),
             "arousal_state": _bucketize_arousal(float(arousal)),
-            "top_label": top_label,
-            "top_score": top_score,
+            "top_label":     top_label,
+            "top_score":     top_score,
         }
 
 
@@ -191,16 +197,13 @@ def _download_and_load_state_dict(model_id: str) -> Dict[str, torch.Tensor]:
     HF'den weight dosyasını indirip state_dict döndürür.
     Öncelik: model.safetensors -> pytorch_model.bin
     """
-    # safetensors
     try:
         from safetensors.torch import load_file as st_load
-
         path = hf_hub_download(repo_id=model_id, filename="model.safetensors")
         return st_load(path)
     except Exception:
         pass
 
-    # bin
     path = hf_hub_download(repo_id=model_id, filename="pytorch_model.bin")
     return torch.load(path, map_location="cpu")
 
@@ -226,7 +229,9 @@ def _remap_classifier_keys(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
     return new_sd
 
 
-def _filter_state_dict_by_shape(model: torch.nn.Module, state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+def _filter_state_dict_by_shape(
+    model: torch.nn.Module, state_dict: Dict[str, torch.Tensor]
+) -> Dict[str, torch.Tensor]:
     """
     strict=False bile shape mismatch'te hata verir; bu yüzden sadece şekli uyan key'leri yükleriz.
     """
@@ -247,7 +252,7 @@ def _filter_state_dict_by_shape(model: torch.nn.Module, state_dict: Dict[str, to
 
 
 def _energy_state(rms_mean: float) -> str:
-    # RMS absolute thresholds after librosa normalize; heuristic buckets.
+    # RMS absolute thresholds after normalize; heuristic buckets.
     if rms_mean < 0.02:
         return "LOW"
     if rms_mean < 0.05:
@@ -272,84 +277,138 @@ def _speech_rate_state(onsets_per_sec: float) -> str:
 
 
 def _estimate_onsets_per_second(audio: np.ndarray, sr: int) -> float:
+    """
+    Konuşma hızı proxy'si: torchaudio tabanlı enerji zarfı + peak picking.
+
+    [librosa.onset.onset_strength + librosa.util.peak_pick →
+     torch frame RMS + half-wave rectified diff + numpy peak picking]
+    """
     if audio.size == 0:
         return 0.0
     duration = float(len(audio)) / float(sr) if sr > 0 else 0.0
     if duration <= 0.0:
         return 0.0
 
-    # Onset envelope + peak picking (syllable-ish proxy)
-    onset_env = librosa.onset.onset_strength(y=audio, sr=sr)
-    if onset_env.size == 0:
+    # Frame-level RMS enerji zarfı (25ms frames, 10ms hop)
+    frame_len = max(2, int(sr * 0.025))
+    hop_len   = max(1, int(sr * 0.010))
+
+    tensor = torch.from_numpy(audio).float()
+    if tensor.numel() < frame_len:
         return 0.0
-    peaks = librosa.util.peak_pick(
-        onset_env,
-        pre_max=3,
-        post_max=3,
-        pre_avg=3,
-        post_avg=3,
-        delta=0.2,
-        wait=5,
-    )
-    count = int(peaks.size) if hasattr(peaks, "size") else len(peaks)
-    return float(count) / duration if duration > 0 else 0.0
+
+    frames = tensor.unfold(0, frame_len, hop_len)            # (T, frame_len)
+    rms = torch.sqrt(torch.mean(frames ** 2, dim=1) + _EPS)  # (T,)
+
+    if rms.numel() < 2:
+        return 0.0
+
+    # Half-wave rectified first difference → onset strength zarfı
+    onset_env = torch.clamp(rms[1:] - rms[:-1], min=0.0).numpy()
+    if onset_env.size < 5:
+        return 0.0
+
+    # Adaptif delta: mean + 0.5*std
+    delta = float(np.mean(onset_env)) + 0.5 * float(np.std(onset_env))
+    delta = max(delta, float(np.max(onset_env)) * 0.10)  # minimum floor
+
+    # Basit peak picking: lokal maksimum, delta eşiği üstünde, minimum mesafe 3 frame
+    min_dist = 3
+    peaks = []
+    half_win = 5
+    for i in range(half_win, len(onset_env) - half_win):
+        if onset_env[i] < delta:
+            continue
+        if onset_env[i] != np.max(onset_env[i - half_win : i + half_win + 1]):
+            continue
+        if peaks and (i - peaks[-1]) < min_dist:
+            continue
+        peaks.append(i)
+
+    return float(len(peaks)) / duration if duration > 0 else 0.0
 
 
 def _extract_pitch_stats(audio: np.ndarray, sr: int) -> Tuple[float, float, int]:
+    """
+    Pitch istatistikleri: (pitch_mean, pitch_std, jump_count).
+
+    [librosa.pyin → torchaudio.functional.detect_pitch_frequency]
+    Sesli frame filtresi: F0 aralığı [50, 400] Hz.
+    """
     if audio.size == 0:
         return 0.0, 0.0, 0
 
-    f0, voiced_flag, _ = librosa.pyin(
-        audio,
-        fmin=50,
-        fmax=400,
-        sr=sr,
-        frame_length=2048,
-        hop_length=512,
-    )
+    try:
+        tensor = torch.from_numpy(audio).float().unsqueeze(0)  # (1, N)
+        pitch = torchaudio.functional.detect_pitch_frequency(
+            tensor,
+            sample_rate=sr,
+            frame_time=0.01,
+            win_length=11,
+            freq_low=50.0,
+            freq_high=400.0,
+        ).squeeze(0).cpu().numpy()
+    except Exception:
+        return 0.0, 0.0, 0
 
-    voiced_f0 = f0[voiced_flag] if voiced_flag is not None else f0[np.isfinite(f0)]
-    voiced_f0 = voiced_f0[np.isfinite(voiced_f0)] if voiced_f0 is not None else np.array([])
+    # Sesli frame: F0 beklenen aralıkta
+    voiced_mask = np.isfinite(pitch) & (pitch >= 50.0) & (pitch <= 400.0)
+    voiced_f0   = pitch[voiced_mask]
 
-    pitch_mean = float(np.mean(voiced_f0)) if voiced_f0.size else 0.0
-    pitch_std = float(np.std(voiced_f0)) if voiced_f0.size else 0.0
+    if voiced_f0.size == 0:
+        return 0.0, 0.0, 0
 
-    # Pitch jump count
+    pitch_mean = float(np.mean(voiced_f0))
+    pitch_std  = float(np.std(voiced_f0))
+
+    # Pitch sıçrama sayısı (ardışık sesli framelerde ≥ 50 Hz değişim)
     jump_threshold = 50.0
     jump_count = 0
-    if voiced_flag is not None and len(f0) > 1:
-        prev = None
-        for val, voiced in zip(f0, voiced_flag):
-            if not voiced or not np.isfinite(val):
-                prev = None
-                continue
-            if prev is not None and abs(float(val) - float(prev)) >= jump_threshold:
-                jump_count += 1
-            prev = float(val)
+    prev: Optional[float] = None
+    for val, voiced in zip(pitch, voiced_mask):
+        if not voiced or not np.isfinite(val):
+            prev = None
+            continue
+        if prev is not None and abs(float(val) - prev) >= jump_threshold:
+            jump_count += 1
+        prev = float(val)
 
     return pitch_mean, pitch_std, int(jump_count)
 
 
 def _extract_physical_signal_states(audio: np.ndarray, sr: int) -> Dict[str, str]:
+    """
+    Fiziksel ses sinyal state'leri: speech_energy, speech_rate, pitch_stability.
+
+    [librosa.util.normalize → numpy; librosa.feature.rms → torch frame RMS]
+    """
     if audio.size == 0:
         return {
-            "speech_energy": "LOW",
-            "speech_rate": "SLOW",
+            "speech_energy":   "LOW",
+            "speech_rate":     "SLOW",
             "pitch_stability": "STABLE",
         }
 
-    # normalize to make thresholds less input-dependent
-    audio_norm = librosa.util.normalize(audio) if np.max(np.abs(audio)) > 0 else audio
+    # [librosa.util.normalize → numpy]
+    max_val    = float(np.max(np.abs(audio)))
+    audio_norm = (audio / max_val).astype(np.float32) if max_val > 0 else audio.astype(np.float32)
 
-    rms = librosa.feature.rms(y=audio_norm)[0]
-    rms_mean = float(np.mean(rms)) if rms.size else 0.0
+    # [librosa.feature.rms → torch frame RMS]
+    frame_len = 2048
+    hop_len   = 512
+    tensor    = torch.from_numpy(audio_norm).float()
+    if tensor.numel() < frame_len:
+        tensor = torch.nn.functional.pad(tensor, (0, frame_len - tensor.numel()))
+    frames  = tensor.unfold(0, frame_len, hop_len)
+    rms_arr = torch.sqrt(torch.mean(frames ** 2, dim=1) + _EPS).numpy()
+    rms_mean = float(np.mean(rms_arr)) if rms_arr.size else 0.0
 
     _, pitch_std, jump_count = _extract_pitch_stats(audio_norm, sr)
     onsets_per_sec = _estimate_onsets_per_second(audio_norm, sr)
 
     return {
-        "speech_energy": _energy_state(rms_mean),
-        "speech_rate": _speech_rate_state(onsets_per_sec),
+        "speech_energy":   _energy_state(rms_mean),
+        "speech_rate":     _speech_rate_state(onsets_per_sec),
         "pitch_stability": _pitch_stability_state(pitch_std, jump_count),
     }
 
@@ -370,8 +429,19 @@ class AudioSignalFusion:
             print(f"[AudioSignalFusion] Audio bulunamadı: {audio_path}")
             return []
 
-        y, sr = librosa.load(audio_path, sr=TARGET_SR, mono=True, dtype=np.float32)
-        duration = float(librosa.get_duration(y=y, sr=sr))
+        # [librosa.load → torchaudio.load + resample]
+        waveform, sr_orig = torchaudio.load(audio_path)
+        if sr_orig != TARGET_SR:
+            waveform = torchaudio.functional.resample(waveform, sr_orig, TARGET_SR)
+        sr = TARGET_SR
+
+        # Mono (HuBERT feature_extractor 1-D numpy array bekler)
+        if waveform.shape[0] > 1:
+            waveform = waveform.mean(dim=0, keepdim=True)
+        y = waveform.squeeze(0).numpy().astype(np.float32)
+
+        # [librosa.get_duration → len / sr]
+        duration = float(len(y)) / float(sr)
         if duration <= 0:
             return []
 
@@ -406,11 +476,11 @@ class AudioSignalFusion:
             timeline.append(
                 {
                     "start": round(cursor, 2),
-                    "end": round(cursor + CHUNK_SEC, 2),
-                    "valence_state": val_state,
-                    "arousal_state": aro_state,
-                    "speech_energy": phys["speech_energy"],
-                    "speech_rate": phys["speech_rate"],
+                    "end":   round(cursor + CHUNK_SEC, 2),
+                    "valence_state":   val_state,
+                    "arousal_state":   aro_state,
+                    "speech_energy":   phys["speech_energy"],
+                    "speech_rate":     phys["speech_rate"],
                     "pitch_stability": phys["pitch_stability"],
                     # Debug değerler (rapora yazdırmak zorunlu değil)
                     "debug": {
@@ -418,8 +488,8 @@ class AudioSignalFusion:
                         "arousal_score_raw": round(proj.get("arousal_score", 0.0), 3),
                         "valence_score_ema": round(float(val_ema), 3),
                         "arousal_score_ema": round(float(aro_ema), 3),
-                        "ser_top_label": proj.get("top_label", ""),
-                        "ser_top_score": round(proj.get("top_score", 0.0), 3),
+                        "ser_top_label":     proj.get("top_label", ""),
+                        "ser_top_score":     round(proj.get("top_score", 0.0), 3),
                     },
                 }
             )
@@ -436,24 +506,23 @@ class AudioSignalFusion:
     def get_summary(timeline: List[Dict]) -> Dict:
         if not timeline:
             return {
-                "total_chunks": 0,
+                "total_chunks":        0,
                 "valence_distribution": {},
                 "arousal_distribution": {},
-                "dominant_valence": "Veri Yok",
-                "dominant_arousal": "Veri Yok",
+                "dominant_valence":    "Veri Yok",
+                "dominant_arousal":    "Veri Yok",
             }
 
         from collections import Counter
 
-        valences = [t.get("valence_state", "") for t in timeline]
-        arousals = [t.get("arousal_state", "") for t in timeline]
+        valences  = [t.get("valence_state", "") for t in timeline]
+        arousals  = [t.get("arousal_state", "") for t in timeline]
         v_counter = Counter(valences)
         a_counter = Counter(arousals)
         return {
-            "total_chunks": len(timeline),
+            "total_chunks":        len(timeline),
             "valence_distribution": dict(v_counter),
             "arousal_distribution": dict(a_counter),
-            "dominant_valence": v_counter.most_common(1)[0][0] if v_counter else "Veri Yok",
-            "dominant_arousal": a_counter.most_common(1)[0][0] if a_counter else "Veri Yok",
+            "dominant_valence":    v_counter.most_common(1)[0][0] if v_counter else "Veri Yok",
+            "dominant_arousal":    a_counter.most_common(1)[0][0] if a_counter else "Veri Yok",
         }
-

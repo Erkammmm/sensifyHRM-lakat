@@ -1,16 +1,17 @@
 """
 Ana Pipeline Modülü
 Tüm analiz adımlarını koordine eder:
-  1) Metin Analizi (Whisper + Türkçe BERT)
-  2) Ses Duygu Analizi (HuBERT SER)
-  3) Yüz Analizi (MediaPipe blendshape)
-  4) Ham Ses Özellikleri (Librosa)
-  5) Tutarsızlık Analizi
+  1) Metin Analizi (Whisper STT + ThoughtUnitMerger)
+  2) Ses Sinyal Analizi (HuBERT SER + torchaudio)
+  3) Ham Ses Özellikleri (VoiceAnalyzer — torchaudio)
+  4) Yüz Analizi (UniFace: RetinaFace + DDAMFN + MobileGaze)
+  5) Contextual Aggregator → LLM Segment Paketleri
 """
 
 import os
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Optional
 from collections import Counter
 
@@ -163,47 +164,88 @@ class InterviewAnalysisPipeline:
 
         # 0) Video bilgileri
         print("[Adım 0/5] Video bilgileri alınıyor...")
+        _t0 = time.time()
         video_info = self.video_processor.get_video_info(video_path)
+        print(f"[TIMING] VideoProcessor.get_video_info: {time.time() - _t0:.1f}s")
 
-        # 1) Ses çıkarma + Ham ses özellikleri (librosa)
-        print("[Adım 1/5] Ses çıkarılıyor ve ham özellikler hesaplanıyor...")
+        # 1) Ses çıkarma (sequential — audio_path diğer adımlar için gerekli)
+        print("[Adım 1/5] Ses çıkarılıyor...")
+        _t0 = time.time()
         audio_path = self.video_processor.extract_audio(video_path)
-        voice_analysis = self.voice_analyzer.analyze_audio(audio_path)
+        print(f"[TIMING] VideoProcessor.extract_audio: {time.time() - _t0:.1f}s")
 
-        # 2) Metin analizi (STT + (v2) sentiment)
-        # Not: MP4 decode bağımlılıklarını azaltmak için STT'yi çıkarılmış WAV üzerinden çalıştırıyoruz.
+        # 2) Metin analizi — sequential (Whisper tam GPU gerektirir)
         print("[Adım 2/5] Metin analizi yapılıyor (STT)...")
+        _t0 = time.time()
         text_data = self.text_analyzer.process_video(audio_path, phase3_enabled=bool(phase3_enabled))
         text_summary = self.text_analyzer.get_summary(text_data)
+        print(f"[TIMING] TextAnalyzer.process_video: {time.time() - _t0:.1f}s")
 
         thought_units = []
         if phase3_enabled:
             thought_units = merge_into_thought_units(text_data)
 
-        # 3) Ses analizi
+        # 3+4) Paralel: VoiceAnalyzer (CPU) + AudioSignalFusion (HuBERT GPU) + FaceAnalyzer (ONNX GPU)
         audio_emotion_data = []
         audio_emotion_summary = {}
         audio_signal_data = []
         audio_signal_summary = {}
+        voice_analysis = []
+        face_timeline, face_summary = [], {}
 
         if phase3_enabled:
-            print("[Adım 3/5] Ses sinyal analizi yapılıyor (HuBERT SER projection + librosa)...")
-            fusion = self._get_audio_signal_fusion()
-            audio_signal_data = fusion.process_audio(audio_path)
-            audio_signal_summary = fusion.get_summary(audio_signal_data)
+            print("[Adım 3-4/5] Paralel analiz basliyor: VoiceAnalyzer + AudioSignalFusion + FaceAnalyzer...")
+            _t_parallel = time.time()
+
+            def _run_voice():
+                _t = time.time()
+                result = self.voice_analyzer.analyze_audio(audio_path)
+                print(f"[TIMING] VoiceAnalyzer.analyze_audio: {time.time() - _t:.1f}s")
+                return result
+
+            def _run_audio_signal():
+                _t = time.time()
+                fusion = self._get_audio_signal_fusion()
+                data = fusion.process_audio(audio_path)
+                summary = fusion.get_summary(data)
+                print(f"[TIMING] AudioSignalFusion.process_audio: {time.time() - _t:.1f}s")
+                return data, summary
+
+            def _run_face():
+                _t = time.time()
+                timeline, summary = self.face_analyzer.process_video(
+                    video_path, phase3_enabled=True
+                )
+                print(f"[TIMING] FaceAnalyzer.process_video: {time.time() - _t:.1f}s")
+                return timeline, summary
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                fut_voice  = executor.submit(_run_voice)
+                fut_audio  = executor.submit(_run_audio_signal)
+                fut_face   = executor.submit(_run_face)
+
+                voice_analysis              = fut_voice.result()
+                audio_signal_data, audio_signal_summary = fut_audio.result()
+                face_timeline, face_summary = fut_face.result()
+
+            print(f"[TIMING] Paralel blok toplam: {time.time() - _t_parallel:.1f}s")
         else:
             print("[Adım 3/5] Ses duygu analizi yapılıyor (HuBERT SER)...")
+            _t0 = time.time()
             audio_emotion_data = self.audio_analyzer.process_video(video_path)
             audio_emotion_summary = self.audio_analyzer.get_summary(audio_emotion_data)
+            print(f"[TIMING] AudioAnalyzer.process_video: {time.time() - _t0:.1f}s")
 
-        # 4) Görsel analiz (MediaPipe)
-        if phase3_enabled:
-            print("[Adım 4/5] Görsel sinyal analizi yapılıyor (MediaPipe)...")
-        else:
-            print("[Adım 4/5] Yüz analizi yapılıyor (MediaPipe)...")
-        face_timeline, face_summary = self.face_analyzer.process_video(
-            video_path, phase3_enabled=bool(phase3_enabled)
-        )
+            print("[Adım 4/5] Yüz analizi yapılıyor (UniFace)...")
+            _t0 = time.time()
+            face_timeline, face_summary = self.face_analyzer.process_video(
+                video_path, phase3_enabled=False
+            )
+            print(f"[TIMING] FaceAnalyzer.process_video: {time.time() - _t0:.1f}s")
+
+            _t0 = time.time()
+            voice_analysis = self.voice_analyzer.analyze_audio(audio_path)
+            print(f"[TIMING] VoiceAnalyzer.analyze_audio: {time.time() - _t0:.1f}s")
 
         # 5) Tutarsızlık analizi
         anomalies = []
@@ -213,15 +255,22 @@ class InterviewAnalysisPipeline:
             print("[Adım 5/5] Tutarsızlık analizi yapılıyor...")
             anomalies = find_anomalies(text_data, face_timeline)
 
-        # FAZ-3 Contextual Aggregator: Segment Signal Packages (LLM input)
+        # FAZ-4 Contextual Aggregator: Segment Signal Packages (LLM input)
         segment_signal_packages = []
         if phase3_enabled:
-            print("[FAZ-3] Contextual Aggregator: segment paketleri oluşturuluyor...")
+            print("[FAZ-4] Contextual Aggregator: segment paketleri oluşturuluyor...")
+            _t0 = time.time()
             segment_signal_packages = build_segment_signal_packages(
                 text_segments=thought_units or text_data,
                 audio_signal_timeline=audio_signal_data,
-                visual_signal_timeline=face_timeline,
+                face_timeline=face_timeline,
+                voice_timeline=(
+                    voice_analysis.get("per_second_timeline", [])
+                    if isinstance(voice_analysis, dict)
+                    else (voice_analysis if isinstance(voice_analysis, list) else [])
+                ),
             )
+            print(f"[TIMING] ContextualAggregator.build: {time.time() - _t0:.1f}s")
 
         # Geçici ses dosyasını temizle
         if os.path.exists(audio_path):

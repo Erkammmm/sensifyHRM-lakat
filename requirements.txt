@@ -7,9 +7,8 @@
 opencv-python>=4.8.0
 ffmpeg-python>=0.2.0
 
-# --- Yüz / Bakış Analizi (MediaPipe) ---
-mediapipe==0.10.9
-protobuf==3.20.3
+# --- Yüz / Bakış Analizi (UniFace: RetinaFace + DDAMFN + MobileGaze) ---
+uniface>=3.0.0
 
 # --- Metin Analizi (Whisper STT + Türkçe BERT) ---
 openai-whisper>=20231117

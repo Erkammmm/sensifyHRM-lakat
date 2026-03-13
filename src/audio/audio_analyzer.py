@@ -1,3 +1,4 @@
+# LEGACY: FAZ-2 only — not used in phase3 pipeline. Do not import from phase3 code.
 """
 Ses Duygu Analizi Modülü
 HuBERT tabanlı Türkçe SER modeli ile ses duygu tahmini yapar (legacy / v2).

@@ -4,6 +4,7 @@ HTML + JSON rapor üretir, matplotlib grafikleri embed eder.
 """
 
 import os
+import re
 import json
 import math
 import base64
@@ -188,66 +189,88 @@ class ReportGenerator:
                     "</tr>"
                 )
 
-        template_name = "report_v3.html" if is_phase3 else "report_v2.html"
-        template = self.template_env.get_template(template_name)
-        html = template.render(
-            interview_id=interview_id,
-            phase=phase,
-            is_phase3=is_phase3,
-            analysis_date=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
-            duration_seconds=f"{duration:.2f}",
-            video_fps=video_info.get("fps", 0),
-            video_resolution=f'{video_info.get("width", 0)}x{video_info.get("height", 0)}',
-            video_duration=f'{video_info.get("duration_seconds", 0):.1f}',
-            # Yüz
-            focus_score=f'{face_summary.get("focus_score", 0):.1f}',
-            blink_rate=f'{face_summary.get("blink_rate_per_min", 0):.1f}',
-            dominant_face_emotion=face_summary.get("dominant_emotion", "?"),
-            total_blinks=face_summary.get("total_blinks", 0),
-            # FAZ-3 sinyaller
-            dominant_valence=audio_signal_summary.get("dominant_valence", "?"),
-            dominant_arousal=audio_signal_summary.get("dominant_arousal", "?"),
-            dominant_facial_state=face_summary.get("dominant_emotion", "?"),
-            # Metin
-            total_sentences=text_summary.get("total_sentences", 0),
-            dominant_sentiment=text_summary.get("dominant_sentiment", "?"),
-            positive_pct=text_summary.get("sentiment_percentages", {}).get("positive", 0),
-            negative_pct=text_summary.get("sentiment_percentages", {}).get("negative", 0),
-            # Ses duygu
-            dominant_audio_emotion=audio_summary.get("dominant_emotion", "?"),
-            audio_avg_confidence=f'{audio_summary.get("avg_confidence", 0):.2f}',
-            audio_total_chunks=audio_summary.get("total_chunks", 0),
-            # Ses özellikleri
-            speech_seconds=f'{ss.get("total_speech_seconds", 0):.1f}',
-            silence_seconds=f'{ss.get("total_silence_seconds", 0):.1f}',
-            speech_ratio=f'{ss.get("speech_silence_ratio", 0):.2f}',
-            avg_silence=f'{ss.get("average_silence_seconds", 0):.2f}',
-            rms_mean=f'{voice_raw.get("energy_rms", {}).get("mean", 0):.4f}',
-            pitch_mean=f'{voice_raw.get("pitch_f0", {}).get("mean", 0):.1f}',
-            pitch_var=f'{voice_raw.get("pitch_f0", {}).get("variability", 0):.1f}',
-            # Anomaliler
-            anomaly_count=len(anomalies),
-            anomaly_rows=anomaly_rows,
-            # Metin tablosu
-            text_table_rows=text_table_rows,
-            text_table_phase3=is_phase3,
-            # Grafikler
-            charts_html=charts_html,
-            # AI
-            ai_hr_text=formatted_ai,
-            # FAZ-3 parsed AI sections (dashboard)
-            critical_cards_html=critical_cards_html,
-            exec_summary_html=exec_summary_html,
-            soft_skill_cards_html=soft_skill_cards_html,
-            thought_rows=thought_rows,
-            thought_count=len(thought_units) if thought_units else 0,
-            v3_confidence=v3_scores.get("confidence", 50),
-            v3_stress_control=v3_scores.get("stress_control", 50),
-            v3_communication=v3_scores.get("communication", 50),
-            # FAZ-3 explainability table
-            segment_rows=segment_rows,
-            segment_count=len(segment_packages) if segment_packages else 0,
-        )
+        if is_phase3:
+            faz4 = _compute_faz4_dashboard_data(segment_packages)
+            ai_report_html = _format_ai_report_html(ai_text)
+            template = self.template_env.get_template("report_v3.html")
+            html = template.render(
+                interview_id=interview_id,
+                analysis_date=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+                video_duration=f'{video_info.get("duration_seconds", 0):.1f}',
+                # Kart 1 — Göz Teması
+                gaze_label=faz4["gaze_label"],
+                gaze_card_class=faz4["gaze_card_class"],
+                gaze_focus_pct=faz4["gaze_focus_pct"],
+                gaze_aversion_ts=faz4["gaze_aversion_ts"],
+                # Kart 2 — Ses Güveni
+                speech_label=faz4["speech_label"],
+                speech_card_class=faz4["speech_card_class"],
+                avg_speech_confidence=faz4["avg_speech_confidence"],
+                conf_drop_ts=faz4["conf_drop_ts"],
+                # Kart 3 — Duygusal Denge
+                emotion_label=faz4["emotion_label"],
+                emotion_card_class=faz4["emotion_card_class"],
+                crit_count=faz4["crit_count"],
+                crit_timestamps=faz4["crit_timestamps"],
+                # Chart.js veri (JSON dizileri)
+                chart_labels_json=json.dumps(faz4["chart_labels"], ensure_ascii=False),
+                chart_emotion_colors_json=json.dumps(faz4["chart_emotion_colors"]),
+                chart_emotion_band_json=json.dumps(faz4["chart_emotion_band"]),
+                chart_gaze_json=json.dumps(faz4["chart_gaze"]),
+                chart_speech_json=json.dumps(faz4["chart_speech"]),
+                chart_critical_json=json.dumps(faz4["chart_critical"]),
+                # LLM raporu
+                ai_report_html=ai_report_html,
+            )
+        else:
+            template = self.template_env.get_template("report_v2.html")
+            html = template.render(
+                interview_id=interview_id,
+                phase=phase,
+                is_phase3=False,
+                analysis_date=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+                duration_seconds=f"{duration:.2f}",
+                video_fps=video_info.get("fps", 0),
+                video_resolution=f'{video_info.get("width", 0)}x{video_info.get("height", 0)}',
+                video_duration=f'{video_info.get("duration_seconds", 0):.1f}',
+                focus_score=f'{face_summary.get("focus_score", 0):.1f}',
+                blink_rate=f'{face_summary.get("blink_rate_per_min", 0):.1f}',
+                dominant_face_emotion=face_summary.get("dominant_emotion", "?"),
+                total_blinks=face_summary.get("total_blinks", 0),
+                dominant_valence=audio_signal_summary.get("dominant_valence", "?"),
+                dominant_arousal=audio_signal_summary.get("dominant_arousal", "?"),
+                dominant_facial_state=face_summary.get("dominant_emotion", "?"),
+                total_sentences=text_summary.get("total_sentences", 0),
+                dominant_sentiment=text_summary.get("dominant_sentiment", "?"),
+                positive_pct=text_summary.get("sentiment_percentages", {}).get("positive", 0),
+                negative_pct=text_summary.get("sentiment_percentages", {}).get("negative", 0),
+                dominant_audio_emotion=audio_summary.get("dominant_emotion", "?"),
+                audio_avg_confidence=f'{audio_summary.get("avg_confidence", 0):.2f}',
+                audio_total_chunks=audio_summary.get("total_chunks", 0),
+                speech_seconds=f'{ss.get("total_speech_seconds", 0):.1f}',
+                silence_seconds=f'{ss.get("total_silence_seconds", 0):.1f}',
+                speech_ratio=f'{ss.get("speech_silence_ratio", 0):.2f}',
+                avg_silence=f'{ss.get("average_silence_seconds", 0):.2f}',
+                rms_mean=f'{voice_raw.get("energy_rms", {}).get("mean", 0):.4f}',
+                pitch_mean=f'{voice_raw.get("pitch_f0", {}).get("mean", 0):.1f}',
+                pitch_var=f'{voice_raw.get("pitch_f0", {}).get("variability", 0):.1f}',
+                anomaly_count=len(anomalies),
+                anomaly_rows=anomaly_rows,
+                text_table_rows=text_table_rows,
+                text_table_phase3=False,
+                charts_html=charts_html,
+                ai_hr_text=formatted_ai,
+                critical_cards_html="",
+                exec_summary_html="",
+                soft_skill_cards_html="",
+                thought_rows="",
+                thought_count=0,
+                v3_confidence=50,
+                v3_stress_control=50,
+                v3_communication=50,
+                segment_rows="",
+                segment_count=0,
+            )
 
         html_path = os.path.join(self.reports_dir, f"report_{interview_id}.html")
         with open(html_path, "w", encoding="utf-8") as f:
@@ -619,6 +642,191 @@ def _render_soft_skill_cards(section_text: str, max_items: int = 8) -> str:
             "</div>"
         )
     return "\n".join(cards)
+
+
+# =====================================================================
+# FAZ-4 Dashboard Yardımcıları
+# =====================================================================
+
+def _compute_faz4_dashboard_data(segment_packages: List[Dict]) -> Dict:
+    """3 davranışsal kart ve Chart.js veri dizilerini segment paketlerinden hesaplar."""
+    _empty = {
+        "gaze_label": "Veri Yok", "gaze_card_class": "warn",
+        "gaze_focus_pct": "-%", "gaze_aversion_ts": "—",
+        "speech_label": "Veri Yok", "speech_card_class": "warn",
+        "avg_speech_confidence": "-", "conf_drop_ts": "—",
+        "emotion_label": "Veri Yok", "emotion_card_class": "warn",
+        "crit_count": 0, "crit_timestamps": "—",
+        "chart_labels": [], "chart_emotion_colors": [],
+        "chart_emotion_band": [], "chart_gaze": [],
+        "chart_speech": [], "chart_critical": [],
+    }
+    if not segment_packages:
+        return _empty
+
+    n = len(segment_packages)
+
+    # ── Kart 1: Göz Teması ──────────────────────────────────────────────
+    # gaze_away: prefer pre-computed field, fall back to gaze_direction
+    def _is_away(p: Dict) -> bool:
+        if "gaze_away" in p:
+            return bool(p["gaze_away"])
+        return p.get("gaze_direction", "center") != "center"
+
+    center_count = sum(1 for p in segment_packages if not _is_away(p))
+    gaze_focus_num = round(center_count / n * 100)
+    gaze_focus_pct = f"{gaze_focus_num}%"
+
+    if gaze_focus_num > 70:
+        gaze_label, gaze_card_class = "Yüksek", "accent2"
+    elif gaze_focus_num >= 40:
+        gaze_label, gaze_card_class = "Orta", "warn"
+    else:
+        gaze_label, gaze_card_class = "Düşük", "danger"
+
+    # First sustained aversion: 3+ consecutive gaze_away segments
+    gaze_aversion_ts = "—"
+    run_start = None
+    run_len = 0
+    for i, p in enumerate(segment_packages):
+        if _is_away(p):
+            if run_start is None:
+                run_start = i
+            run_len += 1
+            if run_len == 3:
+                ts_raw = segment_packages[run_start].get("timestamp", "")
+                gaze_aversion_ts = ts_raw.split(" - ")[0] if ts_raw else "—"
+                break
+        else:
+            run_start = None
+            run_len = 0
+
+    # ── Kart 2: Ses Güveni ──────────────────────────────────────────────
+    conf_vals = [float(p.get("speech_confidence", 0)) for p in segment_packages]
+    avg_conf = sum(conf_vals) / len(conf_vals) if conf_vals else 0.0
+
+    if avg_conf > 0.75:
+        speech_label, speech_card_class = "Kararlı", "accent2"
+    elif avg_conf >= 0.5:
+        speech_label, speech_card_class = "Orta", "warn"
+    else:
+        speech_label, speech_card_class = "Zayıf", "danger"
+
+    # Biggest single-step confidence drop
+    conf_drop_ts = "—"
+    if len(conf_vals) >= 2:
+        max_drop = 0.0
+        for i in range(1, len(conf_vals)):
+            drop = conf_vals[i - 1] - conf_vals[i]
+            if drop > max_drop:
+                max_drop = drop
+                ts_raw = segment_packages[i].get("timestamp", "")
+                conf_drop_ts = ts_raw.split(" - ")[0] if ts_raw else "—"
+
+    # ── Kart 3: Duygusal Denge ──────────────────────────────────────────
+    critical_segs = [p for p in segment_packages if p.get("is_critical_moment", False)]
+    crit_count = len(critical_segs)
+
+    if crit_count == 0:
+        emotion_label, emotion_card_class = "Dengeli", "accent2"
+    elif crit_count <= 2:
+        emotion_label, emotion_card_class = "Dikkat", "warn"
+    else:
+        emotion_label, emotion_card_class = "Gergin", "danger"
+
+    crit_tss = [p.get("timestamp", "").split(" - ")[0] for p in critical_segs[:5] if p.get("timestamp")]
+    crit_timestamps = ", ".join(crit_tss) if crit_tss else "—"
+
+    # ── Chart.js veri dizileri ──────────────────────────────────────────
+    _emotion_color = {
+        "Happy":   "rgba(52,211,153,0.7)",
+        "Surprise":"rgba(52,211,153,0.7)",
+        "Neutral": "rgba(107,114,128,0.5)",
+        "Sad":     "rgba(96,165,250,0.7)",
+        "Fear":    "rgba(251,113,133,0.7)",
+        "Angry":   "rgba(251,113,133,0.7)",
+        "Disgust": "rgba(251,113,133,0.7)",
+    }
+
+    chart_labels         = [p.get("timestamp", f"{float(p.get('start',0)):.0f}s").split(" - ")[0]
+                            for p in segment_packages]
+    chart_emotion_colors = [_emotion_color.get(p.get("dominant_emotion", "Neutral"), "rgba(107,114,128,0.5)")
+                            for p in segment_packages]
+    chart_emotion_band   = [1.0] * n           # constant height; color comes from backgroundColor array
+    chart_gaze           = [0 if _is_away(p) else 1 for p in segment_packages]
+    chart_speech         = [round(float(p.get("speech_confidence", 0)), 2) for p in segment_packages]
+    chart_critical       = [1 if p.get("is_critical_moment", False) else 0 for p in segment_packages]
+
+    return {
+        "gaze_label": gaze_label, "gaze_card_class": gaze_card_class,
+        "gaze_focus_pct": gaze_focus_pct, "gaze_aversion_ts": gaze_aversion_ts,
+        "speech_label": speech_label, "speech_card_class": speech_card_class,
+        "avg_speech_confidence": f"{avg_conf:.2f}", "conf_drop_ts": conf_drop_ts,
+        "emotion_label": emotion_label, "emotion_card_class": emotion_card_class,
+        "crit_count": crit_count, "crit_timestamps": crit_timestamps,
+        "chart_labels": chart_labels,
+        "chart_emotion_colors": chart_emotion_colors,
+        "chart_emotion_band": chart_emotion_band,
+        "chart_gaze": chart_gaze,
+        "chart_speech": chart_speech,
+        "chart_critical": chart_critical,
+    }
+
+
+def _md_bold(s: str) -> str:
+    """**metin** → <strong>metin</strong>"""
+    return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', s)
+
+
+def _format_ai_report_html(ai_text: str) -> str:
+    """LLM markdown çıktısını temiz HTML'e dönüştürür (## başlıklar, - maddeler, paragraflar)."""
+    if not ai_text:
+        return "<p>Analiz metni mevcut değil.</p>"
+
+    parts: List[str] = []
+    in_list = False
+
+    for raw in ai_text.replace("\r\n", "\n").split("\n"):
+        line = raw.rstrip()
+        stripped = line.strip()
+
+        if stripped.startswith("## "):
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            heading = _escape_html(stripped[3:].strip())
+            parts.append(f'<h2 class="ai-section">{heading}</h2>')
+
+        elif stripped.startswith("### "):
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            heading = _escape_html(stripped[4:].strip())
+            parts.append(f'<h3 class="ai-subsection">{heading}</h3>')
+
+        elif stripped.startswith(("- ", "* ", "• ")):
+            if not in_list:
+                parts.append('<ul class="ai-list">')
+                in_list = True
+            item = _md_bold(_escape_html(stripped[2:].strip()))
+            parts.append(f"<li>{item}</li>")
+
+        elif stripped == "":
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+
+        else:
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            paragraph = _md_bold(_escape_html(stripped))
+            parts.append(f"<p>{paragraph}</p>")
+
+    if in_list:
+        parts.append("</ul>")
+
+    return "\n".join(parts)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+# NOTE: librosa import here is intentional — used for audio preprocessing before Whisper. Do not remove.
 """
 Metin Analizi Modülü
 Phase-2 (legacy davranış): STT + Türkçe BERT sentiment

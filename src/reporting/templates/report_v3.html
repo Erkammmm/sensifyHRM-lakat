@@ -3,139 +3,408 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SensifyHR v3.0 Raporu - {{ interview_id }}</title>
+  <title>SensifyHR — Davranışsal Analiz Raporu</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
-    :root{
-      --bg:#0b1220;
-      --card:#0f1a33;
-      --card2:#0c152b;
-      --text:#e8eefc;
-      --muted:#a9b6d3;
-      --accent:#7c5cff;
-      --accent2:#34d399;
-      --danger:#fb7185;
-      --warn:#fbbf24;
-      --border:rgba(255,255,255,.08);
+    :root {
+      --bg: #0b1220;
+      --card: #0f1a33;
+      --text: #e8eefc;
+      --muted: #a9b6d3;
+      --accent: #7c5cff;
+      --accent2: #34d399;
+      --danger: #fb7185;
+      --warn: #fbbf24;
+      --border: rgba(255,255,255,.08);
+      --radius: 14px;
     }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Segoe UI Emoji";
-      background: radial-gradient(1200px 800px at 10% 10%, rgba(124,92,255,.18), transparent 60%),
-                  radial-gradient(1000px 700px at 90% 20%, rgba(52,211,153,.14), transparent 55%),
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 10% 10%, rgba(124,92,255,.15), transparent 60%),
+                  radial-gradient(1000px 700px at 90% 20%, rgba(52,211,153,.10), transparent 55%),
                   var(--bg);
-      color:var(--text);
-      padding:28px;
+      color: var(--text);
+      padding: 32px 24px;
+      min-height: 100vh;
     }
-    .container{max-width:1200px;margin:0 auto}
-    .header{
-      display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
-      margin-bottom:18px;
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    /* ── Header ── */
+    .header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 16px; margin-bottom: 32px;
     }
-    .title h1{margin:0;font-size:26px;letter-spacing:.2px}
-    .title p{margin:6px 0 0;color:var(--muted)}
-    .badge{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:8px 12px;border:1px solid var(--border); border-radius:999px;
-      background:rgba(255,255,255,.03); color:var(--muted); font-size:13px;
+    .header h1 { font-size: 24px; font-weight: 700; letter-spacing: .2px; }
+    .header .meta { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .header .tag {
+      padding: 6px 14px; border-radius: 999px;
+      border: 1px solid rgba(124,92,255,.4);
+      background: rgba(124,92,255,.12);
+      color: #c4b5fd; font-size: 13px; white-space: nowrap;
     }
-    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
-    .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
-      border:1px solid var(--border);
-      border-radius:14px;
-      padding:16px;
-      box-shadow:0 10px 30px rgba(0,0,0,.25);
+
+    /* ── Section labels ── */
+    .section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 12px;
     }
-    .kpi{display:flex;flex-direction:column;gap:8px}
-    .kpi .label{color:var(--muted);font-size:12px}
-    .kpi .value{font-size:22px;font-weight:700}
-    .kpi .hint{color:var(--muted);font-size:12px}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--muted)}
-    .pill.ok{color:#b7f7d6;border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.08)}
-    .pill.warn{color:#fde68a;border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.08)}
-    .pill.bad{color:#fecdd3;border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.08)}
-    .tabs{margin-top:10px}
-    .tabs input{display:none}
-    .tab-labels{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-    .tab-labels label{
-      cursor:pointer;
-      padding:10px 12px;border-radius:10px;border:1px solid var(--border);
-      background:rgba(255,255,255,.03); color:var(--muted);
-      font-size:13px; user-select:none;
+
+    /* ── Behavioral cards (3-column) ── */
+    .bcard-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
     }
-    #tab1:checked ~ .tab-labels label[for="tab1"],
-    #tab2:checked ~ .tab-labels label[for="tab2"],
-    #tab3:checked ~ .tab-labels label[for="tab3"]{
-      color:var(--text);
-      border-color:rgba(124,92,255,.5);
-      background:rgba(124,92,255,.14);
+    @media (max-width: 750px) { .bcard-grid { grid-template-columns: 1fr; } }
+
+    .bcard {
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 20px 18px;
+      display: flex; flex-direction: column; gap: 6px;
     }
-    .tab-content{display:none}
-    #tab1:checked ~ .contents #content1{display:block}
-    #tab2:checked ~ .contents #content2{display:block}
-    #tab3:checked ~ .contents #content3{display:block}
-    h2{margin:0 0 10px;font-size:16px}
-    h3{margin:14px 0 8px;font-size:14px;color:var(--muted);font-weight:600}
-    .muted{color:var(--muted)}
-    table{width:100%;border-collapse:collapse;font-size:13px}
-    th,td{padding:10px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top}
-    th{color:var(--muted);font-weight:600;text-align:left}
-    tr:hover td{background:rgba(255,255,255,.03)}
-    .ai{background:linear-gradient(180deg, rgba(124,92,255,.10), rgba(255,255,255,.02));border:1px solid rgba(124,92,255,.25);}
-    .cards{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
-    .card-mini{grid-column:span 6;padding:14px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.03);}
-    .card-mini h4{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:700}
-    .card-mini .body{font-size:13px;line-height:1.65;color:var(--text)}
-    .list{margin:0;padding-left:18px}
-    .list li{margin:6px 0;color:var(--text)}
-    .footer{margin-top:16px;color:var(--muted);font-size:12px}
-    .chart-container{margin:12px 0}
-    .chart-container img{border-radius:12px;border:1px solid var(--border)}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace}
-    .badge{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.03);font-size:12px;white-space:nowrap}
-    .dot{width:10px;height:10px;border-radius:999px;display:inline-block}
-    .sev-good .dot{background:#2ecc71}
-    .sev-warn .dot{background:#f1c40f}
-    .sev-bad  .dot{background:#e74c3c}
-    .rings{display:flex;gap:14px;flex-wrap:wrap}
-    .ring{width:160px;height:160px;border-radius:999px;display:grid;place-items:center;background:conic-gradient(var(--accent) calc(var(--p) * 1%), rgba(255,255,255,.06) 0);border:1px solid var(--border);position:relative;}
-    .ring::after{content:"";position:absolute; inset:14px;background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(255,255,255,.02));border-radius:999px;border:1px solid rgba(255,255,255,.06);}
-    .ring .inner{position:relative; z-index:2; text-align:center}
-    .ring .pct{font-size:28px;font-weight:800}
-    .ring .name{font-size:12px;color:var(--muted);margin-top:4px}
+    .bcard.accent2 { border-color: rgba(52,211,153,.35); }
+    .bcard.warn    { border-color: rgba(251,191,36,.35); }
+    .bcard.danger  { border-color: rgba(251,113,133,.35); }
+
+    .bcard .bc-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .bcard .bc-label {
+      font-size: 26px; font-weight: 800; line-height: 1.1; margin-top: 2px;
+    }
+    .bcard.accent2 .bc-label { color: var(--accent2); }
+    .bcard.warn    .bc-label { color: var(--warn); }
+    .bcard.danger  .bc-label { color: var(--danger); }
+
+    .bcard .bc-metric {
+      font-size: 13px; color: var(--text); margin-top: 4px;
+    }
+    .bcard .bc-note {
+      font-size: 12px; color: var(--muted); margin-top: 2px;
+    }
+    .bcard .bc-note span {
+      font-family: monospace; color: #c4b5fd; font-size: 12px;
+    }
+
+    /* ── Chart section ── */
+    .chart-section {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin-bottom: 32px;
+    }
+    .chart-section .chart-title {
+      font-size: 15px; font-weight: 600; margin-bottom: 4px;
+    }
+    .chart-section .chart-subtitle {
+      font-size: 12px; color: var(--muted); margin-bottom: 20px;
+    }
+    .chart-wrapper { position: relative; height: 300px; }
+
+    /* Emotion legend */
+    .emo-legend {
+      display: flex; flex-wrap: wrap; gap: 10px 18px;
+      margin-top: 14px;
+    }
+    .emo-legend .emo-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--muted);
+    }
+    .emo-legend .emo-dot {
+      width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0;
+    }
+
+    /* ── LLM report section ── */
+    .ai-section-card {
+      background: linear-gradient(180deg, rgba(124,92,255,.08), rgba(255,255,255,.02));
+      border: 1px solid rgba(124,92,255,.2);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+    .ai-section-card .ai-section {
+      font-size: 17px; font-weight: 700;
+      color: #c4b5fd;
+      margin: 24px 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(124,92,255,.2);
+    }
+    .ai-section-card .ai-section:first-child { margin-top: 0; }
+    .ai-section-card .ai-subsection {
+      font-size: 14px; font-weight: 600; color: var(--muted);
+      margin: 14px 0 6px;
+    }
+    .ai-section-card p {
+      font-size: 14px; line-height: 1.75; color: var(--text);
+      margin-bottom: 10px;
+    }
+    .ai-list {
+      padding-left: 20px; margin: 8px 0 14px;
+    }
+    .ai-list li {
+      font-size: 14px; line-height: 1.7; color: var(--text);
+      margin-bottom: 6px;
+    }
+    .ai-section-card strong { color: #f0e6ff; }
+
+    /* ── No-data ── */
+    .no-data {
+      color: var(--muted); font-size: 14px; padding: 24px 0;
+      text-align: center;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 28px; color: var(--muted); font-size: 12px;
+      text-align: center;
+    }
   </style>
 </head>
 
 <body>
-  <div class="container">
-    <div class="header">
-      <div class="title">
-        <h1>SensifyHR v3.0 – Davranışsal Sinyal Raporu</h1>
-        <p class="muted">Mülakat ID: <span class="mono">{{ interview_id }}</span> • Süre: {{ duration_seconds }}s • Tarih: {{ analysis_date }}</p>
-      </div>
-      <div class="badge">
-        <span>Phase:</span>
-        <strong>v3</strong>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>SensifyHR — Davranışsal Analiz Raporu</h1>
+      <div class="meta">
+        ID: {{ interview_id }} &nbsp;·&nbsp; Video: {{ video_duration }}s &nbsp;·&nbsp; {{ analysis_date }}
       </div>
     </div>
-
-    <div class="tabs">
-      <input type="radio" id="tab1" name="tabs" checked>
-      <input type="radio" id="tab2" name="tabs">
-      <input type="radio" id="tab3" name="tabs">
-
-      <div class="tab-labels">
-        <label for="tab1">Dashboard</label>
-        <label for="tab2">LLM Değerlendirme</label>
-        <label for="tab3">Detaylar</label>
-      </div>
-
-      <div class="contents">
-        <!-- Dashboard and content placeholders -->
-        {{ charts_html | safe }}
-      </div>
-    </div>
+    <div class="tag">FAZ-4</div>
   </div>
+
+  <!-- ═══════════════════════════════════════════
+       BÖLÜM 1 — Davranışsal Değerlendirme Kartları
+       ═══════════════════════════════════════════ -->
+  <div class="section-label">Davranışsal Özet</div>
+  <div class="bcard-grid">
+
+    <!-- Kart 1: Göz Teması -->
+    <div class="bcard {{ gaze_card_class }}">
+      <div class="bc-title">Göz Teması</div>
+      <div class="bc-label">{{ gaze_label }}</div>
+      <div class="bc-metric">{{ gaze_focus_pct }} kamera odağı</div>
+      {% if gaze_aversion_ts != '—' %}
+      <div class="bc-note">İlk uzun kaçınma: <span>{{ gaze_aversion_ts }}</span></div>
+      {% else %}
+      <div class="bc-note">Sürekli kaçınma tespit edilmedi</div>
+      {% endif %}
+    </div>
+
+    <!-- Kart 2: Ses Güveni -->
+    <div class="bcard {{ speech_card_class }}">
+      <div class="bc-title">Ses Güveni</div>
+      <div class="bc-label">{{ speech_label }}</div>
+      <div class="bc-metric">Ort. {{ avg_speech_confidence }} güven skoru</div>
+      {% if conf_drop_ts != '—' %}
+      <div class="bc-note">En büyük düşüş: <span>{{ conf_drop_ts }}</span></div>
+      {% else %}
+      <div class="bc-note">Belirgin düşüş tespit edilmedi</div>
+      {% endif %}
+    </div>
+
+    <!-- Kart 3: Duygusal Denge -->
+    <div class="bcard {{ emotion_card_class }}">
+      <div class="bc-title">Duygusal Denge</div>
+      <div class="bc-label">{{ emotion_label }}</div>
+      <div class="bc-metric">{{ crit_count }} kritik an</div>
+      {% if crit_timestamps != '—' %}
+      <div class="bc-note">Anlar: <span>{{ crit_timestamps }}</span></div>
+      {% else %}
+      <div class="bc-note">Kritik an gözlemlenmedi</div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       BÖLÜM 2 — Zaman Çizelgesi
+       ═══════════════════════════════════════════ -->
+  <div class="section-label">Davranışsal Zaman Çizelgesi</div>
+  <div class="chart-section">
+    <div class="chart-title">Duygu · Göz Teması · Konuşma Güveni</div>
+    <div class="chart-subtitle">
+      Renkli bantlar = duygu &nbsp;|&nbsp; Göz teması: 1 = kamera, 0 = kaçınma &nbsp;|&nbsp;
+      Konuşma güveni: 0 – 1 &nbsp;|&nbsp; Kırmızı çubuk = kritik an
+    </div>
+
+    {% if chart_labels_json != '[]' %}
+    <div class="chart-wrapper">
+      <canvas id="timelineChart"></canvas>
+    </div>
+
+    <!-- Duygu renk açıklaması -->
+    <div class="emo-legend">
+      <div class="emo-item">
+        <div class="emo-dot" style="background:rgba(52,211,153,0.7);"></div>
+        Happy / Surprise
+      </div>
+      <div class="emo-item">
+        <div class="emo-dot" style="background:rgba(107,114,128,0.5);"></div>
+        Neutral
+      </div>
+      <div class="emo-item">
+        <div class="emo-dot" style="background:rgba(96,165,250,0.7);"></div>
+        Sad
+      </div>
+      <div class="emo-item">
+        <div class="emo-dot" style="background:rgba(251,113,133,0.7);"></div>
+        Fear / Angry / Disgust
+      </div>
+      <div class="emo-item">
+        <div class="emo-dot" style="background:rgba(251,113,133,0.3); border:1px solid rgba(251,113,133,0.7);"></div>
+        Kritik An
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        const labels        = {{ chart_labels_json | safe }};
+        const emoColors     = {{ chart_emotion_colors_json | safe }};
+        const emoBand       = {{ chart_emotion_band_json | safe }};
+        const gaze          = {{ chart_gaze_json | safe }};
+        const speech        = {{ chart_speech_json | safe }};
+        const critical      = {{ chart_critical_json | safe }};
+
+        // Critical moments: map 1→1.05 for visibility at top of chart
+        const critBand = critical.map(v => v === 1 ? 1.0 : 0);
+
+        new Chart(document.getElementById('timelineChart'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                // Duygu bandı (renkli bar underlay)
+                type: 'bar',
+                label: 'Duygu',
+                data: emoBand,
+                backgroundColor: emoColors,
+                borderWidth: 0,
+                barPercentage: 1.0,
+                categoryPercentage: 1.0,
+                order: 10,
+                yAxisID: 'y',
+              },
+              {
+                // Kritik anlar (kırmızı bar overlay)
+                type: 'bar',
+                label: 'Kritik An',
+                data: critBand,
+                backgroundColor: 'rgba(251,113,133,0.35)',
+                borderColor: 'rgba(251,113,133,0.9)',
+                borderWidth: 1,
+                barPercentage: 1.0,
+                categoryPercentage: 1.0,
+                order: 9,
+                yAxisID: 'y',
+              },
+              {
+                // Göz teması binary (0 veya 1)
+                type: 'line',
+                label: 'Göz Teması',
+                data: gaze,
+                borderColor: 'rgba(52,211,153,1.0)',
+                backgroundColor: 'rgba(52,211,153,0.0)',
+                borderWidth: 2.5,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                stepped: 'before',
+                fill: false,
+                order: 2,
+                yAxisID: 'y',
+              },
+              {
+                // Konuşma güveni (0-1 sürekli)
+                type: 'line',
+                label: 'Konuşma Güveni',
+                data: speech,
+                borderColor: 'rgba(251,191,36,1.0)',
+                backgroundColor: 'rgba(251,191,36,0.0)',
+                borderWidth: 2.5,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                tension: 0.35,
+                fill: false,
+                order: 1,
+                yAxisID: 'y',
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: {
+                labels: {
+                  color: '#a9b6d3', font: { size: 12 },
+                  filter: function(item) {
+                    // Hide the emotion band dataset from legend (handled by emo-legend below)
+                    return item.text !== 'Duygu';
+                  }
+                }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(15,26,51,0.95)',
+                titleColor: '#e8eefc',
+                bodyColor: '#a9b6d3',
+                borderColor: 'rgba(255,255,255,0.1)',
+                borderWidth: 1,
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: '#a9b6d3', font: { size: 11 }, maxRotation: 45 },
+                grid: { color: 'rgba(255,255,255,0.04)' }
+              },
+              y: {
+                min: 0, max: 1.05,
+                ticks: {
+                  color: '#a9b6d3', font: { size: 11 },
+                  callback: function(v) {
+                    if (v === 0) return '0';
+                    if (v === 0.5) return '0.5';
+                    if (v === 1) return '1';
+                    return '';
+                  }
+                },
+                grid: { color: 'rgba(255,255,255,0.05)' }
+              }
+            }
+          }
+        });
+      })();
+    </script>
+    {% else %}
+    <div class="no-data">Zaman çizelgesi verisi bulunamadı.</div>
+    {% endif %}
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       BÖLÜM 3 — LLM Davranışsal Rapor
+       ═══════════════════════════════════════════ -->
+  <div class="section-label">Davranışsal Değerlendirme Raporu</div>
+  <div class="ai-section-card">
+    {% if ai_report_html %}
+      {{ ai_report_html | safe }}
+    {% else %}
+      <div class="no-data">LLM değerlendirme metni mevcut değil.</div>
+    {% endif %}
+  </div>
+
+  <div class="footer">
+    SensifyHR FAZ-4 &nbsp;·&nbsp; Davranışsal sinyal analizi — işe alım kararı üretmez.
+  </div>
+
+</div>
 </body>
 </html>
