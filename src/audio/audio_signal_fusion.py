@@ -110,17 +110,27 @@ class HuBERTSerProjector:
             self.config.classifier_proj_size = 1024
         self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_id)
         # Model yükle (head ağırlıkları eşleşmiyorsa manual remap fallback)
-        self.model, loading_info = AutoModelForAudioClassification.from_pretrained(
-            model_id,
-            trust_remote_code=True,
-            use_safetensors=True,
-            output_loading_info=True,
-            config=self.config,
-        )
+        # HubertForSpeechClassification → HubertForSequenceClassification sınıf farkından
+        # kaynaklanan "newly initialized weights" uyarısı beklenen bir durum; remap ile düzeltilir.
+        import transformers as _tf
+        _tf_logger = _tf.utils.logging.get_logger("transformers.modeling_utils")
+        _prev_level = _tf_logger.level
+        _tf_logger.setLevel("ERROR")
+        try:
+            self.model, loading_info = AutoModelForAudioClassification.from_pretrained(
+                model_id,
+                trust_remote_code=True,
+                use_safetensors=True,
+                output_loading_info=True,
+                config=self.config,
+            )
+        finally:
+            _tf_logger.setLevel(_prev_level)
         missing = set((loading_info or {}).get("missing_keys", []) or [])
         # Kritik head anahtarları missing ise sonuçlar rastgeleleşir -> remap ile tekrar yükle
         if any(k.startswith("classifier.") or k.startswith("projector.") for k in missing):
-            print("[HuBERTSerProjector] UYARI: classifier/projector ağırlıkları eksik görünüyor. Remap ile tekrar yükleniyor...")
+            if os.getenv("DEBUG") == "1":
+                print("[HuBERTSerProjector] DEBUG: classifier/projector keys remapping (expected for this checkpoint).")
             self.model = AutoModelForAudioClassification.from_config(self.config)
             state_dict = _download_and_load_state_dict(model_id)
             state_dict = _remap_classifier_keys(state_dict)
@@ -223,8 +233,8 @@ def _remap_classifier_keys(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
         nk = k
         if "classifier.dense" in k:
             nk = k.replace("classifier.dense", "projector")
-        elif "classifier.output" in k:
-            nk = k.replace("classifier.output", "classifier")
+        elif "classifier.out_proj" in k:
+            nk = k.replace("classifier.out_proj", "classifier")
         new_sd[nk] = v
     return new_sd
 

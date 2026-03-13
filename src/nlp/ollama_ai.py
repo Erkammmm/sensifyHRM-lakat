@@ -9,8 +9,13 @@ Kullanım:
 """
 
 import json
+import concurrent.futures
 from collections import Counter
 from typing import Dict, List, Optional
+
+_LLM_TIMEOUT_SEC = 90
+_LLM_FALLBACK    = "LLM analizi zaman aşımına uğradı — lütfen tekrar deneyin"
+_LLM_OPTIONS     = {"num_predict": 800, "temperature": 0.3}
 
 
 # Varsayılan model (12B parametre - en iyi sonuç)
@@ -164,6 +169,38 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
         chunk_size = max(1, int(chunk_size))
         return [items[i : i + chunk_size] for i in range(0, len(items), chunk_size)]
 
+    @staticmethod
+    def _select_representative(packages: List[Dict], n: int = 5) -> List[Dict]:
+        """First + last + 3 evenly-spaced middle segments."""
+        if len(packages) <= n:
+            return packages
+        mid_indices = [len(packages) // 4, len(packages) // 2, 3 * len(packages) // 4]
+        selected = [packages[0]] + [packages[i] for i in mid_indices] + [packages[-1]]
+        # deduplicate preserving order
+        seen, out = set(), []
+        for p in selected:
+            pid = p.get("segment_id", id(p))
+            if pid not in seen:
+                seen.add(pid)
+                out.append(p)
+        return out
+
+    def _chat(self, messages: List[Dict]) -> str:
+        """Chat call with timeout and fixed options. Returns fallback string on timeout."""
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                self._client.chat,
+                model=self.model_name,
+                messages=messages,
+                options=_LLM_OPTIONS,
+            )
+            try:
+                response = future.result(timeout=_LLM_TIMEOUT_SEC)
+                return (response.get("message", {}) or {}).get("content", "") or ""
+            except concurrent.futures.TimeoutError:
+                print(f"[OllamaAI] Zaman aşımı ({_LLM_TIMEOUT_SEC}s) — yanıt bekleniyor.")
+                return _LLM_FALLBACK
+
     def _load_phase3_prompt(self) -> str:
         """src/prompt_phase3.txt dosyasını okur."""
         import os
@@ -204,7 +241,14 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
         base_prompt = self._load_phase3_prompt()
         job_section = f"--- JOB DESCRIPTION ---\n{job_description}\n" if job_description else ""
 
-        chunks = self._chunk_list(segment_signal_packages, chunk_size=chunk_size)
+        # If too many segments, select representative subset before chunking
+        packages = segment_signal_packages
+        if len(packages) > 10:
+            packages = self._select_representative(packages, n=5)
+            print(f"[OllamaAI] Segment sayısı {len(segment_signal_packages)} > 10; "
+                  f"temsili {len(packages)} segment seçildi.")
+
+        chunks = self._chunk_list(packages, chunk_size=chunk_size)
         chunk_analyses: List[str] = []
 
         # 1) Chunk bazlı analiz
@@ -222,11 +266,9 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
                 "Return concise bullet points; do not output raw JSON."
             )
 
-            response = self._client.chat(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            text = (response.get("message", {}) or {}).get("content", "")
+            text = self._chat([{"role": "user", "content": prompt}])
+            if text == _LLM_FALLBACK:
+                return _LLM_FALLBACK
             if text:
                 chunk_analyses.append(text.strip())
 
@@ -245,11 +287,8 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
             "Do NOT be absolute; cite key timestamps mentioned in summaries."
         )
 
-        final_resp = self._client.chat(
-            model=self.model_name,
-            messages=[{"role": "user", "content": synthesis_prompt}],
-        )
-        return ((final_resp.get("message", {}) or {}).get("content", "") or "").strip()
+        result = self._chat([{"role": "user", "content": synthesis_prompt}])
+        return result.strip() if result != _LLM_FALLBACK else result
 
 
 if __name__ == "__main__":

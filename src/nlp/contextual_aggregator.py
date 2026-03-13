@@ -46,18 +46,60 @@ def _format_mmss(seconds: float) -> str:
     return f"{m:02d}:{sec:02d}"
 
 
+_CONFIDENCE_THRESHOLD = 0.55   # frame-level: below this → treat as Neutral
+_FREQ_THRESHOLD       = 0.80   # segment-level: emotion dominates >80% of frames…
+_FREQ_CONF_THRESHOLD  = 0.65   # …but avg confidence < this → demote to Neutral
+
+
+def _filtered_emotion_labels(frames: List[Dict]) -> List[str]:
+    """
+    Per-frame confidence filter: if emotion_confidence < 0.55 the frame is
+    reclassified as "Neutral" before any aggregation is done.
+    """
+    out: List[str] = []
+    for f in frames:
+        label = f.get("emotion_label") or "Neutral"
+        conf  = float(f.get("emotion_confidence") or 0.0)
+        out.append(label if conf >= _CONFIDENCE_THRESHOLD else "Neutral")
+    return out
+
+
+def _dominant_with_freq_filter(labels: List[str], frames: List[Dict]) -> str:
+    """
+    Compute dominant emotion from filtered labels, then apply frequency filter:
+    if the dominant emotion covers >80% of frames but its average raw confidence
+    is below 0.65, demote it to "Neutral".
+    """
+    if not labels:
+        return "Neutral"
+    counter = Counter(labels)
+    dominant, count = counter.most_common(1)[0]
+    freq = count / len(labels)
+    if freq > _FREQ_THRESHOLD and dominant != "Neutral":
+        dom_confidences = [
+            float(f.get("emotion_confidence") or 0.0)
+            for f, lab in zip(frames, labels)
+            if lab == dominant
+        ]
+        avg_conf = sum(dom_confidences) / len(dom_confidences) if dom_confidences else 0.0
+        if avg_conf < _FREQ_CONF_THRESHOLD:
+            return "Neutral"
+    return dominant
+
+
+_GAZE_PITCH_THRESHOLD = 8.0   # normalized pitch (after offset removal)
+_GAZE_YAW_THRESHOLD   = 12.0  # raw yaw
+
+
 def _gaze_direction(pitch_deg: float, yaw_deg: float) -> str:
     """
-    Eşik değerleri (ARCHITECTURE.md §4):
-      |pitch| > 15° → "up" (pozitif) veya "down" (negatif)
-      |yaw|   > 20° → "right" (pozitif) veya "left" (negatif)
-      else          → "center"
-
-    Pitch öncelikli: hem pitch hem yaw eşiği aşılırsa pitch döner.
+    Pitch is expected to be already normalized (offset-subtracted).
+    Thresholds: |pitch| > 8° → up/down, |yaw| > 12° → right/left.
+    Pitch is priority: if both thresholds exceeded, pitch wins.
     """
-    if abs(pitch_deg) > 15.0:
+    if abs(pitch_deg) > _GAZE_PITCH_THRESHOLD:
         return "up" if pitch_deg > 0 else "down"
-    if abs(yaw_deg) > 20.0:
+    if abs(yaw_deg) > _GAZE_YAW_THRESHOLD:
         return "right" if yaw_deg > 0 else "left"
     return "center"
 
@@ -93,6 +135,15 @@ def build_segment_signal_packages(
     effective_voice = voice_timeline or []
     effective_audio = audio_signal_timeline or []
 
+    # Per-video pitch offset: MobileGaze produces a systematic positive pitch bias
+    # due to camera placement. Subtract the video-wide mean before thresholding.
+    _all_pitches = [
+        float(f.get("gaze_pitch_deg") or 0.0)
+        for f in effective_face
+        if f.get("face_detected", True) and f.get("gaze_pitch_deg") is not None
+    ]
+    _pitch_center = _mean(_all_pitches, 0.0)
+
     packages: List[Dict] = []
     if not text_segments:
         return packages
@@ -112,17 +163,40 @@ def build_segment_signal_packages(
         ]
 
         if face_in_range:
-            dominant_emotion    = _mode([f.get("emotion_label", "") for f in face_in_range], "Neutral")
-            emotion_confidence  = round(_mean([f.get("emotion_confidence") for f in face_in_range], 0.0), 3)
-            avg_gaze_pitch      = round(_mean([f.get("gaze_pitch_deg") for f in face_in_range], 0.0), 2)
-            avg_gaze_yaw        = round(_mean([f.get("gaze_yaw_deg") for f in face_in_range], 0.0), 2)
+            # Step B filtering: per-frame confidence filter, then frequency+confidence filter
+            filtered_labels    = _filtered_emotion_labels(face_in_range)
+            dominant_emotion   = _dominant_with_freq_filter(filtered_labels, face_in_range)
+            emotion_confidence = round(_mean([f.get("emotion_confidence") for f in face_in_range], 0.0), 3)
+            avg_gaze_pitch     = round(_mean([f.get("gaze_pitch_deg") for f in face_in_range], 0.0), 2)
+            avg_gaze_yaw       = round(_mean([f.get("gaze_yaw_deg") for f in face_in_range], 0.0), 2)
         else:
-            dominant_emotion    = "Neutral"
-            emotion_confidence  = 0.0
-            avg_gaze_pitch      = 0.0
-            avg_gaze_yaw        = 0.0
+            dominant_emotion   = "Neutral"
+            emotion_confidence = 0.0
+            avg_gaze_pitch     = 0.0
+            avg_gaze_yaw       = 0.0
 
-        gaze_dir = _gaze_direction(avg_gaze_pitch, avg_gaze_yaw)
+        # Per-frame gaze direction with frequency-based segment label.
+        # Pitch normalized by video-wide offset before thresholding.
+        # If >25% of frames are non-center → use most common non-center direction.
+        if face_in_range:
+            per_frame_dirs = [
+                _gaze_direction(
+                    float(f.get("gaze_pitch_deg") or 0.0) - _pitch_center,
+                    float(f.get("gaze_yaw_deg") or 0.0),
+                )
+                for f in face_in_range
+            ]
+            dir_counts = Counter(per_frame_dirs)
+            n_total = len(per_frame_dirs)
+            n_noncenter = n_total - dir_counts.get("center", 0)
+            if n_noncenter / n_total > 0.25:
+                # Majority or near-majority non-center: pick most common non-center direction
+                noncenter_counts = {d: c for d, c in dir_counts.items() if d != "center"}
+                gaze_dir = max(noncenter_counts, key=noncenter_counts.get)
+            else:
+                gaze_dir = "center"
+        else:
+            gaze_dir = "center"
 
         # ------------------------------------------------------------------
         # 2. Konuşma özellikleri — VoiceAnalyzer FAZ-4

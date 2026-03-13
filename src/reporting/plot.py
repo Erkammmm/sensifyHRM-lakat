@@ -3,7 +3,9 @@ Grafik Oluşturma Modülü
 Tüm analiz verileri için matplotlib grafikleri üretir.
 """
 
+import io
 import os
+import base64
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")  # GUI olmadan çalış
@@ -740,6 +742,203 @@ def plot_kpi_dashboard(face_summary: Dict, text_summary: Dict,
     path = os.path.join(output_dir, "kpi_dashboard.png")
     _save_fig(fig, path)
     return {"title": "Mülakat KPI Özeti", "path": path}
+
+
+# =====================================================================
+# FAZ-4 DASHBOARD: 4 ayrı matplotlib grafik (base64 PNG)
+# =====================================================================
+
+_DARK_BG   = "#0f1a33"
+_DARK_AX   = "#101e3a"
+_DARK_TEXT = "#e8eefc"
+_DARK_MUTE = "#a9b6d3"
+_DARK_GRID = "#1e3a6e"
+
+_EMO_BAND_COLORS = {
+    "Happy":   "#34d399", "Surprise": "#34d399",
+    "Neutral": "#6b7280",
+    "Sad":     "#60a5fa",
+    "Fear":    "#fb7185", "Angry": "#fb7185", "Disgust": "#fb7185",
+}
+_GAZE_BAND_COLORS = {
+    "center": "#34d399",
+    "up":     "#fb923c", "down":  "#fb923c",
+    "left":   "#fb7185", "right": "#fb7185",
+}
+
+
+def _fig_to_b64(fig) -> str:
+    """Matplotlib figürünü base64 PNG string'ine dönüştürür."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=130, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    plt.close(fig)
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode("utf-8")
+
+
+def _dark_fig(w: float, h: float):
+    """Koyu arka planlı figür ve eksen oluşturur."""
+    fig, ax = plt.subplots(figsize=(w, h))
+    fig.patch.set_facecolor(_DARK_BG)
+    ax.set_facecolor(_DARK_AX)
+    for spine in ax.spines.values():
+        spine.set_color(_DARK_GRID)
+    ax.tick_params(colors=_DARK_MUTE, labelsize=9)
+    ax.xaxis.label.set_color(_DARK_MUTE)
+    ax.yaxis.label.set_color(_DARK_MUTE)
+    ax.grid(color=_DARK_GRID, linewidth=0.5, alpha=0.6)
+    return fig, ax
+
+
+def plot_face_emotion_timeline_b64(segment_packages: List[Dict]) -> str:
+    """
+    Chart 1: Yüz Duygu Zaman Çizelgesi
+    Colored horizontal bands per segment, opacity = emotion_confidence.
+    """
+    if not segment_packages:
+        return ""
+    fig, ax = _dark_fig(12, 2.2)
+    for pkg in segment_packages:
+        start = float(pkg.get("start", 0))
+        end   = float(pkg.get("end", start + 1))
+        emo   = pkg.get("dominant_emotion", "Neutral")
+        conf  = float(pkg.get("emotion_confidence", 0.5))
+        alpha = max(0.35, min(1.0, conf))
+        color = _EMO_BAND_COLORS.get(emo, "#6b7280")
+        ax.barh(0, end - start, left=start, height=0.8, color=color, alpha=alpha)
+        # Label in center of band if wide enough
+        if end - start > 2:
+            ax.text((start + end) / 2, 0, emo,
+                    ha="center", va="center", fontsize=7, color=_DARK_TEXT,
+                    fontweight="bold", clip_on=True)
+    ax.set_yticks([])
+    ax.set_ylim(-0.5, 0.5)
+    ax.set_xlabel("Zaman (saniye)", color=_DARK_MUTE, fontsize=9)
+    ax.set_title("Yüz Duygu Zaman Çizelgesi (UniFace DDAMFN)",
+                 color=_DARK_TEXT, fontsize=11, fontweight="bold", pad=8)
+    # Legend
+    legend_patches = [
+        matplotlib.patches.Patch(color="#34d399", label="Happy/Surprise"),
+        matplotlib.patches.Patch(color="#6b7280", label="Neutral"),
+        matplotlib.patches.Patch(color="#60a5fa", label="Sad"),
+        matplotlib.patches.Patch(color="#fb7185", label="Fear/Angry/Disgust"),
+    ]
+    ax.legend(handles=legend_patches, loc="upper right", fontsize=8,
+              facecolor=_DARK_BG, edgecolor=_DARK_GRID, labelcolor=_DARK_MUTE,
+              ncol=4, framealpha=0.8)
+    fig.tight_layout()
+    return _fig_to_b64(fig)
+
+
+def plot_voice_valence_timeline_b64(segment_packages: List[Dict]) -> str:
+    """
+    Chart 2: Ses Duygu (HuBERT Valence) Zaman Çizelgesi
+    Line chart, green fill above 0, red fill below 0. Zero reference line.
+    """
+    if not segment_packages:
+        return ""
+    times    = [float(p.get("start", 0)) for p in segment_packages]
+    valences = [float(p.get("hubert_valence", 0)) for p in segment_packages]
+
+    fig, ax = _dark_fig(12, 2.8)
+    ax.axhline(y=0, color=_DARK_MUTE, linewidth=1.0, linestyle="--", alpha=0.7)
+    ax.plot(times, valences, color="#c4b5fd", linewidth=2.0, marker="o",
+            markersize=4, zorder=5)
+    # Fill above/below zero
+    ax.fill_between(times, valences, 0,
+                    where=[v >= 0 for v in valences],
+                    color="#34d399", alpha=0.25, interpolate=True)
+    ax.fill_between(times, valences, 0,
+                    where=[v < 0 for v in valences],
+                    color="#fb7185", alpha=0.25, interpolate=True)
+    ax.set_ylim(-1.1, 1.1)
+    ax.set_yticks([-1, -0.5, 0, 0.5, 1])
+    ax.set_yticklabels(["-1", "-0.5", "0", "+0.5", "+1"], color=_DARK_MUTE, fontsize=8)
+    ax.set_xlabel("Zaman (saniye)", color=_DARK_MUTE, fontsize=9)
+    ax.set_ylabel("Valence", color=_DARK_MUTE, fontsize=9)
+    ax.set_title("Ses Duygu Zaman Çizelgesi (HuBERT Valence)",
+                 color=_DARK_TEXT, fontsize=11, fontweight="bold", pad=8)
+    ax.text(times[-1], 0.85, "Pozitif", color="#34d399", fontsize=8, ha="right")
+    ax.text(times[-1], -0.95, "Negatif", color="#fb7185", fontsize=8, ha="right")
+    fig.tight_layout()
+    return _fig_to_b64(fig)
+
+
+def plot_gaze_timeline_b64(segment_packages: List[Dict]) -> str:
+    """
+    Chart 3: Göz Bakış Zaman Çizelgesi
+    Colored bands per segment: center=green, away=red/orange.
+    """
+    if not segment_packages:
+        return ""
+    fig, ax = _dark_fig(12, 2.2)
+    for pkg in segment_packages:
+        start = float(pkg.get("start", 0))
+        end   = float(pkg.get("end", start + 1))
+        gaze  = pkg.get("gaze_direction", "center")
+        color = _GAZE_BAND_COLORS.get(gaze, "#6b7280")
+        ax.barh(0, end - start, left=start, height=0.8, color=color, alpha=0.8)
+        if end - start > 2:
+            ax.text((start + end) / 2, 0, gaze,
+                    ha="center", va="center", fontsize=8, color=_DARK_TEXT,
+                    fontweight="bold", clip_on=True)
+    ax.set_yticks([])
+    ax.set_ylim(-0.5, 0.5)
+    ax.set_xlabel("Zaman (saniye)", color=_DARK_MUTE, fontsize=9)
+    ax.set_title("Göz Bakış Zaman Çizelgesi (MobileGaze)",
+                 color=_DARK_TEXT, fontsize=11, fontweight="bold", pad=8)
+    legend_patches = [
+        matplotlib.patches.Patch(color="#34d399", label="center"),
+        matplotlib.patches.Patch(color="#fb923c", label="up / down"),
+        matplotlib.patches.Patch(color="#fb7185", label="left / right"),
+    ]
+    ax.legend(handles=legend_patches, loc="upper right", fontsize=8,
+              facecolor=_DARK_BG, edgecolor=_DARK_GRID, labelcolor=_DARK_MUTE,
+              ncol=3, framealpha=0.8)
+    fig.tight_layout()
+    return _fig_to_b64(fig)
+
+
+def plot_speech_confidence_timeline_b64(segment_packages: List[Dict]) -> str:
+    """
+    Chart 4: Konuşma Güveni Zaman Çizelgesi
+    Line 0-1, red zone below 0.5, vertical red lines at critical moments.
+    """
+    if not segment_packages:
+        return ""
+    times      = [float(p.get("start", 0)) for p in segment_packages]
+    confidence = [float(p.get("speech_confidence", 0)) for p in segment_packages]
+    criticals  = [p.get("is_critical_moment", False) for p in segment_packages]
+
+    fig, ax = _dark_fig(12, 2.8)
+    # Red zone below 0.5
+    ax.axhspan(0, 0.5, color="#fb7185", alpha=0.08)
+    ax.axhline(y=0.5, color="#fb7185", linewidth=1.0, linestyle="--", alpha=0.5)
+    # Critical moment vertical markers
+    for t, is_crit in zip(times, criticals):
+        if is_crit:
+            ax.axvline(x=t, color="#fb7185", linewidth=1.5, alpha=0.7, linestyle="-")
+    # Confidence line
+    ax.plot(times, confidence, color="#fbbf24", linewidth=2.0, marker="o",
+            markersize=4, zorder=5)
+    ax.fill_between(times, confidence, alpha=0.15, color="#fbbf24")
+    ax.set_ylim(-0.05, 1.1)
+    ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
+    ax.set_yticklabels(["0", "0.25", "0.5", "0.75", "1.0"], color=_DARK_MUTE, fontsize=8)
+    ax.set_xlabel("Zaman (saniye)", color=_DARK_MUTE, fontsize=9)
+    ax.set_ylabel("Güven", color=_DARK_MUTE, fontsize=9)
+    ax.set_title("Konuşma Güveni Zaman Çizelgesi",
+                 color=_DARK_TEXT, fontsize=11, fontweight="bold", pad=8)
+    ax.text(0.99, 0.42, "< 0.5 = düşük güven", transform=ax.transAxes,
+            ha="right", fontsize=7, color="#fb7185", alpha=0.9)
+    if any(criticals):
+        ax.plot([], [], color="#fb7185", linewidth=1.5, linestyle="-",
+                label="Kritik an")
+        ax.legend(loc="upper right", fontsize=8, facecolor=_DARK_BG,
+                  edgecolor=_DARK_GRID, labelcolor=_DARK_MUTE, framealpha=0.8)
+    fig.tight_layout()
+    return _fig_to_b64(fig)
 
 
 # =====================================================================

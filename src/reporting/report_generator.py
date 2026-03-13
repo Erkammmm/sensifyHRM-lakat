@@ -11,7 +11,13 @@ import base64
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
-from .plot import generate_report_charts
+from .plot import (
+    generate_report_charts,
+    plot_face_emotion_timeline_b64,
+    plot_voice_valence_timeline_b64,
+    plot_gaze_timeline_b64,
+    plot_speech_confidence_timeline_b64,
+)
 
 
 class ReportGenerator:
@@ -190,8 +196,33 @@ class ReportGenerator:
                 )
 
         if is_phase3:
-            faz4 = _compute_faz4_dashboard_data(segment_packages)
-            ai_report_html = _format_ai_report_html(ai_text)
+            face_timeline = report.get("face_analysis", {}).get("timeline", []) or []
+            faz4 = _compute_faz4_dashboard_data(segment_packages, face_timeline=face_timeline)
+            emo_dist = _compute_emotion_distribution(face_timeline)
+            audio_signal_tl = report.get("audio_signal_analysis", {}).get("timeline", []) or []
+            voice_emo_dist = _compute_voice_emotion_distribution(audio_signal_tl)
+
+            # 4 matplotlib timeline charts (base64 PNG)
+            chart_face_b64    = plot_face_emotion_timeline_b64(segment_packages)
+            chart_valence_b64 = plot_voice_valence_timeline_b64(segment_packages)
+            chart_gaze_b64    = plot_gaze_timeline_b64(segment_packages)
+            chart_speech_b64  = plot_speech_confidence_timeline_b64(segment_packages)
+
+            # "Baskın Duygu" KPI card — top emotion from confidence-filtered distribution
+            _neg_emos = {"Sad", "Fear", "Angry", "Disgust"}
+            if not emo_dist["no_data"] and emo_dist["labels"]:
+                top_idx = emo_dist["values"].index(max(emo_dist["values"]))
+                baskin_duygu_label = emo_dist["labels"][top_idx]
+                baskin_duygu_pct = f"{emo_dist['values'][top_idx]:.1f}%"
+                baskin_duygu_card_class = "danger" if baskin_duygu_label in _neg_emos else "accent2"
+            else:
+                baskin_duygu_label = "—"
+                baskin_duygu_pct = "—"
+                baskin_duygu_card_class = "warn"
+            speech_stats = _compute_speech_stats(
+                text_segments,
+                float(video_info.get("duration_seconds") or 0.0),
+            )
             template = self.template_env.get_template("report_v3.html")
             html = template.render(
                 interview_id=interview_id,
@@ -207,20 +238,41 @@ class ReportGenerator:
                 speech_card_class=faz4["speech_card_class"],
                 avg_speech_confidence=faz4["avg_speech_confidence"],
                 conf_drop_ts=faz4["conf_drop_ts"],
+                baskin_ses_str=voice_emo_dist["top2_str"],
                 # Kart 3 — Duygusal Denge
                 emotion_label=faz4["emotion_label"],
                 emotion_card_class=faz4["emotion_card_class"],
+                emotion_neg_pct=faz4["emotion_neg_pct"],
                 crit_count=faz4["crit_count"],
                 crit_timestamps=faz4["crit_timestamps"],
-                # Chart.js veri (JSON dizileri)
-                chart_labels_json=json.dumps(faz4["chart_labels"], ensure_ascii=False),
-                chart_emotion_colors_json=json.dumps(faz4["chart_emotion_colors"]),
-                chart_emotion_band_json=json.dumps(faz4["chart_emotion_band"]),
-                chart_gaze_json=json.dumps(faz4["chart_gaze"]),
-                chart_speech_json=json.dumps(faz4["chart_speech"]),
-                chart_critical_json=json.dumps(faz4["chart_critical"]),
-                # LLM raporu
-                ai_report_html=ai_report_html,
+                # Kart 4 — Baskın Duygu
+                baskin_duygu_label=baskin_duygu_label,
+                baskin_duygu_pct=baskin_duygu_pct,
+                baskin_duygu_card_class=baskin_duygu_card_class,
+                # 4 matplotlib zaman çizelgesi grafikleri (base64 PNG)
+                chart_face_b64=chart_face_b64,
+                chart_valence_b64=chart_valence_b64,
+                chart_gaze_b64=chart_gaze_b64,
+                chart_speech_b64=chart_speech_b64,
+                # Konuşma istatistikleri (Step F)
+                speech_dur_str=speech_stats["speech_dur_str"],
+                silence_dur_str=speech_stats["silence_dur_str"],
+                long_silence_count=speech_stats["long_silence_count"],
+                longest_silence_dur=speech_stats["longest_silence_dur"],
+                longest_silence_ts=speech_stats["longest_silence_ts"],
+                avg_words=speech_stats["avg_words"],
+                pace_label=speech_stats["pace_label"],
+                # Duygu dağılımı — yüz (Step D)
+                emo_dist_no_data=emo_dist["no_data"],
+                emo_dist_labels_json=json.dumps(emo_dist["labels"], ensure_ascii=False),
+                emo_dist_values_json=json.dumps(emo_dist["values"]),
+                emo_dist_colors_json=json.dumps(emo_dist["colors"]),
+                # Ses duygu dağılımı — HuBERT SER (Step 4)
+                voice_emo_dist_no_data=voice_emo_dist["no_data"],
+                voice_emo_dist_labels_json=json.dumps(voice_emo_dist["labels"], ensure_ascii=False),
+                voice_emo_dist_values_json=json.dumps(voice_emo_dist["values"]),
+                voice_emo_dist_colors_json=json.dumps(voice_emo_dist["colors"]),
+                # LLM raporu: injected by _write_ai_to_reports after generation
             )
         else:
             template = self.template_env.get_template("report_v2.html")
@@ -648,7 +700,7 @@ def _render_soft_skill_cards(section_text: str, max_items: int = 8) -> str:
 # FAZ-4 Dashboard Yardımcıları
 # =====================================================================
 
-def _compute_faz4_dashboard_data(segment_packages: List[Dict]) -> Dict:
+def _compute_faz4_dashboard_data(segment_packages: List[Dict], face_timeline: List[Dict] = None) -> Dict:
     """3 davranışsal kart ve Chart.js veri dizilerini segment paketlerinden hesaplar."""
     _empty = {
         "gaze_label": "Veri Yok", "gaze_card_class": "warn",
@@ -656,6 +708,7 @@ def _compute_faz4_dashboard_data(segment_packages: List[Dict]) -> Dict:
         "speech_label": "Veri Yok", "speech_card_class": "warn",
         "avg_speech_confidence": "-", "conf_drop_ts": "—",
         "emotion_label": "Veri Yok", "emotion_card_class": "warn",
+        "emotion_neg_pct": "—",
         "crit_count": 0, "crit_timestamps": "—",
         "chart_labels": [], "chart_emotion_colors": [],
         "chart_emotion_band": [], "chart_gaze": [],
@@ -724,18 +777,38 @@ def _compute_faz4_dashboard_data(segment_packages: List[Dict]) -> Dict:
                 conf_drop_ts = ts_raw.split(" - ")[0] if ts_raw else "—"
 
     # ── Kart 3: Duygusal Denge ──────────────────────────────────────────
-    critical_segs = [p for p in segment_packages if p.get("is_critical_moment", False)]
-    crit_count = len(critical_segs)
+    # Use negative emotion % from face_timeline (confidence >= 0.55)
+    _negative_emotions = {"Sad", "Fear", "Angry", "Disgust"}
+    if face_timeline:
+        valid_face = [
+            f for f in face_timeline
+            if f.get("face_detected", True)
+            and float(f.get("emotion_confidence") or 0.0) >= 0.55
+        ]
+        if valid_face:
+            neg_count = sum(
+                1 for f in valid_face
+                if (f.get("emotion_label") or "Neutral") in _negative_emotions
+            )
+            negative_pct = neg_count / len(valid_face) * 100.0
+        else:
+            negative_pct = 0.0
+    else:
+        negative_pct = 0.0
 
-    if crit_count == 0:
-        emotion_label, emotion_card_class = "Dengeli", "accent2"
-    elif crit_count <= 2:
+    if negative_pct > 60.0:
+        emotion_label, emotion_card_class = "Gergin", "danger"
+    elif negative_pct > 35.0:
         emotion_label, emotion_card_class = "Dikkat", "warn"
     else:
-        emotion_label, emotion_card_class = "Gergin", "danger"
+        emotion_label, emotion_card_class = "Dengeli", "accent2"
 
+    # Keep crit_count for the sub-metric line
+    critical_segs = [p for p in segment_packages if p.get("is_critical_moment", False)]
+    crit_count = len(critical_segs)
     crit_tss = [p.get("timestamp", "").split(" - ")[0] for p in critical_segs[:5] if p.get("timestamp")]
     crit_timestamps = ", ".join(crit_tss) if crit_tss else "—"
+    emotion_neg_pct = f"{negative_pct:.1f}%"
 
     # ── Chart.js veri dizileri ──────────────────────────────────────────
     _emotion_color = {
@@ -763,6 +836,7 @@ def _compute_faz4_dashboard_data(segment_packages: List[Dict]) -> Dict:
         "speech_label": speech_label, "speech_card_class": speech_card_class,
         "avg_speech_confidence": f"{avg_conf:.2f}", "conf_drop_ts": conf_drop_ts,
         "emotion_label": emotion_label, "emotion_card_class": emotion_card_class,
+        "emotion_neg_pct": emotion_neg_pct,
         "crit_count": crit_count, "crit_timestamps": crit_timestamps,
         "chart_labels": chart_labels,
         "chart_emotion_colors": chart_emotion_colors,
@@ -770,6 +844,235 @@ def _compute_faz4_dashboard_data(segment_packages: List[Dict]) -> Dict:
         "chart_gaze": chart_gaze,
         "chart_speech": chart_speech,
         "chart_critical": chart_critical,
+    }
+
+
+def _compute_speech_stats(segments: List[Dict], video_duration: float) -> Dict:
+    """
+    Whisper segmentlerinden konuşma istatistiklerini hesaplar (Step F).
+
+    Args:
+        segments:       text_analysis.segments — [{start, end, text}, ...]
+        video_duration: video_info.duration_seconds
+
+    Returns dict with keys:
+        speech_dur_str, silence_dur_str,
+        long_silence_count, longest_silence_dur, longest_silence_ts,
+        avg_words, pace_label
+    """
+    if not segments:
+        return {
+            "speech_dur_str": "—", "silence_dur_str": "—",
+            "long_silence_count": 0,
+            "longest_silence_dur": "—", "longest_silence_ts": "—",
+            "avg_words": 0.0, "pace_label": "—",
+        }
+
+    def _fmt(sec: float) -> str:
+        sec = max(0.0, float(sec))
+        m = int(sec // 60)
+        s = int(round(sec - m * 60))
+        if s >= 60:
+            m += 1; s = 0
+        return f"{m}dk {s:02d}sn"
+
+    def _mmss(sec: float) -> str:
+        sec = max(0.0, float(sec))
+        m = int(sec // 60)
+        s = int(round(sec - m * 60))
+        if s >= 60:
+            m += 1; s = 0
+        return f"{m:02d}:{s:02d}"
+
+    # Sort segments by start time
+    segs = sorted(segments, key=lambda s: float(s.get("start") or 0.0))
+
+    # Total speech duration
+    speech_dur = sum(
+        max(0.0, float(s.get("end") or 0.0) - float(s.get("start") or 0.0))
+        for s in segs
+    )
+    silence_dur = max(0.0, float(video_duration) - speech_dur)
+
+    # Gaps between consecutive segments
+    long_silence_count = 0
+    longest_gap = 0.0
+    longest_gap_ts = 0.0
+    for i in range(1, len(segs)):
+        gap_start = float(segs[i - 1].get("end") or 0.0)
+        gap_end   = float(segs[i].get("start") or 0.0)
+        gap = gap_end - gap_start
+        if gap > longest_gap:
+            longest_gap = gap
+            longest_gap_ts = gap_start
+        if gap > 5.0:
+            long_silence_count += 1
+
+    # Average words per segment
+    word_counts = [
+        len((s.get("text") or "").split())
+        for s in segs if (s.get("text") or "").strip()
+    ]
+    avg_words = sum(word_counts) / len(word_counts) if word_counts else 0.0
+
+    pace_label = "Yavaş" if avg_words < 8 else ("Hızlı" if avg_words > 15 else "Normal")
+
+    return {
+        "speech_dur_str":     _fmt(speech_dur),
+        "silence_dur_str":    _fmt(silence_dur),
+        "long_silence_count": long_silence_count,
+        "longest_silence_dur": f"{longest_gap:.1f}sn" if longest_gap > 0 else "—",
+        "longest_silence_ts":  _mmss(longest_gap_ts) if longest_gap > 0 else "—",
+        "avg_words":           round(avg_words, 1),
+        "pace_label":          pace_label,
+    }
+
+
+_EMOTION_COLORS = {
+    "Happy":   "rgba(52,211,153,0.85)",
+    "Surprise":"rgba(52,211,153,0.85)",
+    "Neutral": "rgba(107,114,128,0.65)",
+    "Sad":     "rgba(96,165,250,0.85)",
+    "Fear":    "rgba(251,113,133,0.85)",
+    "Angry":   "rgba(251,113,133,0.85)",
+    "Disgust": "rgba(251,113,133,0.85)",
+}
+_EMOTION_ORDER = ["Happy", "Surprise", "Neutral", "Sad", "Fear", "Angry", "Disgust"]
+_EMOTION_CONF_THRESHOLD = 0.55
+
+
+def _compute_emotion_distribution(face_timeline: List[Dict]) -> Dict:
+    """
+    Yüz timeline'ından güven filtreli duygu dağılımını hesaplar.
+
+    Kurallar (Step D):
+      - Sadece face_detected=True ve emotion_confidence >= 0.55 çerçeveler sayılır.
+      - Geçerli çerçeve sayısı, toplam çerçevelerin %10'undan azsa → no_data=True.
+      - Yalnızca %0'ın üzerinde duygu gösterilir.
+
+    Döndürür:
+      {
+        "no_data": bool,
+        "labels":  [str, ...],   # sadece pct > 0 olanlar, _EMOTION_ORDER sırasıyla
+        "values":  [float, ...], # yüzde (0-100, 1 ondalık)
+        "colors":  [str, ...],   # rgba stringleri
+      }
+    """
+    _empty = {"no_data": True, "labels": [], "values": [], "colors": []}
+    if not face_timeline:
+        return _empty
+
+    total = len(face_timeline)
+    valid_frames = [
+        f for f in face_timeline
+        if f.get("face_detected", True)
+        and float(f.get("emotion_confidence") or 0.0) >= _EMOTION_CONF_THRESHOLD
+    ]
+    if len(valid_frames) < max(1, total * 0.10):
+        return _empty
+
+    counts: Dict[str, int] = {}
+    for f in valid_frames:
+        label = (f.get("emotion_label") or "Neutral").strip()
+        counts[label] = counts.get(label, 0) + 1
+
+    n = len(valid_frames)
+    labels, values, colors = [], [], []
+    for emo in _EMOTION_ORDER:
+        cnt = counts.get(emo, 0)
+        if cnt == 0:
+            continue
+        pct = round(cnt / n * 100, 1)
+        labels.append(emo)
+        values.append(pct)
+        colors.append(_EMOTION_COLORS.get(emo, "rgba(107,114,128,0.65)"))
+
+    # Also include any unexpected labels not in _EMOTION_ORDER
+    for emo, cnt in counts.items():
+        if emo not in _EMOTION_ORDER:
+            pct = round(cnt / n * 100, 1)
+            labels.append(emo)
+            values.append(pct)
+            colors.append("rgba(107,114,128,0.65)")
+
+    if not labels:
+        return _empty
+    return {"no_data": False, "labels": labels, "values": values, "colors": colors}
+
+
+_VOICE_EMO_COLORS = {
+    "calm":    "rgba(52,211,153,0.85)",
+    "happy":   "rgba(52,211,153,0.85)",
+    "angry":   "rgba(251,113,133,0.85)",
+    "sad":     "rgba(96,165,250,0.85)",
+    "neutral": "rgba(107,114,128,0.65)",
+}
+_VOICE_EMO_ORDER = ["calm", "happy", "neutral", "sad", "angry"]
+
+
+def _compute_voice_emotion_distribution(audio_signal_timeline: List[Dict]) -> Dict:
+    """
+    HuBERT SER dağılımını audio_signal_analysis.timeline[].debug.ser_top_label'den hesaplar.
+
+    Döndürür:
+      {
+        "no_data": bool,
+        "labels":  [str, ...],   # capitalize edilmiş, pct > 0 olanlar
+        "values":  [float, ...], # yüzde (0-100, 1 ondalık)
+        "colors":  [str, ...],
+        "dominant_label": str,   # en yüksek pct'li etiket (capitalize)
+        "dominant_pct":   float,
+        "top2_str":       str,   # "Sad %88.9 | Neutral %11.1" formatı KPI sub-line için
+      }
+    """
+    _empty = {
+        "no_data": True, "labels": [], "values": [], "colors": [],
+        "dominant_label": "—", "dominant_pct": 0.0, "top2_str": "—",
+    }
+    if not audio_signal_timeline:
+        return _empty
+
+    counts: Dict[str, int] = {}
+    for chunk in audio_signal_timeline:
+        label = (chunk.get("debug", {}).get("ser_top_label") or "").strip().lower()
+        if label:
+            counts[label] = counts.get(label, 0) + 1
+
+    total = sum(counts.values())
+    if total == 0:
+        return _empty
+
+    labels, values, colors = [], [], []
+    for emo in _VOICE_EMO_ORDER:
+        cnt = counts.get(emo, 0)
+        if cnt == 0:
+            continue
+        pct = round(cnt / total * 100, 1)
+        labels.append(emo.capitalize())
+        values.append(pct)
+        colors.append(_VOICE_EMO_COLORS.get(emo, "rgba(107,114,128,0.65)"))
+
+    # Any unexpected labels not in order
+    for emo, cnt in counts.items():
+        if emo not in _VOICE_EMO_ORDER:
+            pct = round(cnt / total * 100, 1)
+            labels.append(emo.capitalize())
+            values.append(pct)
+            colors.append("rgba(107,114,128,0.65)")
+
+    if not labels:
+        return _empty
+
+    # Dominant and top-2 string
+    sorted_pairs = sorted(zip(values, labels), reverse=True)
+    dominant_label = sorted_pairs[0][1]
+    dominant_pct = sorted_pairs[0][0]
+    top2_str = " | ".join(f"{lbl} %{pct}" for pct, lbl in sorted_pairs[:2])
+
+    return {
+        "no_data": False, "labels": labels, "values": values, "colors": colors,
+        "dominant_label": dominant_label, "dominant_pct": dominant_pct,
+        "top2_str": top2_str,
     }
 
 
