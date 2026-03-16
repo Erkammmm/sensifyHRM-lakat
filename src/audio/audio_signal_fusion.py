@@ -17,14 +17,12 @@ Not:
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 import torchaudio
-from transformers import AutoConfig, Wav2Vec2FeatureExtractor, AutoModelForAudioClassification
-from huggingface_hub import hf_hub_download
+from transformers import pipeline as hf_pipeline
 
 
 # FAZ-3'te SER için tek kaynak model (değiştirilmesi istenmiyor)
@@ -62,135 +60,74 @@ def _bucketize_arousal(a: float) -> str:
     return "MEDIUM"
 
 
-def _safe_softmax(logits: torch.Tensor) -> torch.Tensor:
-    return torch.nn.functional.softmax(logits, dim=-1)
+_RMS_SILENCE_THRESHOLD = 10 ** (-45.0 / 20)  # -45 dBFS ≈ 0.00562
 
+_LABEL_MAP = {
+    "sadness":  "sad",
+    "neutral":  "neutral",
+    "happy":    "happy",
+    "angry":    "angry",
+    "fearful":  "fear",
+    "calm":     "neutral",
+    "disgust":  "angry",
+}
 
-def _normalize_label(label: str) -> str:
-    """
-    Model label'larını beklenen kümeye normalize etmeye çalışır.
-    Beklenen temel etiketler: happy, sad, fear, angry, neutral
-    """
-    if not label:
-        return "neutral"
-    l = label.strip().lower()
-
-    # Bazı modellerde fearful/fear, anger/angry, joy/happy vb. görülebiliyor.
-    mapping = {
-        "fearful":   "fear",
-        "anger":     "angry",
-        "joy":       "happy",
-        "happiness": "happy",
-        "sadness":   "sad",
-        "calm":      "neutral",
-    }
-    l = mapping.get(l, l)
-    if l not in EMOTION_TO_SIGNAL:
-        return "neutral"
-    return l
-
-
-@dataclass
-class SerProjectionResult: pass
+_SILENT_RESULT: Dict[str, Any] = {
+    "valence_score": 0.0,
+    "arousal_score": 0.0,
+    "valence_state": "NEUTRAL",
+    "arousal_state": "LOW",
+    "top_label":     "neutral",
+    "top_score":     0.0,
+    "all_scores":    {},
+}
 
 
 class HuBERTSerProjector:
     """
-    HuBERT tabanlı SER modelini yükler ve çıktıları valence/arousal sinyaline projekte eder.
-    Model ve inference mantığı değiştirilmedi.
+    HuBERT tabanlı SER — transformers pipeline() ile basit, referansa uygun implementasyon.
+    Çıktıları valence/arousal sinyaline projekte eder.
     """
 
     def __init__(self, model_id: str = SER_MODEL_ID):
         print(f"[HuBERTSerProjector] Başlatılıyor... Model: {model_id}")
         self.model_id = model_id
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        self.config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
-        if hasattr(self.config, "classifier_proj_size"):
-            self.config.classifier_proj_size = 1024
-        self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_id)
-        # Model yükle (head ağırlıkları eşleşmiyorsa manual remap fallback)
-        # HubertForSpeechClassification → HubertForSequenceClassification sınıf farkından
-        # kaynaklanan "newly initialized weights" uyarısı beklenen bir durum; remap ile düzeltilir.
-        import transformers as _tf
-        _tf_logger = _tf.utils.logging.get_logger("transformers.modeling_utils")
-        _prev_level = _tf_logger.level
-        _tf_logger.setLevel("ERROR")
-        try:
-            self.model, loading_info = AutoModelForAudioClassification.from_pretrained(
-                model_id,
-                trust_remote_code=True,
-                use_safetensors=True,
-                output_loading_info=True,
-                config=self.config,
-            )
-        finally:
-            _tf_logger.setLevel(_prev_level)
-        missing = set((loading_info or {}).get("missing_keys", []) or [])
-        # Kritik head anahtarları missing ise sonuçlar rastgeleleşir -> remap ile tekrar yükle
-        if any(k.startswith("classifier.") or k.startswith("projector.") for k in missing):
-            if os.getenv("DEBUG") == "1":
-                print("[HuBERTSerProjector] DEBUG: classifier/projector keys remapping (expected for this checkpoint).")
-            self.model = AutoModelForAudioClassification.from_config(self.config)
-            state_dict = _download_and_load_state_dict(model_id)
-            state_dict = _remap_classifier_keys(state_dict)
-            state_dict = _filter_state_dict_by_shape(self.model, state_dict)
-            self.model.load_state_dict(state_dict, strict=False)
-        self.model.to(self.device)
-        self.model.eval()
-        print(f"[HuBERTSerProjector] Hazır! Cihaz: {self.device.upper()}")
+        device = 0 if torch.cuda.is_available() else -1
+        self._pipeline = hf_pipeline(
+            "audio-classification",
+            model=model_id,
+            device=device,
+        )
+        print(f"[HuBERTSerProjector] Hazır! Cihaz: {'CUDA' if device == 0 else 'CPU'}")
 
     def project(self, audio: np.ndarray, sr: int) -> Dict[str, Any]:
+        # Sessiz chunk filtresi: -45 dBFS altı veya boş
         if audio.size == 0:
-            return {
-                "valence_score": 0.0,
-                "arousal_score": 0.0,
-                "valence_state": "NEUTRAL",
-                "arousal_state": "LOW",
-                "top_label": "neutral",
-                "top_score": 0.0,
-            }
+            return dict(_SILENT_RESULT)
+        rms_val = float(np.sqrt(np.mean(audio ** 2)))
+        if rms_val < _RMS_SILENCE_THRESHOLD:
+            return dict(_SILENT_RESULT)
 
-        # Sessizlik kontrolü (çok düşük enerji -> nötr)
-        # [librosa.feature.rms → numpy RMS]
-        rms_val = float(np.sqrt(np.mean(audio ** 2))) if audio.size else 0.0
-        if rms_val < 0.002:
-            return {
-                "valence_score": 0.0,
-                "arousal_score": 0.0,
-                "valence_state": "NEUTRAL",
-                "arousal_state": "LOW",
-                "top_label": "neutral",
-                "top_score": 0.0,
-            }
+        # pipeline() float32 numpy array (shape: N,) kabul eder, sr=16000 varsayılan
+        result = self._pipeline(audio)
+        # result = [{'label': 'sadness', 'score': 0.85}, ...]
 
-        inputs = self.feature_extractor(
-            audio,
-            sampling_rate=sr,
-            return_tensors="pt",
-            padding=True,
-        ).to(self.device)
+        top       = result[0]
+        top_label = _LABEL_MAP.get(top["label"], top["label"])
+        top_score = round(float(top["score"]), 3)
+        all_scores = {
+            _LABEL_MAP.get(r["label"], r["label"]): round(float(r["score"]), 3)
+            for r in result
+        }
 
-        with torch.no_grad():
-            logits = self.model(**inputs).logits
-
-        probs = _safe_softmax(logits)[0]  # (num_labels,)
-        probs_np = probs.detach().float().cpu().numpy()
-
-        labels = [self.config.id2label[i] for i in range(len(probs_np))]
-        normalized = [_normalize_label(l) for l in labels]
-
+        # Valence/arousal projeksiyonu (ağırlıklı toplam)
         valence = 0.0
         arousal = 0.0
-        for p, lab in zip(probs_np, normalized):
+        for r in result:
+            lab = _LABEL_MAP.get(r["label"], r["label"])
             sig = EMOTION_TO_SIGNAL.get(lab, EMOTION_TO_SIGNAL["neutral"])
-            valence += float(p) * float(sig["valence"])
-            arousal += float(p) * float(sig["arousal"])
-
-        # debug: top-1
-        top_idx   = int(np.argmax(probs_np)) if probs_np.size else 0
-        top_label = normalized[top_idx] if normalized else "neutral"
-        top_score = float(probs_np[top_idx]) if probs_np.size else 0.0
+            valence += float(r["score"]) * float(sig["valence"])
+            arousal += float(r["score"]) * float(sig["arousal"])
 
         return {
             "valence_score": float(valence),
@@ -199,66 +136,9 @@ class HuBERTSerProjector:
             "arousal_state": _bucketize_arousal(float(arousal)),
             "top_label":     top_label,
             "top_score":     top_score,
+            "all_scores":    all_scores,
         }
 
-
-def _download_and_load_state_dict(model_id: str) -> Dict[str, torch.Tensor]:
-    """
-    HF'den weight dosyasını indirip state_dict döndürür.
-    Öncelik: model.safetensors -> pytorch_model.bin
-    """
-    try:
-        from safetensors.torch import load_file as st_load
-        path = hf_hub_download(repo_id=model_id, filename="model.safetensors")
-        return st_load(path)
-    except Exception:
-        pass
-
-    path = hf_hub_download(repo_id=model_id, filename="pytorch_model.bin")
-    return torch.load(path, map_location="cpu")
-
-
-def _remap_classifier_keys(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-    """
-    Bazı checkpoint'lerde head isimleri farklı olabilir.
-    Örn:
-      - classifier.dense.*  -> projector.*
-      - classifier.output.* -> classifier.*
-    """
-    if not isinstance(state_dict, dict) or not state_dict:
-        return state_dict
-
-    new_sd: Dict[str, torch.Tensor] = {}
-    for k, v in state_dict.items():
-        nk = k
-        if "classifier.dense" in k:
-            nk = k.replace("classifier.dense", "projector")
-        elif "classifier.out_proj" in k:
-            nk = k.replace("classifier.out_proj", "classifier")
-        new_sd[nk] = v
-    return new_sd
-
-
-def _filter_state_dict_by_shape(
-    model: torch.nn.Module, state_dict: Dict[str, torch.Tensor]
-) -> Dict[str, torch.Tensor]:
-    """
-    strict=False bile shape mismatch'te hata verir; bu yüzden sadece şekli uyan key'leri yükleriz.
-    """
-    if not isinstance(state_dict, dict) or not state_dict:
-        return state_dict
-    model_sd = model.state_dict()
-    filtered: Dict[str, torch.Tensor] = {}
-    for k, v in state_dict.items():
-        if k not in model_sd:
-            continue
-        try:
-            if tuple(model_sd[k].shape) != tuple(v.shape):
-                continue
-        except Exception:
-            continue
-        filtered[k] = v
-    return filtered
 
 
 def _energy_state(rms_mean: float) -> str:
@@ -500,6 +380,7 @@ class AudioSignalFusion:
                         "arousal_score_ema": round(float(aro_ema), 3),
                         "ser_top_label":     proj.get("top_label", ""),
                         "ser_top_score":     round(proj.get("top_score", 0.0), 3),
+                        "ser_all_scores":    proj.get("all_scores", {}),
                     },
                 }
             )

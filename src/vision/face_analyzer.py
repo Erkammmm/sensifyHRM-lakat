@@ -168,13 +168,21 @@ class FaceAnalyzer:
 
         detected = [r for r in timeline if r["face_detected"]]
 
-        # Odak skoru: yüz tespit edilen ve gaze merkezi olan kayıtlar / tüm kayıtlar
-        # Eşikler contextual_aggregator ile tutarlı: |pitch| ≤ 15°, |yaw| ≤ 20°
-        focus_count = sum(
-            1
-            for r in detected
-            if abs(r["gaze_pitch_deg"]) <= 15.0 and abs(r["gaze_yaw_deg"]) <= 20.0
-        )
+        # Odak skoru: median-offset ile normalize edip eşikle
+        # Eşikler contextual_aggregator ile tutarlı: |pitch| ≤ 20°, |yaw| ≤ 22°
+        if detected:
+            raw_pitches = sorted([r["gaze_pitch_deg"] for r in detected])
+            raw_yaws = sorted([r["gaze_yaw_deg"] for r in detected])
+            p_median = raw_pitches[len(raw_pitches) // 2]
+            y_median = raw_yaws[len(raw_yaws) // 2]
+            focus_count = sum(
+                1
+                for r in detected
+                if abs(r["gaze_pitch_deg"] - p_median) <= 20.0
+                and abs(r["gaze_yaw_deg"] - y_median) <= 22.0
+            )
+        else:
+            focus_count = 0
         focus_score = round((focus_count / len(timeline)) * 100.0, 1) if timeline else 0.0
 
         emotion_labels = [r["emotion_label"] for r in detected]

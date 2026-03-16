@@ -87,14 +87,14 @@ def _dominant_with_freq_filter(labels: List[str], frames: List[Dict]) -> str:
     return dominant
 
 
-_GAZE_PITCH_THRESHOLD = 8.0   # normalized pitch (after offset removal)
-_GAZE_YAW_THRESHOLD   = 12.0  # raw yaw
+_GAZE_PITCH_THRESHOLD = 20.0  # normalized pitch (after offset removal)
+_GAZE_YAW_THRESHOLD   = 22.0  # normalized yaw (after offset removal)
 
 
 def _gaze_direction(pitch_deg: float, yaw_deg: float) -> str:
     """
     Pitch is expected to be already normalized (offset-subtracted).
-    Thresholds: |pitch| > 8° → up/down, |yaw| > 12° → right/left.
+    Thresholds: |pitch| > 18° → up/down, |yaw| > 18° → right/left.
     Pitch is priority: if both thresholds exceeded, pitch wins.
     """
     if abs(pitch_deg) > _GAZE_PITCH_THRESHOLD:
@@ -135,14 +135,24 @@ def build_segment_signal_packages(
     effective_voice = voice_timeline or []
     effective_audio = audio_signal_timeline or []
 
-    # Per-video pitch offset: MobileGaze produces a systematic positive pitch bias
-    # due to camera placement. Subtract the video-wide mean before thresholding.
+    # Per-video gaze offset: MobileGaze produces systematic bias due to camera
+    # placement. Subtract the video-wide median (robust to outliers) before thresholding.
+    _detected_face = [
+        f for f in effective_face
+        if f.get("face_detected", True)
+    ]
     _all_pitches = [
         float(f.get("gaze_pitch_deg") or 0.0)
-        for f in effective_face
-        if f.get("face_detected", True) and f.get("gaze_pitch_deg") is not None
+        for f in _detected_face
+        if f.get("gaze_pitch_deg") is not None
     ]
-    _pitch_center = _mean(_all_pitches, 0.0)
+    _all_yaws = [
+        float(f.get("gaze_yaw_deg") or 0.0)
+        for f in _detected_face
+        if f.get("gaze_yaw_deg") is not None
+    ]
+    _pitch_center = float(sorted(_all_pitches)[len(_all_pitches) // 2]) if _all_pitches else 0.0
+    _yaw_center   = float(sorted(_all_yaws)[len(_all_yaws) // 2]) if _all_yaws else 0.0
 
     packages: List[Dict] = []
     if not text_segments:
@@ -182,15 +192,15 @@ def build_segment_signal_packages(
             per_frame_dirs = [
                 _gaze_direction(
                     float(f.get("gaze_pitch_deg") or 0.0) - _pitch_center,
-                    float(f.get("gaze_yaw_deg") or 0.0),
+                    float(f.get("gaze_yaw_deg") or 0.0) - _yaw_center,
                 )
                 for f in face_in_range
             ]
             dir_counts = Counter(per_frame_dirs)
             n_total = len(per_frame_dirs)
             n_noncenter = n_total - dir_counts.get("center", 0)
-            if n_noncenter / n_total > 0.25:
-                # Majority or near-majority non-center: pick most common non-center direction
+            if n_noncenter / n_total > 0.50:
+                # Majority non-center: pick most common non-center direction
                 noncenter_counts = {d: c for d, c in dir_counts.items() if d != "center"}
                 gaze_dir = max(noncenter_counts, key=noncenter_counts.get)
             else:

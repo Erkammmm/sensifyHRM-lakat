@@ -13,9 +13,9 @@ import concurrent.futures
 from collections import Counter
 from typing import Dict, List, Optional
 
-_LLM_TIMEOUT_SEC = 90
+_LLM_TIMEOUT_SEC = 150
 _LLM_FALLBACK    = "LLM analizi zaman aşımına uğradı — lütfen tekrar deneyin"
-_LLM_OPTIONS     = {"num_predict": 800, "temperature": 0.3}
+_LLM_OPTIONS     = {"temperature": 0.3}
 
 
 # Varsayılan model (12B parametre - en iyi sonuç)
@@ -170,19 +170,23 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
         return [items[i : i + chunk_size] for i in range(0, len(items), chunk_size)]
 
     @staticmethod
-    def _select_representative(packages: List[Dict], n: int = 5) -> List[Dict]:
-        """First + last + 3 evenly-spaced middle segments."""
+    def _select_representative(packages: List[Dict], n: int = 10) -> List[Dict]:
+        """Evenly-spaced segment selection: first + last + evenly distributed middle."""
         if len(packages) <= n:
             return packages
-        mid_indices = [len(packages) // 4, len(packages) // 2, 3 * len(packages) // 4]
-        selected = [packages[0]] + [packages[i] for i in mid_indices] + [packages[-1]]
+        # Pick n evenly-spaced indices including first and last
+        indices = [0]
+        step = (len(packages) - 1) / (n - 1) if n > 1 else 1
+        for i in range(1, n - 1):
+            indices.append(round(i * step))
+        indices.append(len(packages) - 1)
         # deduplicate preserving order
         seen, out = set(), []
-        for p in selected:
-            pid = p.get("segment_id", id(p))
+        for idx in indices:
+            pid = packages[idx].get("segment_id", idx)
             if pid not in seen:
                 seen.add(pid)
-                out.append(p)
+                out.append(packages[idx])
         return out
 
     def _chat(self, messages: List[Dict]) -> str:
@@ -243,9 +247,9 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
 
         # If too many segments, select representative subset before chunking
         packages = segment_signal_packages
-        if len(packages) > 10:
-            packages = self._select_representative(packages, n=5)
-            print(f"[OllamaAI] Segment sayısı {len(segment_signal_packages)} > 10; "
+        if len(packages) > 15:
+            packages = self._select_representative(packages, n=10)
+            print(f"[OllamaAI] Segment sayısı {len(segment_signal_packages)} > 15; "
                   f"temsili {len(packages)} segment seçildi.")
 
         chunks = self._chunk_list(packages, chunk_size=chunk_size)

@@ -130,6 +130,51 @@
     .pace-badge.normal { background: rgba(52,211,153,.15);  color: var(--accent2); }
     .pace-badge.fast   { background: rgba(251,113,133,.15); color: var(--danger); }
 
+    /* ── Thought units ── */
+    .thought-units-card {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 32px;
+    }
+    .thought-units-card .card-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+    }
+    .tu-list {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .tu-block {
+      display: flex; align-items: flex-start; gap: 12px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+    .tu-num {
+      min-width: 28px; height: 28px;
+      border-radius: 50%;
+      background: rgba(124,92,255,.2);
+      color: #c4b5fd;
+      font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .tu-body { flex: 1; min-width: 0; }
+    .tu-time {
+      font-size: 11px; color: var(--muted); font-family: monospace;
+      margin-bottom: 3px;
+    }
+    .tu-snippet {
+      font-size: 13px; color: var(--text); line-height: 1.5;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .tu-dur {
+      font-size: 11px; color: #c4b5fd; font-weight: 600;
+      white-space: nowrap; padding-top: 2px;
+    }
+
     /* ── Emotion distribution chart ── */
     .emo-dist-section {
       background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
@@ -391,7 +436,7 @@
   <div class="emo-dist-section">
     <div class="chart-title">Ses Duygu Dağılımı (HuBERT SER — Türkçe)</div>
     <div class="chart-subtitle">
-      SeaBenSea/hubert-large-turkish-speech-emotion-recognition · 4 sınıf: Calm / Happy / Neutral / Sad / Angry
+      SeaBenSea/hubert-large-turkish-speech-emotion-recognition · 4 sınıf: Angry / Happy / Neutral / Sad
     </div>
 
     {% if voice_emo_dist_no_data %}
@@ -503,6 +548,30 @@
 
     </div>
   </div>
+
+  <!-- ═══════════════════════════════════════════
+       BÖLÜM 1D — Konuşma Yapısı (Thought Units)
+       ═══════════════════════════════════════════ -->
+  {% if thought_unit_count > 0 %}
+  <div class="section-label">Konuşma Yapısı</div>
+  <div class="thought-units-card">
+    <div class="card-title">Konuşma Yapısı — {{ thought_unit_count }} Fikir Bloğu</div>
+    <div class="tu-list">
+      {% for tu in thought_units %}
+      {% set dur = (tu.end - tu.start) | round(1) %}
+      {% set snippet = (tu.text or '')[:60] %}
+      <div class="tu-block">
+        <div class="tu-num">{{ loop.index }}</div>
+        <div class="tu-body">
+          <div class="tu-time">{{ "%.1f"|format(tu.start) }}s – {{ "%.1f"|format(tu.end) }}s</div>
+          <div class="tu-snippet">{{ snippet }}{% if (tu.text or '') | length > 60 %}…{% endif %}</div>
+        </div>
+        <div class="tu-dur">{{ dur }}s</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- ═══════════════════════════════════════════
        BÖLÜM 2 — Zaman Çizelgeleri (4 ayrı grafik)

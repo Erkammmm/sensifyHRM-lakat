@@ -272,6 +272,9 @@ class ReportGenerator:
                 voice_emo_dist_labels_json=json.dumps(voice_emo_dist["labels"], ensure_ascii=False),
                 voice_emo_dist_values_json=json.dumps(voice_emo_dist["values"]),
                 voice_emo_dist_colors_json=json.dumps(voice_emo_dist["colors"]),
+                # Konuşma Yapısı — Thought Units
+                thought_units=thought_units[:20],
+                thought_unit_count=len(thought_units),
                 # LLM raporu: injected by _write_ai_to_reports after generation
             )
         else:
@@ -720,14 +723,33 @@ def _compute_faz4_dashboard_data(segment_packages: List[Dict], face_timeline: Li
     n = len(segment_packages)
 
     # ── Kart 1: Göz Teması ──────────────────────────────────────────────
-    # gaze_away: prefer pre-computed field, fall back to gaze_direction
+    # Primary: frame-level focus using offset-corrected gaze (more granular & reliable)
+    # Fallback: segment-level gaze_direction from aggregator
     def _is_away(p: Dict) -> bool:
         if "gaze_away" in p:
             return bool(p["gaze_away"])
         return p.get("gaze_direction", "center") != "center"
 
-    center_count = sum(1 for p in segment_packages if not _is_away(p))
-    gaze_focus_num = round(center_count / n * 100)
+    if face_timeline and len(face_timeline) >= 5:
+        # Frame-level focus: offset-correct pitch/yaw with median, then threshold
+        detected_frames = [f for f in face_timeline if f.get("face_detected", True)]
+        if detected_frames:
+            raw_pitches = sorted([float(f.get("gaze_pitch_deg") or 0.0) for f in detected_frames])
+            raw_yaws    = sorted([float(f.get("gaze_yaw_deg") or 0.0) for f in detected_frames])
+            p_median = raw_pitches[len(raw_pitches) // 2]
+            y_median = raw_yaws[len(raw_yaws) // 2]
+            focus_count = sum(
+                1 for f in detected_frames
+                if abs(float(f.get("gaze_pitch_deg") or 0.0) - p_median) <= 20.0
+                and abs(float(f.get("gaze_yaw_deg") or 0.0) - y_median) <= 22.0
+            )
+            gaze_focus_num = round(focus_count / max(1, len(face_timeline)) * 100)
+        else:
+            gaze_focus_num = 0
+    else:
+        center_count = sum(1 for p in segment_packages if not _is_away(p))
+        gaze_focus_num = round(center_count / n * 100)
+
     gaze_focus_pct = f"{gaze_focus_num}%"
 
     if gaze_focus_num > 70:
@@ -1012,7 +1034,11 @@ _VOICE_EMO_ORDER = ["calm", "happy", "neutral", "sad", "angry"]
 
 def _compute_voice_emotion_distribution(audio_signal_timeline: List[Dict]) -> Dict:
     """
-    HuBERT SER dağılımını audio_signal_analysis.timeline[].debug.ser_top_label'den hesaplar.
+    HuBERT SER dağılımını hesaplar.
+
+    ser_all_scores varsa: her chunk'un tüm label skorlarını toplar (weighted).
+    ser_all_scores yoksa: ser_top_label sayar (fallback).
+    Sessiz chunk'lar (ser_top_score == 0.0) atlanır.
 
     Döndürür:
       {
@@ -1032,30 +1058,50 @@ def _compute_voice_emotion_distribution(audio_signal_timeline: List[Dict]) -> Di
     if not audio_signal_timeline:
         return _empty
 
-    counts: Dict[str, int] = {}
-    for chunk in audio_signal_timeline:
-        label = (chunk.get("debug", {}).get("ser_top_label") or "").strip().lower()
-        if label:
-            counts[label] = counts.get(label, 0) + 1
+    score_totals: Dict[str, float] = {}
+    valid_chunks = 0
 
-    total = sum(counts.values())
+    for chunk in audio_signal_timeline:
+        dbg = chunk.get("debug", {})
+        top_score = float(dbg.get("ser_top_score") or 0.0)
+        if top_score == 0.0:  # sessiz chunk — atla
+            continue
+        all_scores = dbg.get("ser_all_scores")
+        if all_scores:
+            # Weighted: her label'ın skorunu topla
+            for label, score in all_scores.items():
+                key = label.strip().lower()
+                if key:
+                    score_totals[key] = score_totals.get(key, 0.0) + float(score)
+            valid_chunks += 1
+        else:
+            # Fallback: sadece top_label'ı say
+            label = (dbg.get("ser_top_label") or "").strip().lower()
+            if label:
+                score_totals[label] = score_totals.get(label, 0.0) + 1.0
+                valid_chunks += 1
+
+    if valid_chunks == 0 or not score_totals:
+        return _empty
+
+    total = sum(score_totals.values())
     if total == 0:
         return _empty
 
     labels, values, colors = [], [], []
     for emo in _VOICE_EMO_ORDER:
-        cnt = counts.get(emo, 0)
-        if cnt == 0:
+        raw = score_totals.get(emo, 0.0)
+        if raw == 0.0:
             continue
-        pct = round(cnt / total * 100, 1)
+        pct = round(raw / total * 100, 1)
         labels.append(emo.capitalize())
         values.append(pct)
         colors.append(_VOICE_EMO_COLORS.get(emo, "rgba(107,114,128,0.65)"))
 
     # Any unexpected labels not in order
-    for emo, cnt in counts.items():
-        if emo not in _VOICE_EMO_ORDER:
-            pct = round(cnt / total * 100, 1)
+    for emo, raw in score_totals.items():
+        if emo not in _VOICE_EMO_ORDER and raw > 0.0:
+            pct = round(raw / total * 100, 1)
             labels.append(emo.capitalize())
             values.append(pct)
             colors.append("rgba(107,114,128,0.65)")
