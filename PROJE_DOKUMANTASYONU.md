@@ -1,308 +1,234 @@
-# SensifyHR v3.0 (FAZ‑3) - Teknik Dokümantasyon
+# SensifyHR FAZ-4 — Proje Dokümantasyonu
 
-## 1. Proje Özeti
-
-SensifyHR, online iş görüşmelerinde adayların multimodal (çok modlu) analizini yapan bir yapay zekâ sistemidir.
-
-v3 ana paradigma:
-- **Metin = sadece içerik (STT)**
-- **Ses = valence/arousal + fiziksel sinyal state’leri**
-- **Görsel = facial_state / attention_state / stress_indicator**
-- **LLM = tek karar verici (signal reasoning)**
- - Sistem **emotion/sentiment sınıflandırmaz**.
+*Sunum ve teknik rapor kaynağı — Türkçe, güncel (2026-03)*
 
 ---
 
-## 2. Proje Yapısı
+## 1. Proje Hedefi
+
+### Problem
+Online iş mülakatlarında İK uzmanları adayı yalnızca söylediklerine bakarak değerlendiriyor. Ses tonu, yüz ifadesi, göz teması gibi davranışsal sinyaller değerlendirme dışı kalıyor — ya fark edilmiyor, ya da önyargıyla yorumlanıyor.
+
+### Çözüm
+SensifyHR, bir video mülakat kaydını otomatik olarak analiz ederek İK uzmanına **karar destekleyici** bir davranışsal rapor sunar. Sistem karar vermez; gözlemler ve yorumlar.
+
+### Hedef Kullanıcı
+- İK uzmanları (teknik bilgi gerektirmez — HTML dashboard yeterli)
+- Büyük ölçekli işe alım süreçleri (çok sayıda aday, standart değerlendirme ihtiyacı)
+
+### Temel İlke
+> Sistem "elenmeli" veya "uygun değil" yazmaz. Zaman damgalı, sinyal destekli gözlemler sunar.
+
+---
+
+## 2. Sistem Mimarisi
+
+### Pipeline Akışı (5 Adım)
 
 ```
-sensifyHRMülakay/
-├── src/                        # Kaynak kodlar (domain-based)
-│   ├── vision/                 # Görsel analiz domain
-│   │   ├── face_analyzer.py    # Visual signal + gaze/blink
-│   │   └── video_processor.py  # Video işleme
-│   ├── audio/                  # Ses analiz domain
-│   │   ├── text_analyzer.py    # STT (turbo)
-│   │   ├── audio_signal_fusion.py # HuBERT SER projection + librosa
-│   │   ├── voice_analyzer.py   # Librosa ham ses özellikleri
-│   │   ├── audio_analyzer.py   # Legacy: wav2vec2 emotion (v2)
-│   │   └── thought_unit_merger.py # Segment birleştirme
-│   ├── nlp/                    # NLP & LLM reasoning domain
-│   │   ├── contextual_aggregator.py # Segment signal package builder
-│   │   ├── ollama_ai.py        # Ollama + Gemma
-│   │   ├── gemini.py           # Opsiyonel: Gemini
-│   │   ├── prompt_phase3.txt   # v3 prompt
-│   │   └── prompt.txt          # v2 legacy prompt
-│   ├── reporting/              # Raporlama domain
-│   │   ├── report_generator.py # HTML + JSON rapor
-│   │   └── plot.py             # Matplotlib grafik üretici
-│   └── pipeline.py             # Ana orchestrator
-├── api/
-│   └── main.py                 # FastAPI endpoint'leri
-├── weights/
-│   └── face_landmarker.task    # MediaPipe model
-├── Dockerfile
-├── requirements.txt
-├── requirements.lock.sonn.txt
-└── test_example.py
+[Video .mp4]
+     │
+     ▼
+[Adım 1] VideoProcessor
+     • ffmpeg ile ses çıkarma (16kHz mono WAV)
+     • Video metadata: fps, çözünürlük, süre
+     │
+     ▼ (Paralel çalışır)
+[Adım 2a] TextAnalyzer          [Adım 2b] VoiceAnalyzer       [Adım 2c] FaceAnalyzer
+ faster-whisper STT              torchaudio per-second         UniFace: Her 10. kare
+ Türkçe segment üretimi          ses özellikleri               DDAMFN duygu + güven
+ [{start,end,text},...]          [{rms,f0,konusma_stili}...]   MobileGaze pitch/yaw
+                                                                [{timestamp,emotion,...}]
+     │                                [Adım 2d] AudioSignalFusion
+     │                                 f0+enerji → ses profili
+     │                                 Canlı/Kararlı/Dengeli/Sakin/Gergin
+     ▼
+[Adım 3] ContextualAggregator
+     • Tüm sinyalleri zaman bazlı hizala
+     • Gaze offset normalizasyonu (median bias düzeltmesi)
+     • build_segment_signal_packages(): her STT segmenti için sinyal paketi
+     • build_smart_blocks(): doğal sessizlik sınırlı paragraf blokları
+     │
+     ▼
+[Adım 4] LLM (Gemini → Ollama)
+     • 5 sinyal kaynağı + paragraf blokları prompt'a giriyor
+     • 7 bölümlü Türkçe davranışsal analiz
+     │
+     ▼
+[Adım 5] ReportGenerator
+     • HTML dashboard (Chart.js + Jinja2)
+     • JSON rapor (makine tarafından okunabilir)
 ```
 
-## 3. CI / GitLab Entegrasyonu
+### 4 Sinyal Kaynağı
 
-Proje GitLab üzerinde çalışacak şekilde hazırlandı. Aşağıdaki dosya ve kurallar repoya eklidir:
-
-- `.gitlab-ci.yml` — Lint, Test ve Docker build/push aşamalarını içerir.
-
-Gereken GitLab CI değişkenleri (Project → Settings → CI / CD → Variables):
-
-- `CI_REGISTRY` (opsiyonel) — Docker registry URL (ör. registry.gitlab.com)
-- `CI_REGISTRY_USER` — Registry kullanıcı adı (ör. gitlab-ci-token veya kullanıcı)
-- `CI_REGISTRY_PASSWORD` — Registry erişim token veya parola
-
-Pipeline davranışı:
-- `lint` ve `test` aşamaları merge request ve ana branch için çalışır.
-- `build` aşaması ana branch (default branch) ve schedule edilen pipeline'larda çalışır; eğer `CI_REGISTRY` sağlanmışsa image push edilir.
-
-Notlar:
-- Eğer şirket runner'ınız Docker-in-Docker (dind) desteklemiyorsa `build` aşamasını runner konfigürasyonuna göre uyarlamanız gerekir (ör. Kaniko veya özel runner).
-- Secrets/credential'ları GitLab CI Variables olarak ayarlayın; `.env` dosyası repo'ya eklenmemeli.
-
-Runtime klasörleri (git’e girmez):
-- `reports/`: üretilen HTML/JSON raporlar + `reports/charts/`
-- `temp_uploads/`: API yüklemeleri için geçici dosyalar (analiz sonrası otomatik temizlenir)
+| Kaynak | Modül | Zaman Çözünürlüğü |
+|--------|-------|-------------------|
+| Yüz duygusu + güven | FaceAnalyzer | Her 10. kare (~0.33s) |
+| Göz bakış yönü | FaceAnalyzer (MobileGaze) | Her 10. kare |
+| Ses özellikleri | VoiceAnalyzer | 1 saniyelik pencereler |
+| Ses profili / valence | AudioSignalFusion | 3 saniyelik pencereler |
 
 ---
 
-## 3. Kullanılan Teknolojiler ve Modeller
+## 3. Kullanılan Teknolojiler
 
-### 3.1 Metin Analizi (text_analyzer.py)
+| Teknoloji | Versiyon | Kullanım Amacı |
+|-----------|----------|----------------|
+| PyTorch | 2.5.1+cu121 | Derin öğrenme altyapısı (GPU) |
+| torchaudio | 2.5.1+cu121 | Ses sinyal analizi (GPU-native) |
+| torchvision | 0.20.1+cu121 | Görüntü işleme |
+| UniFace DDAMFN | 3.0.0 | Yüz duygu analizi (7 sınıf, AffectNet7) |
+| UniFace MobileGaze | 3.0.0 | Göz bakış tahmini (pitch/yaw derece) |
+| UniFace RetinaFace | 3.0.0 | Yüz tespiti |
+| faster-whisper | 1.2.1 | Türkçe konuşmadan metne (STT), CTranslate2 |
+| Gemini 2.5 Pro/Flash | google-generativeai | Birincil LLM (bulut) |
+| Gemma3:12b | Ollama (yerel) | Yedek LLM (offline, veri gizliliği) |
+| FastAPI | 0.128.1 | REST API |
+| Uvicorn | 0.40.0 | ASGI sunucu |
+| Jinja2 | 3.1.6 | HTML rapor template |
+| Matplotlib | 3.10.8 | Timeline grafikleri |
+| Chart.js | 4.4.0 | Dashboard interaktif grafikleri |
+| Python | 3.10 | Dil |
+| CUDA | 12.1 | GPU hızlandırma |
 
-| Bileşen | Detay |
-|---------|-------|
-| STT (Speech-to-Text) | `openai/whisper-large-v3-turbo` (Transformers) + fallback |
-| Duygu Analizi | **YOK** (v3) |
-| Çıktı | `{start,end,text}` |
-| GPU | CUDA varsa kullanır; OOM durumunda otomatik CPU fallback |
+---
 
-**Akış:**
-1. Video → WAV çıkarma
-2. WAV → STT segmentleri (`{start,end,text}`)
+## 4. Sinyal Kaynakları — Detay
 
-### 3.2 FAZ‑3 Audio Signal (audio_signal_fusion.py)
+### Yüz Duygusu (DDAMFN AffectNet7)
+- **Ne ölçüyor:** Anlık yüz ifadesini 7 sınıfa sınıflandırır (Happy, Sad, Angry, Fear, Disgust, Surprise, Neutral)
+- **Nasıl hesaplanıyor:** DDAMFN derin öğrenme modeli, yüz crop üzerinden softmax olasılık dağılımı üretir
+- **Güvenilirlik notu:** emotion_confidence < 0.55 → "Neutral" sayılır. AffectNet7'de Happy/Surprise karışıklığı düzeltilmiştir.
 
-FAZ‑3’te ses tarafı **emotion etiketi üretmez**. Bunun yerine:
-- **SER (zayıf sinyal)**: `SeaBenSea/hubert-large-turkish-speech-emotion-recognition` ([model card](https://huggingface.co/SeaBenSea/hubert-large-turkish-speech-emotion-recognition))
-- SER çıktısı `EMOTION_TO_SIGNAL` ile **valence/arousal** skorlarına projekte edilir ve state’e bucketize edilir:
-  - `valence_state`: `NEGATIVE | NEUTRAL | POSITIVE`
-  - `arousal_state`: `LOW | MEDIUM | HIGH`
-- Librosa’dan fiziksel state’ler üretilir:
-  - `speech_energy`: `LOW | MEDIUM | HIGH`
-  - `speech_rate`: `SLOW | NORMAL | FAST`
-  - `pitch_stability`: `STABLE | UNSTABLE`
-- Zayıf sinyal dalgalanmalarını azaltmak için **EMA smoothing** uygulanır.
+### Göz Bakışı (MobileGaze)
+- **Ne ölçüyor:** Göz bakış yönünü pitch (yukarı/aşağı) ve yaw (sağ/sol) derece cinsinden ölçer
+- **Nasıl hesaplanıyor:** MobileGaze ResNet18, yüz crop üzerinden bakış vektörü tahmin eder
+- **Güvenilirlik notu:** Kamera yerleşimine göre sistematik bias oluşabilir. Video geneli median offset ile normalize edilir. center/up/down/left/right eşiği: |pitch| > 20°, |yaw| > 22°
 
-### 3.3 Yüz Analizi (face_analyzer.py)
+### Ses Profili (torchaudio kural sistemi)
+- **Ne ölçüyor:** Konuşma enerjisi ve pitch varyasyonundan ses davranış profili çıkarır
+- **Nasıl hesaplanıyor:** Her 3 saniyelik ses parçasında rms_dbfs ve f0_std hesaplanır; kural tablosuna göre 5 profile eşlenir
+- **Güvenilirlik notu:** Dil bağımsızdır. Absolute yorumdan kaçınılmalı — kişi ve konuşma stiline göre "Kararlı" farklı anlamlar taşıyabilir. SER modeli (wav2vec2 tabanlı) Türkçe için güvenilir sonuç vermediğinden kaldırılmıştır.
 
-| Bileşen | Detay |
-|---------|-------|
-| Model | MediaPipe FaceLandmarker (float16) |
-| Duygu | **v2 legacy:** kural tabanlı emotion label |
-| Bakış | eyeLookIn/Out/Down skorlarından yön tespiti |
-| Göz Kırpma | eyeBlinkLeft/Right > 0.5 eşiği |
-| Çıktı | Timeline + özet istatistikler |
+### Konuşma Metni (faster-whisper)
+- **Ne ölçüyor:** Söylenen kelimeleri ve zaman damgalarını çıkarır
+- **Nasıl hesaplanıyor:** Systran/faster-whisper-large-v3-turbo, CTranslate2 optimizasyonlu, CUDA destekli
+- **Güvenilirlik notu:** Türkçe için çok yüksek doğruluk. Arka plan gürültüsünde hata payı artar.
 
-**Duygu Kuralları:**
-- Korku: browInnerUp > 0.2 && browOuterUp > 0.1 && eyeWide > 0.1
-- Tiksinti: noseSneer > 0.15
-- Mutlu: mouthSmile > 0.35
-- Şaşkın: browInnerUp > 0.4 && jawOpen > 0.10
-- Öfkeli: browDown > 0.35
-- Stresli: mouthRoll+mouthShrug / 3 > 0.25
-- Nötr: hiçbiri tetiklenmezse
+---
 
-### 3.4 Ses Özellikleri (voice_analyzer.py)
+## 5. FAZ-3'ten FAZ-4'e Ne Değişti
 
-| Bileşen | Detay |
-|---------|-------|
-| Kütüphane | Librosa |
-| Ön İşleme | Trim (sessizlik), Pre-emphasis (0.97), Normalize (0.95) |
-| RMS Enerji | frame_length=2048, hop_length=512 |
-| Pitch (F0) | librosa.pyin, fmin=50, fmax=400 Hz |
-| VAD | librosa.effects.split, top_db=20 |
-| Mel Spectrogram | 128 mel band, power=2.0 |
+| Bileşen | FAZ-3 | FAZ-4 | Neden Değiştirildi |
+|---------|-------|-------|-------------------|
+| Yüz analizi | MediaPipe FaceLandmarker + blendshape kuralları | UniFace DDAMFN + MobileGaze | MediaPipe kural tabanlı → güvenilmez; DDAMFN gerçek sınıflandırıcı |
+| Ses özellikleri | librosa (CPU) | torchaudio (GPU-native) | Performans + CUDA entegrasyonu |
+| Ses duygu modeli | HuBERT SER (SeaBenSea) → firdhokk → ehcalabres | torchaudio f0+enerji kural sistemi | SER modelleri Türkçe için güvenilmez (sakin konuşma → angry/sad etiket) |
+| Konuşma yapısı | 3-35 saniye rastgele thought units | Doğal sessizlik bazlı paragraf blokları (50-200 kelime) | LLM için anlamlı içerik birimi |
+| LLM prompt | 4 sinyal kaynağı, 5 çıktı bölümü | 5 sinyal kaynağı, 7 çıktı bölümü | Zaman bloğu içerik analizi eklendi |
+| Bakış etiketleri | String ("Ekrana Bakıyor") | Derece bazlı (pitch_deg, yaw_deg) + normalize | Sayısal sinyal → güvenilir eşik uygulanabilir |
 
-### 3.5 FAZ‑3 Visual Signal (face_analyzer.py)
+---
 
-FAZ‑3’te görsel çıktı davranışsal state’lerdir:
-- `facial_state`: `NEUTRAL | POSITIVE | TENSE`
-- `attention_state`: `FOCUSED | AVERTED`
-- `stress_indicator`: `LOW | ELEVATED | HIGH`
+## 6. Dashboard Bölümleri
 
-### 3.8 Contextual Aggregator (contextual_aggregator.py)
+### KPI Kartları
+Mülakatın özeti — 4 metrik kart:
+- **Baskın Duygu:** En sık görülen yüz ifadesi (renk kodlu)
+- **Kamera Teması:** Kameraya bakılan süre yüzdesi
+- **Konuşma Güveni:** Ortalama konuşma netliği ve sürekliliği
+- **Stres Skoru:** Yüz duygusu + pitch varyasyonu + gaze kaçınma bileşik sinyali
 
-Whisper segmentleri için zaman bazlı hizalama yapar ve LLM’ye giden **Segment Signal Package**’ı üretir:
+### Yüz Duygu Dağılımı
+7 duygu sınıfının mülakat boyunca dağılımı. Her dilim, o duygunun toplam süredeki oranını gösterir.
 
-```json
-{
-  "timestamp": "00:45 - 00:52",
-  "start": 45.0,
-  "end": 52.0,
-  "text": "…",
-  "audio_signal": {
-    "valence": "NEUTRAL",
-    "arousal": "MEDIUM",
-    "speech_energy": "LOW",
-    "speech_rate": "NORMAL",
-    "pitch_stability": "STABLE"
-  },
-  "visual_signal": {
-    "facial_state": "NEUTRAL",
-    "attention_state": "FOCUSED",
-    "stress_indicator": "LOW"
-  }
-}
+### Ses Profili Dağılımı
+5 ses profili (Canlı/Kararlı/Dengeli/Sakin/Gergin) dağılımı. Saf duygu etiketi değil — enerji ve pitch bazlı davranış profili.
+
+### Kritik Anlar
+Yüksek stres skoru (> 0.6) veya yüz-ses tutarsızlığı olan anlar kart olarak listelenir. Her kart: zaman damgası + söylenen metin + sinyal değerleri.
+
+### Konuşma Blokları
+Mülakat, doğal sessizlik sınırlarında paragraf bloklarına bölünür. Her blok:
+- Konuşma metni özeti (ilk 220 karakter)
+- Baskın duygu badge'i
+- Konuşma güveni badge'i
+- Kamera teması badge'i
+- Ses valansı badge'i
+
+### LLM Analizi
+Gemini veya Ollama'nın ürettiği Türkçe davranışsal rapor. 7 bölüm içerir:
+1. Genel Davranışsal Profil
+2. Duygusal Seyir
+3. Göz Teması ve Dikkat
+4. Konuşma Dinamikleri
+5. Konuşma İçeriği Analizi (blok bazlı)
+6. Tutarsızlık Sinyalleri
+7. İK İçin Gözlemler
+
+### Grafikler
+5 matplotlib timeline grafiği: yüz duygusu seyri, valence/arousal, gaze yönü, konuşma güveni, ses enerjisi.
+
+---
+
+## 7. LLM Entegrasyonu
+
+### Fallback Zinciri
+```
+Gemini 2.5 Pro
+    └─► başarısız ise → Gemini 2.5 Flash
+                └─► başarısız ise → Gemini 2.0 Flash
+                        └─► başarısız ise → Ollama (Gemma3:12b)
+                                └─► başarısız ise → graceful skip (rapor LLM olmadan devam eder)
 ```
 
-### 3.6 AI Değerlendirme
+### Prompt Stratejisi
+- Her segment paketi: 5 sinyal + zaman damgası + metin
+- Paragraf blokları: konuşma içeriği ile sinyaller birlikte
+- Yorumlama kuralları: confidence eşiği, art arda gaze kaçınma, çift sinyal koşulu
+- Çıktı kuralları: muğlak dil yasak, tüm gözlemlerde zaman damgası zorunlu
 
-**Ollama + Gemma (ollama_ai.py) – Önerilen:**
-- Model: **gemma3:12b** (yerel)
-- Segment paketleri **10’arlı chunk**’lar halinde analiz edilip final sentez üretilir
-
-**Gemini (gemini.py) – Opsiyonel:**
-- Prompt: `src/prompt_phase3.txt`
-
-**Ollama + Gemma (ollama_ai.py):**
-- Model: **gemma3:12b** (yerel)
-- Tamamen offline çalışır
-- Stajyer çalışmasındaki interview_ai.py baz alınmıştır
-- v3’te segment paketleri **10’arlı chunk**’lar halinde analiz edilip final sentez üretilir
+### Bağlam Boyutu
+- ~7 dakikalık mülakat: ~183 STT segment, ~7 paragraf bloğu, ~50 AudioSignalFusion chunk
+- Gemini 2.5 Pro 1M token context'i ile tüm veri tek seferde işlenir
 
 ---
 
-## 4. Pipeline Yapısı
+## 8. Performans
 
-```
-Video (MP4)
-    │
-    ├─→ [1] VideoProcessor.extract_audio() → WAV
-    │       │
-    │       ├─→ [2] TextAnalyzer.process_video()
-    │       │       → STT segmentleri (text only)
-    │       │
-    │       ├─→ [3] Audio Signal Fusion
-    │       │       → valence/arousal + fiziksel state’ler
-    │       │
-    │       └─→ [4] VoiceAnalyzer.analyze_audio()
-    │               → Librosa → RMS, Pitch, VAD, Mel
-    │
-    ├─→ [5] FaceAnalyzer.process_video()
-    │       → visual signal (facial/attention/stress) + gaze/blink
-    │
-    └─→ [6] Contextual Aggregator
-            → Segment Signal Packages (LLM input)
-            → LLM reasoning (chunking)
-            → Rapor (JSON + HTML product UI + AI)
-```
+| Video Süresi | Toplam Süre | En Uzun Adım |
+|-------------|-------------|--------------|
+| 3 dakika | ~1.5 dk | FaceAnalyzer (~45s) |
+| 5 dakika | ~2.5 dk | FaceAnalyzer (~80s) |
+| 10 dakika | ~5 dk | FaceAnalyzer + Whisper (~160s) |
+
+*GPU: NVIDIA, CUDA 12.1, 6+ GB VRAM önerilir*
+
+FaceAnalyzer, her 10. frame'i işler (~3 fps). CPU modunda 3-5x daha yavaştır.
 
 ---
 
-## 5. Çıktı Formatı
+## 9. Bilinen Limitasyonlar
 
-### JSON Rapor Yapısı
-
-```json
-{
-    "interview_id": "uuid",
-    "phase": "v3",
-    "duration_seconds": 45.2,
-    "video_info": {"fps": 30, "width": 1920, "height": 1080, "duration_seconds": 120},
-    "text_analysis": {
-        "segments": [{"start": 0.0, "end": 3.5, "text": "..."}],
-        "summary": {"total_sentences": 15}
-    },
-    "audio_signal_analysis": {
-        "timeline": [{"start": 0.0, "end": 3.0, "valence_state": "NEUTRAL", "arousal_state": "MEDIUM"}],
-        "summary": {"dominant_valence": "NEUTRAL", "dominant_arousal": "MEDIUM"}
-    },
-    "visual_signal_analysis": {
-        "timeline": [{"timestamp": 0.5, "facial_state": "NEUTRAL", "attention_state": "FOCUSED"}],
-        "summary": {"focus_score": 85.2, "blink_rate_per_min": 15.3, "dominant_emotion": "NEUTRAL"}
-    },
-    "voice_analysis": {
-        "raw_voice_features": {
-            "energy_rms": {"mean": 0.045, "variance": 0.001},
-            "pitch_f0": {"mean": 180.5, "variability": 45.2, "jump_count": 3},
-            "speech_silence": {"total_speech_seconds": 90.5, "total_silence_seconds": 29.5}
-        }
-    },
-    "ai_analysis": {"analysis": "..."}
-}
-```
+| Limitasyon | Açıklama |
+|-----------|----------|
+| Kamera bağımlılığı | Kamera açısı değiştikçe MobileGaze yanlış kalibrasyon verebilir. Median offset düzeltmesi kısmen telafi eder. |
+| Aydınlatma duyarlılığı | Düşük ışıkta veya arka ışıkta DDAMFN duygu tespiti güvenilirliği düşer (confidence < 0.55 → Neutral). |
+| Ses profili kişi bağımlılığı | f0/rms eşikleri evrenseldir; konuşmacının doğal tonu dikkate alınmaz. Aynı rms değeri farklı kişiler için farklı anlam taşıyabilir. |
+| Türkçe STT gürültüsü | Arka plan sesi veya çoklu konuşmacı durumunda STT hata oranı artar. |
+| LLM Türkçe tutarlılığı | Gemini daha tutarlı; Ollama/Gemma3:12b bazen format kurallarını ihlal eder. |
+| Tek kişi varsayımı | Pipeline tek adayı işler; çerçevede birden fazla yüz varsa tespit belirsizleşir. |
 
 ---
 
-## 6. Grafikler (16 adet)
+## 10. Gelecek Adımlar
 
-v3’te grafikler “Detaylar” sekmesinde tutulur:
-- Visual signal dağılımları (facial/attention/stress)
-- Audio signal (valence/arousal) dağılım + timeline
-- Teknik ses grafikleri (RMS/Pitch/VAD/Mel)
-
----
-
-## 7. API Endpoint'leri
-
-| Method | Endpoint | Açıklama |
-|--------|----------|----------|
-| GET | `/` | API bilgileri |
-| GET | `/health` | Sağlık kontrolü |
-| POST | `/analyze` | Video yükle + analiz et |
-| GET | `/status/{id}` | Analiz durumu |
-
-### POST /analyze
-
-```bash
-curl -X POST http://localhost:8000/analyze \
-  -F "file=@video.mp4" \
-  -F "interview_id=test-001"
-```
-
-FAZ‑3 opt‑in ve LLM seçimi:
-- `POST /analyze?phase3=true&llm_provider=ollama`
-- `llm_provider`: `gemini|ollama|none` (default gemini; hata/kota olursa otomatik ollama fallback)
-
----
-
-## 8. Bağımlılıklar
-
-### Sistem
-- Python 3.10+
-- FFmpeg
-- CUDA 12.1 (GPU için)
-- Ollama (opsiyonel, yerel AI için)
-
-### Python Paketleri
-Tam liste: `requirements.txt` veya `requirements.lock.sonn.txt`
-
-Kritik paketler:
-- `torch>=2.1.0` (CUDA 12.1)
-- `openai-whisper`
-- `transformers>=4.39.0`
-- `mediapipe==0.10.9`
-- `librosa>=0.10.0`
-- `fastapi>=0.104.0`
-- `matplotlib>=3.8.0`
-- `google-generativeai>=0.8.0`
-- `ollama>=0.3.0`
-
----
-
-## 9. Notlar
-
-- MediaPipe sadece CPU'da çalışır (Python API sınırlaması)
-- STT ve HuBERT SER GPU’da çalışır (CUDA otomatik tespit); OOM durumunda otomatik CPU fallback yapılır
-- `protobuf==3.20.3` MediaPipe uyumluluğu için sabit tutulmalıdır
-- Gemini ayrı subprocess'te çalışır (protobuf çakışması önlemi)
-- `requirements.lock.sonn.txt` dosyası Anaconda ortamından freeze edilmiştir
-- Ollama + Gemma tamamen yerel/offline çalışır, internet gerektirmez
+| Öncelik | İyileştirme | Açıklama |
+|---------|-------------|----------|
+| Yüksek | Kişi bazlı ses kalibrasyonu | İlk 30 saniyeden kişinin f0/rms referansını çıkar, eşikleri adapte et |
+| Yüksek | Çok kişili video desteği | Konuşmacı diarizasyonu (pyannote.audio) ile aday/mülakat yapan ayrımı |
+| Orta | AffectNet8 testi | 8-sınıf modelin contempt eklenmesinin etkisini ölçek |
+| Orta | Gerçek zamanlı mod | WebSocket ile chunk-by-chunk analiz (live interview desteği) |
+| Düşük | Beden dili sinyalleri | Omuz postürü, el hareketleri (MediaPipe Pose veya başka model) |
+| Düşük | Çoklu dil desteği | İngilizce, Almanca mülakat desteği (STT zaten çok dilli, LLM prompt güncellenmeli) |

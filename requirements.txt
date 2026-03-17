@@ -1,56 +1,60 @@
-# =============================================
-# SensifyHR Mülakat Analiz Sistemi v2.0
-# Gereksinimler (GPU / CUDA 12.1)
-# =============================================
+# SensifyHR FAZ-4 Requirements
+# Python 3.10, CUDA 12.1
+# Conda env: gpu_env_videoai
+# GPU: NVIDIA (torch+cu121)
+#
+# Kurulum:
+#   pip install torch==2.5.1+cu121 torchaudio==2.5.1+cu121 torchvision==0.20.1+cu121 \
+#       --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r requirements.txt
 
-# --- Video İşleme ---
-opencv-python>=4.8.0
-ffmpeg-python>=0.2.0
+# ── Deep Learning Core ──────────────────────────────────────────────
+torch==2.5.1+cu121
+torchaudio==2.5.1+cu121
+torchvision==0.20.1+cu121
 
-# --- Yüz / Bakış Analizi (UniFace: RetinaFace + DDAMFN + MobileGaze) ---
-uniface>=3.0.0
+# ── HuggingFace (Whisper STT) ────────────────────────────────────────
+transformers==4.41.2
+accelerate
+safetensors==0.7.0
+tokenizers==0.19.1
+huggingface_hub==0.36.1
 
-# --- Metin Analizi (Whisper STT + Türkçe BERT) ---
-openai-whisper>=20231117
-faster-whisper>=1.0.0
+# ── Whisper STT ──────────────────────────────────────────────────────
+faster-whisper==1.2.1
+openai-whisper==20250625
+ctranslate2==4.7.1
 
-# --- Ses Duygu Analizi (wav2vec2) + Metin BERT ---
-transformers>=4.39.0
-huggingface_hub>=0.20.0
+# ── Face Analysis (UniFace: RetinaFace + DDAMFN + MobileGaze) ────────
+uniface==3.0.0
+onnxruntime-gpu==1.23.2
 
-# --- PyTorch (GPU - CUDA 12.1) ---
-# Not: torch, torchaudio ayrıca CUDA index'den kurulmalı:
-# pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
-torch>=2.1.0
-torchaudio>=2.1.0
+# ── Vision ───────────────────────────────────────────────────────────
+opencv-python==4.8.1.78
+pillow==12.0.0
 
-# --- Ses Özellikleri (Librosa) ---
-librosa>=0.10.0
-soundfile>=0.12.0
+# ── Audio (torchaudio + ses özellikleri) ─────────────────────────────
+scipy==1.15.3
+soundfile==0.13.1
+librosa==0.11.0
 
-# --- API Framework ---
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-python-multipart>=0.0.6
-aiofiles>=23.2.1
+# ── LLM Integration ──────────────────────────────────────────────────
+google-generativeai==0.8.6
+google-genai==1.62.0
+ollama==0.6.1
 
-# --- Veri İşleme ---
-numpy<2.0,>=1.24.0
-pandas>=2.1.0
-scipy>=1.10.0
+# ── API ──────────────────────────────────────────────────────────────
+fastapi==0.128.1
+uvicorn==0.40.0
+python-multipart==0.0.22
+aiofiles==25.1.0
 
-# --- Görselleştirme & Raporlama ---
-matplotlib>=3.8.0
-seaborn>=0.13.0
-jinja2>=3.1.2
-xhtml2pdf>=0.2.11
-Pillow>=10.1.0
-
-# --- AI Değerlendirme ---
-google-generativeai>=0.8.0
-ollama>=0.3.0
-
-# --- Yardımcılar ---
-python-dotenv>=1.0.0
-pydantic>=2.5.0
-safetensors>=0.4.0
+# ── Utilities ────────────────────────────────────────────────────────
+python-dotenv==1.2.1
+numpy==1.26.4
+matplotlib==3.10.8
+jinja2==3.1.6
+tqdm==4.67.3
+requests==2.32.5
+pydantic==2.12.5
+ffmpeg-python==0.2.0

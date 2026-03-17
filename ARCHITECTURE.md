@@ -1,297 +1,319 @@
-# SensifyHR — Architecture Document
-## FAZ-3 → FAZ-4 Migration
+# SensifyHR FAZ-4 — Sistem Mimarisi
 
 ---
 
-## 1. Current Architecture (FAZ-3)
+## Genel Bakış
 
-### Pipeline Flow
+SensifyHR, bir video mülakat kaydını analiz ederek davranışsal bir İK raporu üreten multimodal bir AI pipeline'ıdır.
+Dört bağımsız sinyal kaynağını zaman bazlı hizalar ve LLM ile yorumlar.
+
+**Temel ilke:** Sistem karar vermez, gözlemler ve yorumlar. "Elenmeli" gibi yargılar üretmez.
+
+---
+
+## Pipeline Akışı
 
 ```
 video.mp4
     │
-    ├─[VideoProcessor]──────────────────────────────── video_info (fps, resolution, duration)
-    │       │
-    │       └── extract_audio() ──────────────────────► audio.wav (16kHz mono, ffmpeg)
+    ├─[VideoProcessor]────────────────────────── video_info (fps, resolution, duration_seconds)
+    │       └── extract_audio() ──────────────► audio.wav (16kHz mono, ffmpeg)
+    │                                              ~2-5s
     │
     ├─[TextAnalyzer]  ◄── audio.wav
     │       │   faster-whisper (Systran/faster-whisper-large-v3-turbo) + CUDA
+    │       │   ~30-120s (video uzunluğuna göre)
     │       └── STT segments: [{start, end, text}, ...]
     │               │
-    │       [ThoughtUnitMerger] → merged thought units (15–35s blocks)
+    │       [ThoughtUnitMerger] → thought_units (15-35s bloklar)
     │
-    ├─[VoiceAnalyzer]  ◄── audio.wav
-    │       │   librosa: load → trim → pre-emphasis → normalize
-    │       │   Features: RMS, pitch F0 (pyin), mel spectrogram, VAD
-    │       └── raw_voice_features (windowed 8s, for plotting only)
+    ├─[VoiceAnalyzer]  ◄── audio.wav                          ─┐
+    │       │   torchaudio: per-second segmentation            │ Paralel
+    │       │   VAD: RMS + ZCR + spectral flatness             │ çalışır
+    │       │   ~5-15s                                         │
+    │       └── per_second_timeline: [{start_sec, end_sec,     │
+    │               rms_dbfs, f0_mean, f0_std,                 │
+    │               konusma_guveni, konusma_stili}, ...]        │
+    │                                                           │
+    ├─[AudioSignalFusion]  ◄── audio.wav                       │
+    │       │   torchaudio: 3s chunk'lar (non-overlapping)     │
+    │       │   f0_std + rms_dbfs → ses profili kuralları      │
+    │       │   EMA yumuşatma (alpha=0.65)                     │
+    │       │   ~3-10s                                         │
+    │       └── audio_signal_timeline: [{start, end,            │
+    │               valence_state, arousal_state,               │
+    │               debug: {voice_profile, voice_energy,        │
+    │                       valence_score_ema}}, ...]           │
+    │                                                           │
+    ├─[FaceAnalyzer]  ◄── video.mp4                            │
+    │       │   RetinaFace: yüz tespiti (her 10. frame)        │
+    │       │   DDAMFN AffectNet7: 7-sınıf duygu + confidence  │
+    │       │   MobileGaze ResNet18: pitch_deg, yaw_deg         │
+    │       │   ~60-180s (video uzunluğuna göre)               ─┘
+    │       └── face_timeline: [{timestamp_sec, emotion_label,
+    │               emotion_confidence, gaze_pitch_deg,
+    │               gaze_yaw_deg, face_detected}, ...]
     │
-    ├─[AudioSignalFusion]  ◄── audio.wav
-    │       │   Layer A: librosa → RMS, pitch_std, onset_strength → energy/rate/pitch states
-    │       │   Layer B: HuBERT SER (SeaBenSea) → label probs → valence/arousal projection
-    │       └── timeline: [{start, end, valence_state, arousal_state,
-    │                        speech_energy, speech_rate, pitch_stability}, ...]
+    ├─[ContextualAggregator]
+    │       │   Sinyal hizalama: zaman aralığı kesişimi
+    │       │   Gaze offset: video geneli median bias düzeltmesi
+    │       │   build_segment_signal_packages(): STT segment başına sinyal paketi
+    │       │   build_smart_blocks(): doğal sessizlik sınırlı paragraf blokları
+    │       └── segment_signal_packages + time_blocks
     │
-    ├─[FaceAnalyzer]  ◄── video.mp4
-    │       │   MediaPipe FaceLandmarker (.task file, blendshape scores)
-    │       │   Rule-based inference from blendshape scores:
-    │       │     - emotion: smile/brow/jaw thresholds → Mutlu/Ofkeli/Korku/Tiksinti/...
-    │       │     - gaze: eyeLookIn/Out/Down → string label ("Ekrana Bakiyor" etc.)
-    │       │     - phase3: facial_state (POSITIVE/TENSE/NEUTRAL) + attention_state + stress_indicator
-    │       └── timeline: [{timestamp, facial_state, attention_state, stress_indicator, gaze}, ...]
+    ├─[LLM — Gemini / Ollama]
+    │       │   Gemini 2.5 Pro → 2.5 Flash → 2.0 Flash → Ollama → graceful skip
+    │       │   Prompt: 5 sinyal kaynağı + 7 bölüm çıktı
+    │       └── ai_analysis (Türkçe davranışsal rapor metni)
     │
-    └─[ContextualAggregator]  ◄── thought_units + audio_signal_timeline + face_timeline
-            │   Time-range intersection → mode() per field
-            └── segment_signal_packages: [{timestamp, start, end, text,
-                                           audio_signal{valence,arousal,speech_energy,...},
-                                           visual_signal{facial_state,attention_state,stress_indicator}}, ...]
-                    │
-                [LLM (Ollama/Gemma3:12b)]
-                    │
-                [ReportGenerator] → HTML report
-```
-
-### Key Problems in FAZ-3
-
-| Module | Problem |
-|--------|---------|
-| `face_analyzer.py` | MediaPipe blendshapes → rule-based emotion is unreliable and noisy. Gaze is a string label, not metric degrees. No actual classifier confidence. Requires `.task` model file with Unicode path workaround. |
-| `voice_analyzer.py` | librosa-only, CPU-bound, produces plotting data not pipeline-ready per-second segments. Output format doesn't match what contextual_aggregator needs. |
-| `audio_signal_fusion.py` | HuBERT SER inference works well; physical feature extraction uses librosa (should be torchaudio). |
-| `contextual_aggregator.py` | Consumes `facial_state/attention_state/stress_indicator` — these proxy fields must be replaced with `emotion_label/gaze_direction/speech_style`. |
-| `prompt_phase3.txt` | Doesn't mention new signal names (emotion_label, gaze_direction, speech_style, speech_confidence, emotion_confidence). No gaze interpretation guide for LLM. |
-
----
-
-## 2. Target Architecture (FAZ-4)
-
-### Pipeline Flow
-
-```
-video.mp4
-    │
-    ├─[VideoProcessor]  (UNCHANGED) ─────────────────── video_info
-    │       └── extract_audio() ──────────────────────► audio.wav
-    │
-    ├─[TextAnalyzer]  (UNCHANGED) ◄── audio.wav
-    │       └── STT segments: [{start, end, text}, ...]
-    │               │
-    │       [ThoughtUnitMerger]  (UNCHANGED) → thought units
-    │
-    ├─[VoiceAnalyzer]  ◄── audio.wav          ← REPLACED (librosa → torchaudio)
-    │       │   torchaudio: load → resample → per-second segmentation
-    │       │   VAD: RMS + ZCR + spectral flatness → "konuşma"/"sessiz"/"konuşma_dışı"
-    │       │   Per-second features: rms_dbfs, f0_mean, f0_std, spectral_centroid,
-    │       │                        spectral_flatness, mel_energy
-    │       │   Derived: konusma_stili, konusma_enerjisi, konusma_guveni
-    │       └── per_second_timeline: [{start_sec, end_sec, segment_type, is_speech,
-    │                                   rms_dbfs, f0_mean, f0_std, spectral_centroid,
-    │                                   spectral_flatness, mel_energy,
-    │                                   konusma_guveni, konusma_stili, konusma_enerjisi}, ...]
-    │
-    ├─[AudioSignalFusion]  ◄── audio.wav       ← UPDATED (librosa preprocessing → torchaudio)
-    │       │   Layer A: torchaudio → physical states (speech_energy, speech_rate, pitch_stability)
-    │       │   Layer B: HuBERT SER (UNCHANGED) → valence/arousal projection
-    │       └── timeline: [{start, end, valence_state, arousal_state, ...}, ...]
-    │
-    ├─[FaceAnalyzer]  ◄── video.mp4            ← REPLACED (MediaPipe → UniFace)
-    │       │   RetinaFace (MNET_025) → face detection + landmarks
-    │       │   DDAMFN AffectNet7 → 7-class emotion classification with confidence
-    │       │   MobileGaze (ResNet18) → pitch_deg, yaw_deg in degrees
-    │       │   Every 10th frame; timestamp_sec = frame_index / fps
-    │       │   face_detected=False → skip inference, include empty record, no crash
-    │       └── timeline: [{timestamp_sec, emotion_label, emotion_confidence,
-    │                        gaze_pitch_deg, gaze_yaw_deg, face_detected}, ...]
-    │
-    └─[ContextualAggregator]  ◄── thought_units + audio_signal_timeline + face_timeline
-            │                                    ← UPDATED (new signal field names)
-            │   Face frames in range → dominant emotion_label + avg emotion_confidence
-            │                        → avg gaze_pitch_deg, avg gaze_yaw_deg → gaze_direction label
-            │   Voice seconds in range → mode(konusma_stili), mean(konusma_guveni)
-            │                          → mean(f0_mean), mean(rms_dbfs)
-            │   HuBERT timeline in range → hubert_valence, hubert_arousal
-            └── segment_signal_packages: [{segment_id, start, end, text,
-                                           dominant_emotion, emotion_confidence,
-                                           avg_gaze_pitch, avg_gaze_yaw, gaze_direction,
-                                           speech_style, speech_confidence,
-                                           f0_mean, rms_dbfs,
-                                           hubert_valence, hubert_arousal}, ...]
-                    │
-                [LLM (Ollama/Gemma3:12b)]  (UNCHANGED)
-                    │
-                [ReportGenerator]  (UNCHANGED) → HTML report
-```
-
-### Module-by-Module Change Summary
-
-| Module | Status | Change |
-|--------|--------|--------|
-| `src/vision/video_processor.py` | **DO NOT TOUCH** | — |
-| `src/vision/face_analyzer.py` | **REPLACE** | MediaPipe → UniFace (RetinaFace + DDAMFN + MobileGaze) |
-| `src/audio/text_analyzer.py` | **DO NOT TOUCH** | — |
-| `src/audio/thought_unit_merger.py` | **DO NOT TOUCH** | — |
-| `src/audio/voice_analyzer.py` | **REPLACE** | librosa → torchaudio, remove tkinter GUI |
-| `src/audio/audio_signal_fusion.py` | **UPDATE** | Keep HuBERT SER, replace librosa preprocessing with torchaudio |
-| `src/audio/audio_analyzer.py` | **DO NOT TOUCH** | Legacy v2; not used in phase3 path |
-| `src/nlp/contextual_aggregator.py` | **UPDATE** | Consume new signal formats, compute gaze_direction label |
-| `src/nlp/ollama_ai.py` | **DO NOT TOUCH** | — |
-| `src/nlp/gemini.py` | **DO NOT TOUCH** | — |
-| `src/nlp/prompt_phase3.txt` | **UPDATE** | Add new signal names + gaze interpretation guide |
-| `src/nlp/prompt.txt` | **DO NOT TOUCH** | — |
-| `src/reporting/` | **DO NOT TOUCH** | Entire folder |
-| `src/pipeline.py` | **UPDATE** | Rewire imports, update step labels |
-| `api/main.py` | **DO NOT TOUCH** | — |
-| `test_example.py` | **DO NOT TOUCH** | — |
-| `requirements.txt` | **UPDATE** | Remove mediapipe, add uniface (already installed) |
-
----
-
-## 3. Gaze Estimator Decision: MobileGaze vs GaZeL
-
-### Decision: **MobileGaze (via uniface)**
-
-### Evaluation
-
-| Criterion | MobileGaze | GaZeL |
-|-----------|-----------|-------|
-| Dependency | Part of `uniface 3.0.0` — **already installed** | Separate package, not installed |
-| API surface | `gaze_estimator.estimate(face_crop)` → `.pitch`, `.yaw` in radians | Different API, requires own model download |
-| Model size | ResNet18 backbone — lightweight | Larger transformer-based architecture |
-| Integration | Proven working in intern code (`stajyer_kodlari/gaze-emotion-json_sefa.py`) | No existing integration code |
-| Output format | `(pitch_rad, yaw_rad)` → convert to degrees | Would need API investigation |
-| New dependency risk | **Zero** — already in uniface | Introduces new package + potential CUDA conflicts |
-| Interview suitability | Adequate for frontal/near-frontal faces; ResNet18 trained on gaze datasets | Better stability claimed but untested in this env |
-
-### Reasoning
-
-The CLAUDE.md hard rule states: *"Do not introduce new heavy dependencies without checking if torchaudio/torch already covers it."* GaZeL would be a new heavy dependency with no proven benefit over MobileGaze in this specific pipeline context.
-
-MobileGaze is already working in the intern code. The intern code (`gaze-emotion-json_sefa.py`) uses `GazeWeights.RESNET18` via `uniface.gaze.MobileGaze` and successfully produces `pitch_deg`/`yaw_deg` values. For a seated interview scenario (frontal face, controlled environment, camera at desk level), MobileGaze's accuracy is sufficient. The pipeline requires relative gaze classification (`center`/`up`/`down`/`left`/`right`) with ±15°/±20° thresholds — not sub-degree precision.
-
-**Conclusion:** Use MobileGaze (uniface built-in). If future validation shows GaZeL produces substantially better stability on interview footage, migration is straightforward since the output format (pitch_deg, yaw_deg) is identical.
-
----
-
-## 4. Data Flow: Signal Alignment
-
-```
-Video timeline (seconds):
-0────────────────────────────────────────────────────► t
-
-FaceAnalyzer output (every 10th frame, ~3 fps):
-  ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   ●
-  {timestamp_sec, emotion_label, emotion_confidence,
-   gaze_pitch_deg, gaze_yaw_deg, face_detected}
-
-VoiceAnalyzer output (per second):
-  [──1s──][──1s──][──1s──][──1s──][──1s──][──1s──]
-  {start_sec, end_sec, rms_dbfs, f0_mean, konusma_stili, ...}
-
-AudioSignalFusion output (3s chunks, 1s step):
-  [────3s────]
-       [────3s────]
-            [────3s────]
-  {start, end, valence_state, arousal_state, ...}
-
-ThoughtUnit (merged STT, 15–35s blocks):
-  [══════════════════20s════════════════════]
-  {start, end, text}
-
-ContextualAggregator: for each thought_unit window:
-  → face frames in [start, end] → dominant_emotion, avg_gaze_*
-  → voice seconds overlapping → mode(speech_style), mean(f0_mean)
-  → audio signal chunks overlapping → hubert_valence, hubert_arousal
-  → gaze_direction = classify(avg_gaze_pitch, avg_gaze_yaw)
-       |pitch| > 15° → "up" or "down"
-       |yaw|   > 20° → "right" or "left"
-       else         → "center"
+    └─[ReportGenerator]
+            │   matplotlib grafikleri (5 timeline chart)
+            │   Jinja2 HTML template (report_v3.html)
+            └── reports/{id}.json + reports/{id}.html
 ```
 
 ---
 
-## 5. New Output Formats (FAZ-4)
+## Modüller ve Sorumluluklar
 
-### FaceAnalyzer — per-frame record
+| Modül | Dosya | Sorumluluk |
+|-------|-------|------------|
+| VideoProcessor | `src/vision/video_processor.py` | Video metadata + audio extraction (ffmpeg) |
+| FaceAnalyzer | `src/vision/face_analyzer.py` | UniFace: yüz tespiti, duygu, gaze (her 10. frame) |
+| TextAnalyzer | `src/audio/text_analyzer.py` | faster-whisper STT, Türkçe segment üretimi |
+| ThoughtUnitMerger | `src/audio/thought_unit_merger.py` | Kısa STT segmentlerini anlamlı blokta birleştirir |
+| VoiceAnalyzer | `src/audio/voice_analyzer.py` | torchaudio per-second ses özellikleri + VAD |
+| AudioSignalFusion | `src/audio/audio_signal_fusion.py` | f0+enerji kural sistemi → valence/arousal |
+| ContextualAggregator | `src/nlp/contextual_aggregator.py` | Sinyal hizalama + paragraf bölme |
+| OllamaAI | `src/nlp/ollama_ai.py` | Ollama yerel LLM entegrasyonu |
+| Gemini | `src/nlp/gemini.py` | Google Gemini API entegrasyonu + fallback zinciri |
+| ReportGenerator | `src/reporting/report_generator.py` | HTML + JSON rapor üretimi |
+| Plot | `src/reporting/plot.py` | 5 matplotlib timeline grafiği |
+| Pipeline | `src/pipeline.py` | Ana orchestrator |
+| API | `api/main.py` | FastAPI REST endpoint'leri |
+
+---
+
+## Kullanılan Modeller
+
+| Model | Sürüm/ID | Amaç | Neden Seçildi |
+|-------|----------|------|---------------|
+| RetinaFace | uniface 3.0.0 (MNET_025) | Yüz tespiti | Hızlı, güvenilir, uniface'e entegre |
+| DDAMFN | uniface 3.0.0 (AffectNet7) | 7-sınıf yüz duygusu | Akademik benchmark SOTA, confidence skorlu |
+| MobileGaze | uniface 3.0.0 (ResNet18) | Göz bakış tahmini (pitch/yaw derece) | Mevcut ortamda kurulu, inference'ı kanıtlanmış |
+| faster-whisper | Systran/faster-whisper-large-v3-turbo | Türkçe STT | CTranslate2 optimizasyonu, CUDA hızlı |
+| Gemini 2.5 Pro/Flash | google-generativeai | Birincil LLM | Büyük context, Türkçe performansı güçlü |
+| Gemma3:12b | Ollama (yerel) | Yedek LLM | Offline çalışır, veri gizliliği |
+
+> **Not:** SER modeli (wav2vec2 tabanlı ehcalabres) kaldırıldı — Türkçe mülakat ses tonu için
+> prosody-based modeller sakin konuşmayı "angry/sad" etiketliyordu. Yerine dil bağımsız
+> torchaudio f0+enerji kural sistemi kullanılmaktadır.
+
+---
+
+## Sinyal Kaynakları ve Formatları
+
+### 1. Yüz Duygusu (FaceAnalyzer)
 ```python
+# Per-frame, her 10. video frame (~3 fps)
 {
-    "timestamp_sec": float,        # frame_index / fps
-    "emotion_label": str,          # "Happy"|"Sad"|"Angry"|"Fear"|"Disgust"|"Surprise"|"Neutral"
-    "emotion_confidence": float,   # 0.0 – 1.0 (DDAMFN softmax output)
-    "gaze_pitch_deg": float,       # positive = looking up
-    "gaze_yaw_deg": float,         # positive = looking right
+    "timestamp_sec": float,         # frame_index / video_fps
+    "emotion_label": str,           # Happy|Sad|Angry|Fear|Disgust|Surprise|Neutral
+    "emotion_confidence": float,    # 0.0 – 1.0 (DDAMFN softmax)
+    "gaze_pitch_deg": float,        # pozitif = yukarı bakış
+    "gaze_yaw_deg": float,          # pozitif = sağa bakış
     "face_detected": bool
 }
 ```
 
-### VoiceAnalyzer — per-second record
+### 2. Ses Özellikleri (VoiceAnalyzer)
 ```python
+# Per-second segmentler
 {
     "start_sec": int,
     "end_sec": float,
-    "segment_type": str,           # "konuşma"|"sessiz"|"konuşma_dışı"
+    "segment_type": str,            # "konuşma" | "sessiz" | "konuşma_dışı"
     "is_speech": bool,
-    "rms_dbfs": float,
-    "f0_mean": float,
-    "f0_std": float,
+    "rms_dbfs": float,              # ses seviyesi (örn. -18 to -31 dBFS)
+    "f0_mean": float,               # temel frekans Hz (örn. 90-160 Hz)
+    "f0_std": float,                # pitch varyasyonu Hz (örn. 3-64 Hz)
     "spectral_centroid": float,
     "spectral_flatness": float,
     "mel_energy": float,
-    "konusma_guveni": float,       # 0.0 – 1.0
-    "konusma_stili": str,          # "heyecanlı"|"sakin"|"gergin"|"monoton"
-    "konusma_enerjisi": str        # "yüksek"|"orta"|"düşük"
+    "konusma_guveni": float,        # 0.0 – 1.0
+    "konusma_stili": str,           # "canlı" | "dengeli" | "sakin" | "monoton"
+    "konusma_enerjisi": str         # "yüksek" | "orta" | "düşük"
 }
 ```
 
-### ContextualAggregator — LLM segment package
+### 3. Ses Profili / Valence-Arousal (AudioSignalFusion)
 ```python
+# 3 saniyelik chunk'lar
+{
+    "start": float, "end": float,
+    "valence_state": str,           # "POSITIVE" | "NEUTRAL" | "NEGATIVE"
+    "arousal_state": str,           # "HIGH" | "MEDIUM" | "LOW"
+    "debug": {
+        "voice_profile": str,       # "Canlı"|"Kararlı"|"Dengeli"|"Sakin"|"Gergin"
+        "voice_energy": str,        # "high"|"medium"|"low"
+        "voice_variation": str,     # "high"|"medium"|"low"
+        "rms_dbfs": float,
+        "f0_std": float,
+        "valence_score_ema": float, # -1 ile +1 (EMA yumuşatılmış)
+        "arousal_score_ema": float
+    }
+}
+```
+
+**Ses profili kuralları:**
+```
+rms_dbfs > -25 → high; > -40 → medium; ≤ -40 → low
+f0_std > 50 Hz → high; > 20 Hz → medium; ≤ 20 Hz → low
+
+high enerji + high varyasyon → Canlı    (valence=+0.6, arousal=+0.7)
+high enerji + orta/düşük    → Kararlı  (valence=+0.3, arousal=+0.5)
+orta enerji + high varyasyon → Gergin   (valence=-0.4, arousal=+0.6)
+orta enerji + orta varyasyon → Dengeli  (valence=+0.1, arousal=+0.2)
+düşük/orta enerji + düşük   → Sakin    (valence=-0.1, arousal=-0.2)
+```
+
+### 4. LLM Segment Paketi (ContextualAggregator)
+```python
+# STT segment başına, thought_unit penceresinde tüm sinyaller hizalanır
 {
     "segment_id": int,
-    "start": float,
-    "end": float,
+    "timestamp": str,               # "MM:SS - MM:SS"
+    "start": float, "end": float,
     "text": str,
-    "dominant_emotion": str,       # most frequent emotion_label in window
-    "emotion_confidence": float,   # average confidence (uncertain if < 0.5)
+    "dominant_emotion": str,        # confidence filtreli en sık yüz duygusu
+    "emotion_confidence": float,
     "avg_gaze_pitch": float,
     "avg_gaze_yaw": float,
-    "gaze_direction": str,         # "center"|"up"|"down"|"right"|"left"
+    "gaze_direction": str,          # center|up|down|right|left
     "speech_style": str,
     "speech_confidence": float,
-    "f0_mean": float,
+    "f0_mean": float, "f0_std": float,
     "rms_dbfs": float,
-    "hubert_valence": float,
-    "hubert_arousal": float
+    "hubert_valence": float,        # EMA valence_score
+    "hubert_arousal": float,
+    "gaze_away": bool,
+    "voice_stress": bool,
+    "incongruence": bool,
+    "tension_score": float,         # 0-1 bileşik stres sinyali
+    "is_critical_moment": bool
+}
+```
+
+### 5. Zaman Blokları (build_smart_blocks)
+```python
+# Doğal sessizlik sınırlarında bölünmüş paragraf blokları
+{
+    "block_id": int,
+    "label": str,                   # "MM:SS - MM:SS"
+    "text": str,                    # blokta söylenen tüm metin
+    "segment_count": int,
+    "dominant_emotion": str,
+    "avg_speech_confidence": float,
+    "avg_gaze_away_pct": float,     # 0-1 kameradan uzak bakış oranı
+    "hubert_valence_mean": float,
+    "word_count": int
 }
 ```
 
 ---
 
-## 6. Intern Code: What Is Complete vs What Needs Work
+## Çıktı Formatları
 
-### `stajyer_kodlari/gaze-emotion-json_sefa.py`
+### JSON Raporu (`reports/{interview_id}.json`)
+```
+{
+    "interview_id": str,
+    "phase": "v3",
+    "video_info": {duration_seconds, fps, resolution, ...},
+    "text_analysis": {segments: [...], word_count, ...},
+    "voice_analysis": {per_second_timeline: [...], summary: {...}},
+    "audio_signal_analysis": {timeline: [...], summary: {...}},
+    "face_analysis": {timeline: [...], summary: {...}},
+    "segment_signal_packages": [...],    # LLM'e giden paketler
+    "time_blocks": [...],                # Paragraf blokları
+    "ai_analysis": {text, provider, model, ...},
+    "created_at": str
+}
+```
 
-**Complete:**
-- RetinaFace detection, DDAMFN emotion prediction, MobileGaze estimation
-- Every-10th-frame skip logic
-- JSON output with bbox, confidence, emotion label+confidence, gaze pitch/yaw degrees
+### HTML Raporu (`reports/{interview_id}.html`)
+Jinja2 tabanlı, Chart.js grafikler içerir:
 
-**Missing (must add in new face_analyzer.py):**
-- `timestamp_sec` field: must compute as `frame_index / video_fps`
-- `face_detected = False` path (no crash when no face)
-- Class-based interface (`FaceAnalyzer.process_video()`) instead of CLI script
-- Returning `(timeline, summary)` tuple matching existing pipeline contract
-- No tkinter / no GUI (headless)
+| Bölüm | İçerik |
+|-------|--------|
+| 1A — KPI Kartları | Baskın duygu, gaze oranı, konuşma güveni, stres skoru |
+| 1B1 — Yüz Duygu Dağılımı | Doughnut chart (7 duygu sınıfı) |
+| 1B2 — Ses Profili Dağılımı | Bar chart (5 ses profili) |
+| 1C — Kritik Anlar | is_critical_moment=true segmentlerin kartları |
+| 1D — Konuşma Blokları | Doğal paragraf bloklarının badge'li özeti |
+| 2 — LLM Analizi | Gemini/Ollama davranışsal rapor metni |
+| 3 — Grafikler | 5 matplotlib timeline chart (duygu, valence, gaze, güven, enerji) |
 
-### `stajyer_kodlari/voice_test_said.py`
+---
 
-**Complete:**
-- torchaudio-native audio loading and resampling
-- Per-second segmentation (1s chunks)
-- RMS dBFS, F0 via pyin (torchaudio functional), spectral centroid/flatness, mel energy
-- VAD logic: active ratio → speech-like ratio → real speech ratio → konusma_guveni
-- `konusma_stili` and `konusma_enerjisi` classification
-- tkinter GUI for file selection (must be removed)
+## API Endpoint'leri
 
-**Missing (must adapt in new voice_analyzer.py):**
-- Remove tkinter — accept `wav_path: str` as function parameter
-- Class-based interface (`VoiceAnalyzer`) with `analyze_audio(wav_path)` method
-- Return value must be the per-second list directly (not write to file)
-- Config constants should remain as class/module-level defaults
+```
+POST   /analyze
+       phase3: bool = True
+       use_llm: bool = True
+       llm_provider: str = "gemini"  # "gemini" | "ollama" | "none"
+       → {interview_id, status, report_paths, ...}
+
+GET    /status/{interview_id}
+       → {status: "processing"|"completed"|"error", ...}
+
+GET    /health
+       → {status: "ok", models_loaded: bool, ...}
+
+GET    /
+       → API bilgisi + versiyon
+
+Swagger UI: http://localhost:8000/docs
+```
+
+---
+
+## Performans (Tipik Süreler)
+
+| Adım | ~5 dk video | ~10 dk video |
+|------|-------------|--------------|
+| Whisper STT | ~45s | ~90s |
+| FaceAnalyzer | ~80s | ~160s |
+| VoiceAnalyzer | ~8s | ~15s |
+| AudioSignalFusion | ~5s | ~10s |
+| ContextualAggregator | <1s | <1s |
+| Gemini LLM | ~15s | ~20s |
+| ReportGenerator | ~5s | ~8s |
+| **Toplam** | **~2.5 dk** | **~5 dk** |
+
+> Not: FaceAnalyzer her 10. frame işler (~3 fps). GPU belleği yeterli değilse CUDA OOM olabilir.
+
+---
+
+## Gaze Estimator Kararı: MobileGaze (uniface) Seçildi
+
+| Kriter | MobileGaze | GaZeL |
+|--------|-----------|-------|
+| Bağımlılık | uniface 3.0.0 — zaten kurulu | Ayrı paket, kurulu değil |
+| API | `gaze_estimator.estimate(face_crop)` → pitch/yaw (radyan) | Farklı API, model indirme gerekli |
+| Model | ResNet18 — hafif | Transformer — ağır |
+| Kanıtlanmış | Stajyer kodunda çalışıyor | Test edilmemiş |
+| Yeni bağımlılık riski | Sıfır | Yüksek (CUDA çakışması olasılığı) |
+
+**Sonuç:** MobileGaze kullanılmaktadır. Pipeline oturma mülakatı için (frontal yüz, masaüstü kamera) yeterli hassasiyette.
+
+---
+
+## Bilinen Limitasyonlar
+
+- Kamera açısına bağımlılık: MobileGaze kalibrasyon gerektirir. Video geneli median offset uygulanır ama aşırı açılarda hata payı artar.
+- Aydınlatma duyarlılığı: DDAMFN düşük ışıkta yanlış sınıflandırabilir (emotion_confidence < 0.55 → Neutral sayılır).
+- Ses profili dil bağımsız: f0/enerji kuralları dil ve kişi bazlı kalibre edilmemiştir; mutlak yorumdan kaçınılmalı.
+- Türkçe LLM performansı: Gemini tercih edilir; Ollama/Gemma3:12b Türkçe yeterince güçlüdür ama daha yavaş.
+- Glyph rendering: matplotlib Türkçe özel karakter için uyarı verebilir; emoji kullanılmamıştır.

@@ -5,8 +5,7 @@ AI-powered video interview analysis system. Analyzes a candidate's video recordi
 face/emotion signals, gaze tracking, speech features, and transcribed text — aligns them into
 time-based segment packages — and feeds them to an LLM to generate an HR evaluation report.
 
-**This is a FAZ-3 → FAZ-4 migration.** The existing working pipeline must be preserved.
-Only the weak/outdated modules are being replaced. Do NOT touch anything outside the scope below.
+**FAZ-4 is complete.** All modules have been migrated and are working.
 
 ---
 
@@ -15,157 +14,79 @@ Only the weak/outdated modules are being replaced. Do NOT touch anything outside
 SensifyHR-FAZ3/
 ├── src/
 │   ├── vision/
-│   │   ├── face_analyzer.py          # ← REPLACE (MediaPipe → UniFace)
+│   │   ├── face_analyzer.py          # UniFace: RetinaFace + DDAMFN AffectNet7 + MobileGaze
 │   │   └── video_processor.py        # DO NOT TOUCH
 │   ├── audio/
-│   │   ├── audio_signal_fusion.py    # ← UPDATE (librosa → torchaudio, keep HuBERT)
-│   │   ├── voice_analyzer.py         # ← REPLACE (librosa → torchaudio)
-│   │   ├── text_analyzer.py          # DO NOT TOUCH (Whisper STT, works fine)
+│   │   ├── audio_signal_fusion.py    # torchaudio f0+enerji kural sistemi → valence/arousal
+│   │   ├── voice_analyzer.py         # torchaudio per-second ses özellikleri
+│   │   ├── text_analyzer.py          # DO NOT TOUCH (faster-whisper STT)
 │   │   └── thought_unit_merger.py    # DO NOT TOUCH
 │   ├── nlp/
-│   │   ├── contextual_aggregator.py  # ← UPDATE (new signal formats)
+│   │   ├── contextual_aggregator.py  # Segment signal packages + build_smart_blocks()
 │   │   ├── ollama_ai.py              # DO NOT TOUCH
-│   │   ├── prompt_phase3.txt         # ← UPDATE (new signal names + interpretation guide)
-│   │   └── prompt.txt                # DO NOT TOUCH
+│   │   ├── gemini.py                 # DO NOT TOUCH
+│   │   └── prompt_phase3.txt         # 5 sinyal kaynağı, 7 çıktı bölümü
 │   ├── reporting/                    # DO NOT TOUCH (entire folder)
-│   └── pipeline.py                   # ← UPDATE (rewire new modules)
-├── stajyer_kodlari/
-│   ├── gaze-emotion-json_sefa.py     # Reference implementation: UniFace face/emotion/gaze
-│   └── voice_test_said.py            # Reference implementation: torchaudio audio analysis
+│   └── pipeline.py                   # Ana orchestrator
 ├── api/main.py                       # DO NOT TOUCH
 ├── test_example.py                   # DO NOT TOUCH
-└── requirements.txt                  # ← UPDATE (remove mediapipe, add uniface)
+├── ARCHITECTURE.md                   # Sistem mimarisi (güncel)
+├── PROJE_DOKUMANTASYONU.md           # Sunum/rapor için kaynak
+└── requirements.txt                  # Güncel bağımlılıklar
 ```
 
 ---
 
-## What Needs to Change and Why
+## Mevcut FAZ-4 Mimarisi
 
-### 1. face_analyzer.py → Replace with UniFace
+### 1. face_analyzer.py — UniFace
+- **RetinaFace** (MNET_025): yüz tespiti
+- **DDAMFN AffectNet7**: 7-sınıf duygu sınıflandırması (Happy/Sad/Angry/Fear/Disgust/Surprise/Neutral) + confidence
+- **MobileGaze** (ResNet18): gaze pitch_deg / yaw_deg
+- Her 10. frame; timestamp_sec = frame_index / fps
+- face_detected=False → boş kayıt, crash yok
 
-**Current problem:**
-- Uses MediaPipe FaceLandmarker with blendshape scores
-- Rule-based emotion inference (unreliable, noisy)
-- No actual emotion classification — only proxy signals (facial_state, attention_state, stress_indicator)
+### 2. voice_analyzer.py — torchaudio
+- Per-second segmentation (1s windows)
+- VAD: RMS + ZCR + spectral flatness
+- Özellikler: rms_dbfs, f0_mean, f0_std, spectral_centroid, spectral_flatness, mel_energy
+- Türetilmiş: konusma_guveni, konusma_stili, konusma_enerjisi
 
-**New implementation:**
-- Reference: `stajyer_kodlari/gaze-emotion-json_sefa.py` (written by intern, may be incomplete)
-- If the intern code is incomplete, refer to the official repo: https://github.com/yakhyo/uniface
-- Use **RetinaFace** for face detection
-- Use **DDAMFN AffectNet7** for 7-class emotion classification with confidence score
-- Use **MobileGaze** for gaze estimation (pitch_deg, yaw_deg in degrees)
-- Process every 10th frame for performance (already in intern code)
-- **Critical addition missing from intern code:** Convert frame_index → timestamp_sec using video FPS
+### 3. audio_signal_fusion.py — torchaudio kural sistemi
+- **SER modeli KALDIRILDI** (ehcalabres/wav2vec2 → Türkçe için güvenilir değildi)
+- Yeni sistem: f0_std + rms_dbfs → 5 ses profili → valence/arousal
+- Profiller: Canlı / Kararlı / Dengeli / Sakin / Gergin
+- Eşikler: rms > -25 dBFS → high; f0_std > 50 Hz → high varyasyon
+- EMA yumuşatma (alpha=0.65)
 
-**Gaze estimation note:**
-- Also evaluate **GaZeL**: https://github.com/fkryan/gazelle
-- Compare MobileGaze vs GaZeL stability on a short test clip
-- Use whichever gives more stable/reliable results
-- Document your choice in ARCHITECTURE.md with reasoning
+### 4. contextual_aggregator.py
+- `build_segment_signal_packages()`: STT segment başına tüm sinyalleri hizalar
+- `build_smart_blocks()`: doğal sessizlik sınırlarına göre paragraf bloklarına böler
+  - Kural: gap > 2s + 50 kelime → kes; 150 kelime + gap > 0.05s → kes; 200 kelime → zorla kes
+- Gaze offset normalizasyonu: video geneli median ile bias düzeltmesi
 
-**Required output format (per frame):**
-```python
-{
-    "timestamp_sec": float,
-    "emotion_label": str,        # "Happy" | "Sad" | "Angry" | "Fear" | "Disgust" | "Surprise" | "Neutral"
-    "emotion_confidence": float, # 0.0 – 1.0
-    "gaze_pitch_deg": float,     # positive = looking up, negative = looking down
-    "gaze_yaw_deg": float,       # positive = right, negative = left
-    "face_detected": bool
-}
+### 5. LLM Zinciri
+- Birincil: Gemini 2.5 Pro → 2.5 Flash → 2.0 Flash
+- Yedek: Ollama (Gemma3:12b)
+- Son yedek: graceful skip (rapor LLM olmadan devam eder)
+
+---
+
+## API Endpoints
+
 ```
+POST /analyze
+  Parametreler:
+    phase3: bool = True        # v3 analiz (her zaman true kullan)
+    use_llm: bool = True       # LLM analizi yap/atla
+    llm_provider: str = "gemini"  # "gemini" | "ollama" | "none"
 
----
+GET /status/{interview_id}     # Analiz durumu
+GET /health                    # Sistem sağlık kontrolü
+GET /                          # API bilgisi
 
-### 2. voice_analyzer.py + audio_signal_fusion.py → Replace with torchaudio
-
-**Current problem:**
-- `voice_analyzer.py`: librosa-based, CPU-only, slow
-- `audio_signal_fusion.py`: HuBERT SER works well but uses librosa for preprocessing
-
-**New architecture — TWO LAYERS:**
-
-**Layer A — Raw Audio Features → voice_analyzer.py:**
-- Reference: `stajyer_kodlari/voice_test_said.py` (written by intern, may be incomplete)
-- Use torchaudio (GPU-native, CUDA 12.1 compatible)
-- **Remove tkinter GUI** — accept `wav_path: str` as function parameter
-- If intern code is missing features, complete using torchaudio documentation
-- Must be pipeline-integrated (not standalone)
-
-**Layer B — Emotion Signal → audio_signal_fusion.py:**
-- Keep `SeaBenSea/hubert-large-turkish-speech-emotion-recognition` — it works well
-- Only replace librosa preprocessing with torchaudio equivalents
-- Do NOT change HuBERT model weights or inference logic
-
-**Required output format for voice_analyzer (per-second segments):**
-```python
-{
-    "start_sec": int,
-    "end_sec": float,
-    "segment_type": str,         # "konuşma" | "sessiz" | "konuşma_dışı"
-    "is_speech": bool,
-    "rms_dbfs": float,
-    "f0_mean": float,            # mean pitch
-    "f0_std": float,             # pitch variation
-    "spectral_centroid": float,
-    "spectral_flatness": float,
-    "mel_energy": float,
-    "konusma_guveni": float,     # speech confidence 0.0 – 1.0
-    "konusma_stili": str,        # "heyecanlı" | "sakin" | "gergin" | "monoton"
-    "konusma_enerjisi": str      # "yüksek" | "orta" | "düşük"
-}
+Swagger: http://localhost:8000/docs
 ```
-
----
-
-### 3. contextual_aggregator.py → Update
-
-**What it must do:**
-- For each STT segment (start, end, text):
-  - Collect face_analyzer frames in that time range → compute dominant emotion + average gaze
-  - Collect voice_analyzer second-segments in that range → speech style + energy
-  - Pull HuBERT valence/arousal from audio_signal_fusion
-- Package everything into a single dict per segment for the LLM
-
-**Required LLM segment package format:**
-```python
-{
-    "segment_id": int,
-    "start": float,
-    "end": float,
-    "text": str,                  # STT transcript
-    "dominant_emotion": str,      # most frequent emotion_label in this segment
-    "emotion_confidence": float,  # average confidence
-    "avg_gaze_pitch": float,
-    "avg_gaze_yaw": float,
-    "gaze_direction": str,        # computed label: "center"|"up"|"down"|"right"|"left"
-                                  # thresholds: |pitch|>15° → up/down, |yaw|>20° → right/left
-    "speech_style": str,
-    "speech_confidence": float,
-    "f0_mean": float,
-    "rms_dbfs": float,
-    "hubert_valence": float,
-    "hubert_arousal": float
-}
-```
-
----
-
-### 4. pipeline.py → Update
-- Rewire imports to new modules
-- Preserve Phase3 flow exactly
-- Error handling: if no face detected → face_detected=False, do NOT crash, continue
-
----
-
-### 5. prompt_phase3.txt → Update
-- Add new signal names: emotion_label, gaze_direction, speech_style, speech_confidence
-- Add gaze interpretation guide for LLM:
-  - pitch > 15° down = possible avoidance or low confidence
-  - yaw > 20° = possible distraction or discomfort
-  - sustained neutral + downward gaze = possible anxiety
-- Add emotion confidence rule: if confidence < 0.5 → mark as "uncertain", do not over-interpret
-- Keep existing prompt structure, only extend it
 
 ---
 
@@ -173,19 +94,20 @@ SensifyHR-FAZ3/
 | Parameter | Value |
 |-----------|-------|
 | Python | 3.10 |
+| Conda env | gpu_env_videoai |
 | CUDA | 12.1 |
 | torch | 2.5.1+cu121 |
 | torchaudio | 2.5.1+cu121 |
-| uniface | 3.0.0 (already installed) |
-| HuBERT model | SeaBenSea/hubert-large-turkish-speech-emotion-recognition (keep as-is) |
-| Whisper | openai/whisper-large-v3-turbo (keep as-is) |
-| LLM | Ollama + Gemma3:12b (keep as-is) |
+| uniface | 3.0.0 |
+| Whisper | faster-whisper-large-v3-turbo (Systran) |
+| LLM birincil | Gemini 2.5 Pro/Flash |
+| LLM yedek | Ollama + Gemma3:12b |
 
 **Hard rules:**
 - NO tkinter anywhere (headless pipeline)
-- NO mediapipe anywhere after migration
-- librosa: replace with torchaudio wherever possible; only keep if strictly necessary
-- Do not introduce new heavy dependencies without checking if torchaudio/torch already covers it
+- NO mediapipe anywhere
+- NO SER modeli (wav2vec2 tabanlı) — kural sistemi kullan
+- librosa: sadece gerekliyse; torchaudio tercih et
 
 ---
 
@@ -200,37 +122,10 @@ SensifyHR-FAZ3/
 
 ---
 
-## Success Criteria
+## Success Criteria (FAZ-4 — tamamlandı)
 1. `python test_example.py video.mp4 --phase3 --ollama` runs without errors
 2. Every segment package contains: emotion_label + gaze_direction + speech_style
-3. HTML report shows emotion and gaze data in "Kritik Anlar" cards
+3. HTML report shows time blocks with behavioral indicators
 4. Zero mediapipe imports in any active file
-5. HuBERT SER continues to work in pipeline
-
----
-
-## Claude Code — Step-by-Step Work Order
-
-**Step 1 — Read and understand (do not write any code yet):**
-- Read all files under `src/`
-- Read both files in `stajyer_kodlari/`
-- Understand the full pipeline flow from video input to HTML report output
-
-**Step 2 — Document before coding:**
-- Write `ARCHITECTURE.md` showing: current architecture vs target architecture
-- Include your decision on MobileGaze vs GaZeL with reasoning
-- Stop and wait for approval before proceeding
-
-**Step 3 — Implement in this order (one file at a time):**
-1. `src/vision/face_analyzer.py` (UniFace)
-2. `src/audio/voice_analyzer.py` (torchaudio)
-3. `src/audio/audio_signal_fusion.py` (keep HuBERT, replace librosa)
-4. `src/nlp/contextual_aggregator.py` (new signal formats)
-5. `src/pipeline.py` (rewire)
-6. `src/nlp/prompt_phase3.txt` (extend)
-7. `requirements.txt` (cleanup)
-
-**Step 4 — Test:**
-- Run `python test_example.py video.mp4 --phase3 --ollama`
-- Fix any import errors or runtime crashes
-- Confirm all 5 success criteria are met
+5. Zero SER model imports in audio_signal_fusion.py
+6. Voice profile distribution (Canlı/Kararlı/Dengeli/Sakin/Gergin) in dashboard

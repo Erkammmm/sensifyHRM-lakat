@@ -56,7 +56,12 @@
       "Bash(PYTHONIOENCODING=utf-8 /c/Users/ecetkin/AppData/Local/anaconda3/envs/gpu_env_videoai/python.exe -c \"\nimport torch, numpy as np, warnings\nwarnings.filterwarnings\\('ignore'\\)\nfrom transformers import pipeline as hf_pipeline\n\nprint\\('=== firdhokk/speech-emotion-recognition-with-facebook-wav2vec2-large-xlsr-53 ==='\\)\ntry:\n    pipe = hf_pipeline\\('audio-classification', model='firdhokk/speech-emotion-recognition-with-facebook-wav2vec2-large-xlsr-53', device=0 if torch.cuda.is_available\\(\\) else -1\\)\n    sr = 16000\n    t = np.linspace\\(0, 3.0, int\\(sr * 3.0\\)\\)\n    audio = \\(np.sin\\(2 * np.pi * 300 * t\\) * 0.5\\).astype\\(np.float32\\)\n    result = pipe\\(audio\\)\n    for r in result[:5]:\n        print\\(f'  {r[\\\\\"label\\\\\"]}: {r[\\\\\"score\\\\\"]:.4f}'\\)\n    max_s = max\\(r['score'] for r in result\\)\n    print\\(f'  Max score: {max_s:.4f} — working: {max_s > 0.3}'\\)\n    print\\(f'  Labels: {[r[\\\\\"label\\\\\"] for r in result]}'\\)\nexcept Exception as e:\n    print\\(f'  ERROR: {e}'\\)\n\" 2>&1)",
       "Bash(curl:*)",
       "Bash(python:*)",
-      "Bash(C:/Users/ecetkin/AppData/Local/anaconda3/envs/gpu_env_videoai/python.exe -c \":*)"
+      "Bash(C:/Users/ecetkin/AppData/Local/anaconda3/envs/gpu_env_videoai/python.exe -c \":*)",
+      "Bash(rm DASHBOARD_BRIEF.md FINAL_IMPROVEMENT_BRIEF.md FIX_BRIEF_V2.md PROJE_BITIRME_BRIEF.md REFACTOR_BRIEF.md SER_VE_PARAGRAF_BRIEF.md SIGNAL_QUALITY_BRIEF.md SON_OPTIMIZASYON_BRIEF.md CLAUDE_CODE_OPUS_PROMPT.md)",
+      "Bash(rm stajyer_kodlari/gaze-emotion-json_sefa.py stajyer_kodlari/voice_test_said.py)",
+      "Bash(rmdir stajyer_kodlari)",
+      "Bash(rm src/nlp/prompt.txt)",
+      "Bash(rm requirements.lock.sonn.txt)"
     ]
   }
 }
