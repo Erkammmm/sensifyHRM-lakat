@@ -17,6 +17,7 @@ from .plot import (
     plot_voice_valence_timeline_b64,
     plot_gaze_timeline_b64,
     plot_speech_confidence_timeline_b64,
+    plot_voice_energy_timeline_b64,
 )
 
 
@@ -97,6 +98,7 @@ class ReportGenerator:
         ai_text = report.get("ai_analysis", {}).get("analysis", "") if isinstance(report.get("ai_analysis"), dict) else ""
         segment_packages = report.get("segment_signal_packages", []) if is_phase3 else []
         thought_units = report.get("text_analysis", {}).get("thought_units", []) if is_phase3 else []
+        time_blocks = report.get("time_blocks", []) if is_phase3 else []
 
         # v3 ürün KPI skorları (basit heuristik)
         v3_scores = {"confidence": 50, "stress_control": 50, "communication": 50}
@@ -202,11 +204,12 @@ class ReportGenerator:
             audio_signal_tl = report.get("audio_signal_analysis", {}).get("timeline", []) or []
             voice_emo_dist = _compute_voice_emotion_distribution(audio_signal_tl)
 
-            # 4 matplotlib timeline charts (base64 PNG)
+            # 5 matplotlib timeline charts (base64 PNG)
             chart_face_b64    = plot_face_emotion_timeline_b64(segment_packages)
             chart_valence_b64 = plot_voice_valence_timeline_b64(segment_packages)
             chart_gaze_b64    = plot_gaze_timeline_b64(segment_packages)
             chart_speech_b64  = plot_speech_confidence_timeline_b64(segment_packages)
+            chart_energy_b64  = plot_voice_energy_timeline_b64(segment_packages)
 
             # "Baskın Duygu" KPI card — top emotion from confidence-filtered distribution
             _neg_emos = {"Sad", "Fear", "Angry", "Disgust"}
@@ -249,11 +252,12 @@ class ReportGenerator:
                 baskin_duygu_label=baskin_duygu_label,
                 baskin_duygu_pct=baskin_duygu_pct,
                 baskin_duygu_card_class=baskin_duygu_card_class,
-                # 4 matplotlib zaman çizelgesi grafikleri (base64 PNG)
+                # 5 matplotlib zaman çizelgesi grafikleri (base64 PNG)
                 chart_face_b64=chart_face_b64,
                 chart_valence_b64=chart_valence_b64,
                 chart_gaze_b64=chart_gaze_b64,
                 chart_speech_b64=chart_speech_b64,
+                chart_energy_b64=chart_energy_b64,
                 # Konuşma istatistikleri (Step F)
                 speech_dur_str=speech_stats["speech_dur_str"],
                 silence_dur_str=speech_stats["silence_dur_str"],
@@ -267,7 +271,7 @@ class ReportGenerator:
                 emo_dist_labels_json=json.dumps(emo_dist["labels"], ensure_ascii=False),
                 emo_dist_values_json=json.dumps(emo_dist["values"]),
                 emo_dist_colors_json=json.dumps(emo_dist["colors"]),
-                # Ses duygu dağılımı — HuBERT SER (Step 4)
+                # Ses duygu dağılımı — SER (Step 4)
                 voice_emo_dist_no_data=voice_emo_dist["no_data"],
                 voice_emo_dist_labels_json=json.dumps(voice_emo_dist["labels"], ensure_ascii=False),
                 voice_emo_dist_values_json=json.dumps(voice_emo_dist["values"]),
@@ -275,6 +279,9 @@ class ReportGenerator:
                 # Konuşma Yapısı — Thought Units
                 thought_units=thought_units[:20],
                 thought_unit_count=len(thought_units),
+                # Zaman Bloğu Paragrafları
+                time_blocks=time_blocks,
+                time_block_count=len(time_blocks),
                 # LLM raporu: injected by _write_ai_to_reports after generation
             )
         else:
@@ -1023,18 +1030,22 @@ def _compute_emotion_distribution(face_timeline: List[Dict]) -> Dict:
 
 
 _VOICE_EMO_COLORS = {
-    "calm":    "rgba(52,211,153,0.85)",
-    "happy":   "rgba(52,211,153,0.85)",
-    "angry":   "rgba(251,113,133,0.85)",
-    "sad":     "rgba(96,165,250,0.85)",
-    "neutral": "rgba(107,114,128,0.65)",
+    # ehcalabres model labels (8 sınıf)
+    "happy":     "rgba(52,211,153,0.85)",
+    "calm":      "rgba(52,211,153,0.65)",   # benzer tona daha açık
+    "neutral":   "rgba(107,114,128,0.65)",
+    "sad":       "rgba(96,165,250,0.85)",
+    "angry":     "rgba(251,113,133,0.85)",
+    "fearful":   "rgba(167,139,250,0.85)",
+    "disgust":   "rgba(251,146,60,0.85)",
+    "surprised": "rgba(250,204,21,0.85)",
 }
-_VOICE_EMO_ORDER = ["calm", "happy", "neutral", "sad", "angry"]
+_VOICE_EMO_ORDER = ["happy", "calm", "neutral", "surprised", "sad", "fearful", "disgust", "angry"]
 
 
 def _compute_voice_emotion_distribution(audio_signal_timeline: List[Dict]) -> Dict:
     """
-    HuBERT SER dağılımını hesaplar.
+    SER (ses duygu tanıma) dağılımını hesaplar.
 
     ser_all_scores varsa: her chunk'un tüm label skorlarını toplar (weighted).
     ser_all_scores yoksa: ser_top_label sayar (fallback).

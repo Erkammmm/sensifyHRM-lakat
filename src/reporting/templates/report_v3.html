@@ -130,50 +130,59 @@
     .pace-badge.normal { background: rgba(52,211,153,.15);  color: var(--accent2); }
     .pace-badge.fast   { background: rgba(251,113,133,.15); color: var(--danger); }
 
-    /* ── Thought units ── */
-    .thought-units-card {
+    /* ── Time Blocks (Konusma Yapisi) ── */
+    .time-blocks-card {
       background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 20px 24px;
       margin-bottom: 32px;
     }
-    .thought-units-card .card-title {
+    .time-blocks-card .card-title {
       font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
       text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
     }
-    .tu-list {
-      display: flex; flex-direction: column; gap: 8px;
+    .tb-list {
+      display: flex; flex-direction: column; gap: 10px;
     }
-    .tu-block {
-      display: flex; align-items: flex-start; gap: 12px;
+    .tb-block {
       background: rgba(255,255,255,.03);
       border: 1px solid rgba(255,255,255,.06);
-      border-radius: 8px;
-      padding: 10px 14px;
+      border-radius: 10px;
+      padding: 14px 16px;
     }
-    .tu-num {
-      min-width: 28px; height: 28px;
-      border-radius: 50%;
-      background: rgba(124,92,255,.2);
-      color: #c4b5fd;
-      font-size: 11px; font-weight: 700;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+    .tb-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
     }
-    .tu-body { flex: 1; min-width: 0; }
-    .tu-time {
-      font-size: 11px; color: var(--muted); font-family: monospace;
-      margin-bottom: 3px;
+    .tb-label {
+      font-size: 12px; font-weight: 700; color: #c4b5fd;
+      font-family: monospace; flex-shrink: 0;
     }
-    .tu-snippet {
-      font-size: 13px; color: var(--text); line-height: 1.5;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    .tb-wc {
+      font-size: 11px; color: var(--muted);
     }
-    .tu-dur {
-      font-size: 11px; color: #c4b5fd; font-weight: 600;
-      white-space: nowrap; padding-top: 2px;
+    .tb-text {
+      font-size: 13px; color: var(--text); line-height: 1.6;
+      margin-bottom: 10px;
     }
+    .tb-indicators {
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .tb-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--muted);
+    }
+    .tb-badge.emo-positive { border-color: rgba(52,211,153,.4); color: var(--accent2); }
+    .tb-badge.emo-negative { border-color: rgba(251,113,133,.4); color: var(--danger); }
+    .tb-badge.emo-neutral  { border-color: rgba(107,114,128,.4); color: #9ca3af; }
+    .tb-badge.conf-high    { border-color: rgba(52,211,153,.4);  color: var(--accent2); }
+    .tb-badge.conf-low     { border-color: rgba(251,191,36,.4);  color: var(--warn); }
+    .tb-badge.gaze-ok      { border-color: rgba(52,211,153,.4);  color: var(--accent2); }
+    .tb-badge.gaze-away    { border-color: rgba(251,113,133,.4); color: var(--danger); }
 
     /* ── Emotion distribution chart ── */
     .emo-dist-section {
@@ -430,17 +439,17 @@
   </div>
 
   <!-- ═══════════════════════════════════════════
-       BÖLÜM 1B2 — Ses Duygu Dağılımı (HuBERT SER)
+       BÖLÜM 1B2 — Ses Duygu Dağılımı (SER)
        ═══════════════════════════════════════════ -->
-  <div class="section-label">Ses Duygu Dağılımı (HuBERT SER)</div>
+  <div class="section-label">Ses Duygu Dağılımı (SER)</div>
   <div class="emo-dist-section">
-    <div class="chart-title">Ses Duygu Dağılımı (HuBERT SER — Türkçe)</div>
-    <div class="chart-subtitle">
-      SeaBenSea/hubert-large-turkish-speech-emotion-recognition · 4 sınıf: Angry / Happy / Neutral / Sad
+    <div class="chart-title">Ses Duygu Dağılımı (SER)</div>
+    <div class="chart-subtitle" id="ser-model-subtitle">
+      ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition &middot; 8 sınıf: angry / calm / disgust / fearful / happy / neutral / sad / surprised
     </div>
 
     {% if voice_emo_dist_no_data %}
-    <div class="no-data">Yeterli ses verisi yok — HuBERT analizi tamamlanamadı.</div>
+    <div class="no-data">Yeterli ses verisi yok — SER analizi tamamlanamadı.</div>
     {% else %}
     <div class="emo-dist-wrapper">
       <canvas id="voiceEmoDistChart"></canvas>
@@ -550,23 +559,42 @@
   </div>
 
   <!-- ═══════════════════════════════════════════
-       BÖLÜM 1D — Konuşma Yapısı (Thought Units)
+       BÖLÜM 1D — Konuşma Yapısı (Zaman Blokları)
        ═══════════════════════════════════════════ -->
-  {% if thought_unit_count > 0 %}
+  {% if time_block_count > 0 %}
   <div class="section-label">Konuşma Yapısı</div>
-  <div class="thought-units-card">
-    <div class="card-title">Konuşma Yapısı — {{ thought_unit_count }} Fikir Bloğu</div>
-    <div class="tu-list">
-      {% for tu in thought_units %}
-      {% set dur = (tu.end - tu.start) | round(1) %}
-      {% set snippet = (tu.text or '')[:60] %}
-      <div class="tu-block">
-        <div class="tu-num">{{ loop.index }}</div>
-        <div class="tu-body">
-          <div class="tu-time">{{ "%.1f"|format(tu.start) }}s – {{ "%.1f"|format(tu.end) }}s</div>
-          <div class="tu-snippet">{{ snippet }}{% if (tu.text or '') | length > 60 %}…{% endif %}</div>
+  <div class="time-blocks-card">
+    <div class="card-title">Konuşma Yapısı — {{ time_block_count }} Zaman Bloğu</div>
+    <div class="tb-list">
+      {% for blk in time_blocks %}
+      {% set emo = blk.dominant_emotion | default('Neutral') %}
+      {% set conf = blk.avg_speech_confidence | default(0) %}
+      {% set away = blk.avg_gaze_away_pct | default(0) %}
+      {% set txt = (blk.text or '') %}
+      {% set emo_class = 'emo-positive' if emo in ('Happy','Surprise') else ('emo-negative' if emo in ('Sad','Fear','Angry','Disgust') else 'emo-neutral') %}
+      {% set conf_class = 'conf-high' if conf >= 0.7 else 'conf-low' %}
+      {% set gaze_class = 'gaze-ok' if away <= 0.25 else 'gaze-away' %}
+      <div class="tb-block">
+        <div class="tb-header">
+          <span class="tb-label">{{ blk.label }}</span>
+          {% if blk.word_count > 0 %}
+          <span class="tb-wc">{{ blk.word_count }} kelime</span>
+          {% endif %}
         </div>
-        <div class="tu-dur">{{ dur }}s</div>
+        {% if txt %}
+        <div class="tb-text">{{ txt[:220] }}{% if txt | length > 220 %}…{% endif %}</div>
+        {% else %}
+        <div class="tb-text" style="color:var(--muted);font-style:italic;">Bu blokta konuşma tespit edilmedi.</div>
+        {% endif %}
+        <div class="tb-indicators">
+          <span class="tb-badge {{ emo_class }}">Duygu: {{ emo }}</span>
+          <span class="tb-badge {{ conf_class }}">Güven: {{ "%.2f"|format(conf) }}</span>
+          <span class="tb-badge {{ gaze_class }}">Kamera: %{{ ((1 - away) * 100) | int }}</span>
+          {% if blk.hubert_valence_mean is defined %}
+          {% set val = blk.hubert_valence_mean %}
+          <span class="tb-badge {% if val > 0.1 %}emo-positive{% elif val < -0.1 %}emo-negative{% else %}emo-neutral{% endif %}">Valans: {{ "%.2f"|format(val) }}</span>
+          {% endif %}
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -592,7 +620,10 @@
     <img src="data:image/png;base64,{{ chart_gaze_b64 }}" style="width:100%; margin-bottom:12px; border-radius:6px;" />
     {% endif %}
     {% if chart_speech_b64 %}
-    <img src="data:image/png;base64,{{ chart_speech_b64 }}" style="width:100%; border-radius:6px;" />
+    <img src="data:image/png;base64,{{ chart_speech_b64 }}" style="width:100%; margin-bottom:12px; border-radius:6px;" />
+    {% endif %}
+    {% if chart_energy_b64 %}
+    <img src="data:image/png;base64,{{ chart_energy_b64 }}" style="width:100%; border-radius:6px;" />
     {% endif %}
     {% if not chart_face_b64 %}
     <div class="no-data">Zaman çizelgesi verisi bulunamadı.</div>

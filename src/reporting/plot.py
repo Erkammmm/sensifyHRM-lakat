@@ -118,7 +118,7 @@ def plot_audio_emotion_timeline(audio_timeline: List[Dict], output_dir: str) -> 
     ax.set_yticks(range(len(unique_emotions)))
     ax.set_yticklabels(unique_emotions)
     ax.set_xlabel("Zaman (saniye)")
-    ax.set_title("🎤 Ses Duygu Analizi (HuBERT SER)", fontweight="bold", fontsize=13)
+    ax.set_title("Ses Duygu Analizi (HuBERT SER)", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "audio_emotion_timeline.png")
     _save_fig(fig, path)
@@ -144,7 +144,7 @@ def plot_audio_emotion_distribution(audio_timeline: List[Dict], output_dir: str)
         sizes, labels=labels, colors=colors,
         autopct="%1.1f%%", startangle=90, textprops={"fontsize": 10}
     )
-    ax.set_title("🎤 Ses Duygu Dağılımı", fontweight="bold", fontsize=13)
+    ax.set_title("Ses Duygu Dağılımı", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "audio_emotion_dist.png")
     _save_fig(fig, path)
@@ -176,7 +176,7 @@ def plot_text_sentiment(text_segments: List[Dict], output_dir: str) -> Optional[
                 str(val), ha="center", va="bottom", fontweight="bold")
 
     ax.set_ylabel("Cümle Sayısı")
-    ax.set_title("📝 Metin Duygu Analizi (Türkçe BERT)", fontweight="bold", fontsize=13)
+    ax.set_title("Metin Duygu Analizi (Türkçe BERT)", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "text_sentiment.png")
     _save_fig(fig, path)
@@ -207,7 +207,7 @@ def plot_text_sentiment_timeline(text_segments: List[Dict], output_dir: str) -> 
     ax.set_ylabel("Duygu")
     ax.set_yticks([-1, 0, 1])
     ax.set_yticklabels(["Negatif", "", "Pozitif"])
-    ax.set_title("📝 Metin Duygu Zaman Serisi", fontweight="bold", fontsize=13)
+    ax.set_title("Metin Duygu Zaman Serisi", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "text_sentiment_timeline.png")
     _save_fig(fig, path)
@@ -246,7 +246,7 @@ def plot_face_emotion_timeline(face_timeline: List[Dict], output_dir: str) -> Op
     ax.set_yticks(range(len(unique_emotions)))
     ax.set_yticklabels(unique_emotions)
     ax.set_xlabel("Zaman (saniye)")
-    ax.set_title("😊 Yüz Duygu Analizi (MediaPipe)", fontweight="bold", fontsize=13)
+    ax.set_title("Yuz Duygu Analizi (UniFace DDAMFN)", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "face_emotion_timeline.png")
     _save_fig(fig, path)
@@ -275,7 +275,7 @@ def plot_face_emotion_distribution(face_timeline: List[Dict], output_dir: str) -
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.pie(sizes, labels=labels, colors=colors, autopct="%1.1f%%",
            startangle=90, textprops={"fontsize": 10})
-    ax.set_title("😊 Yüz Duygu Dağılımı", fontweight="bold", fontsize=13)
+    ax.set_title("Yüz Duygu Dağılımı", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "face_emotion_dist.png")
     _save_fig(fig, path)
@@ -309,7 +309,7 @@ def plot_gaze_distribution(face_timeline: List[Dict], output_dir: str) -> Option
                 f"{val} (%{pct:.1f})", va="center", fontweight="bold")
 
     ax.set_xlabel("Kayıt Sayısı")
-    ax.set_title("👁️ Bakış Yönü Dağılımı", fontweight="bold", fontsize=13)
+    ax.set_title("Bakış Yönü Dağılımı", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "gaze_distribution.png")
     _save_fig(fig, path)
@@ -338,7 +338,7 @@ def plot_blink_timeline(face_timeline: List[Dict], output_dir: str) -> Optional[
     ax.fill_between(times, blinks, alpha=0.15, color="#3498db")
     ax.set_xlabel("Zaman (saniye)")
     ax.set_ylabel("Toplam Göz Kırpma")
-    ax.set_title("👁️ Göz Kırpma Birikimi", fontweight="bold", fontsize=13)
+    ax.set_title("Göz Kırpma Birikimi", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "blink_timeline.png")
     _save_fig(fig, path)
@@ -368,7 +368,7 @@ def plot_rms_energy(voice_features: Dict, output_dir: str) -> Optional[Dict]:
 
     ax.set_xlabel("Zaman (saniye)")
     ax.set_ylabel("RMS Enerji")
-    ax.set_title("🔊 Ses Enerjisi (RMS)", fontweight="bold", fontsize=13)
+    ax.set_title("Ses Enerjisi (RMS)", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "rms_energy.png")
     _save_fig(fig, path)
@@ -405,7 +405,7 @@ def plot_pitch(voice_features: Dict, output_dir: str) -> Optional[Dict]:
 
     ax.set_xlabel("Zaman (saniye)")
     ax.set_ylabel("Frekans (Hz)")
-    ax.set_title("🎵 Ses Perdesi (Pitch / F0)", fontweight="bold", fontsize=13)
+    ax.set_title("Ses Perdesi (Pitch / F0)", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "pitch_f0.png")
     _save_fig(fig, path)
@@ -433,7 +433,7 @@ def plot_waveform_vad(voice_features: Dict, output_dir: str) -> Optional[Dict]:
 
     ax.set_xlabel("Zaman (saniye)")
     ax.set_ylabel("Genlik")
-    ax.set_title("📊 Dalga Formu + Konuşma Segmentleri", fontweight="bold", fontsize=13)
+    ax.set_title("Dalga Formu + Konuşma Segmentleri", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "waveform_vad.png")
     _save_fig(fig, path)
@@ -462,7 +462,7 @@ def plot_speech_silence_ratio(voice_features: Dict, output_dir: str) -> Optional
                 f"{val:.1f}s", ha="center", va="bottom", fontweight="bold")
 
     ax.set_ylabel("Süre (saniye)")
-    ax.set_title("🗣️ Konuşma / Sessizlik Süresi", fontweight="bold", fontsize=13)
+    ax.set_title("Konuşma / Sessizlik Süresi", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "speech_silence.png")
     _save_fig(fig, path)
@@ -491,7 +491,7 @@ def plot_mel_spectrogram(voice_features: Dict, output_dir: str) -> Optional[Dict
     fig.colorbar(im, ax=ax, label="dB")
     ax.set_xlabel("Zaman (saniye)")
     ax.set_ylabel("Frekans (Hz)")
-    ax.set_title("🎼 Mel Spectrogram", fontweight="bold", fontsize=13)
+    ax.set_title("Mel Spectrogram", fontweight="bold", fontsize=13)
 
     path = os.path.join(output_dir, "mel_spectrogram.png")
     _save_fig(fig, path)
@@ -513,7 +513,7 @@ def plot_pause_durations(voice_features: Dict, output_dir: str) -> Optional[Dict
     ax.bar(x, pauses, color="#9b59b6", edgecolor="white", linewidth=0.5)
     ax.set_xlabel("Segment No")
     ax.set_ylabel("Duraklama (saniye)")
-    ax.set_title("⏸️ Konuşma Öncesi Duraklama Süreleri", fontweight="bold", fontsize=13)
+    ax.set_title("Konuşma Oncesi Duraklama Sureleri", fontweight="bold", fontsize=13)
 
     if len(pauses) > 0:
         avg = np.mean(pauses)
@@ -555,7 +555,7 @@ def plot_anomalies(anomalies: List[Dict], output_dir: str) -> Optional[Dict]:
 
     ax.set_ylim(0, 1)
     ax.set_xlabel("Zaman (saniye)")
-    ax.set_title("⚠️ Tutarsızlık Noktaları (Metin ↔ Yüz)", fontweight="bold", fontsize=13)
+    ax.set_title("Tutarsızlık Noktaları (Metin ↔ Yüz)", fontweight="bold", fontsize=13)
     ax.yaxis.set_visible(False)
 
     path = os.path.join(output_dir, "anomalies.png")
@@ -577,7 +577,7 @@ def plot_audio_signal_distributions(audio_signal_timeline: List[Dict], output_di
     a_counter = Counter(arousals)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle("🎛️ Audio Signal Dağılımı (Valence/Arousal)", fontsize=13, fontweight="bold")
+    fig.suptitle("Audio Signal Dagilimi (Valence/Arousal)", fontsize=13, fontweight="bold")
 
     # Valence
     ax = axes[0]
@@ -652,7 +652,7 @@ def plot_visual_signal_distributions(visual_timeline: List[Dict], output_dir: st
     stress = [t.get("stress_indicator", "") for t in visual_timeline]
 
     fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-    fig.suptitle("👁️ Visual Signal Dağılımı", fontsize=13, fontweight="bold")
+    fig.suptitle("Visual Signal Dağılımı", fontsize=13, fontweight="bold")
 
     for ax, title, values in [
         (axes[0], "Facial State", facial),
@@ -680,14 +680,14 @@ def plot_kpi_dashboard(face_summary: Dict, text_summary: Dict,
                        output_dir: str) -> Optional[Dict]:
     """Tüm modüllerin KPI göstergeleri tek bir dashboard'da."""
     fig, axes = plt.subplots(2, 3, figsize=(16, 8))
-    fig.suptitle("📊 Mülakat KPI Özeti", fontsize=16, fontweight="bold", y=1.02)
+    fig.suptitle("Mülakat KPI Özeti", fontsize=16, fontweight="bold", y=1.02)
 
     # 1) Odak Skoru
     ax = axes[0, 0]
     focus = face_summary.get("focus_score", 0)
     ax.barh(["Odak"], [focus], color="#2ecc71" if focus > 60 else "#e74c3c")
     ax.set_xlim(0, 100)
-    ax.set_title("👁️ Odak Skoru")
+    ax.set_title("Odak Skoru")
     ax.text(focus + 1, 0, f"%{focus:.0f}", va="center", fontweight="bold")
 
     # 2) Göz Kırpma
@@ -695,7 +695,7 @@ def plot_kpi_dashboard(face_summary: Dict, text_summary: Dict,
     bpm = face_summary.get("blink_rate_per_min", 0)
     color = "#2ecc71" if 10 <= bpm <= 25 else "#e74c3c"
     ax.barh(["Kırpma/dk"], [bpm], color=color)
-    ax.set_title("👁️ Göz Kırpma Hızı")
+    ax.set_title("Göz Kırpma Hızı")
     ax.text(bpm + 0.3, 0, f"{bpm:.1f}", va="center", fontweight="bold")
 
     # 3) Baskın Yüz Duygusu
@@ -704,7 +704,7 @@ def plot_kpi_dashboard(face_summary: Dict, text_summary: Dict,
     ax.text(0.5, 0.5, dom_face, fontsize=24, ha="center", va="center",
             fontweight="bold", color=EMOTION_COLORS.get(dom_face, "#2c3e50"),
             transform=ax.transAxes)
-    ax.set_title("😊 Baskın Yüz Duygusu")
+    ax.set_title("Baskın Yüz Duygusu")
     ax.axis("off")
 
     # 4) Metin Duygu Oranı
@@ -714,7 +714,7 @@ def plot_kpi_dashboard(face_summary: Dict, text_summary: Dict,
     ax.barh(["Pozitif", "Negatif"], [pos, neg],
             color=[SENTIMENT_COLORS["positive"], SENTIMENT_COLORS["negative"]])
     ax.set_xlim(0, 100)
-    ax.set_title("📝 Metin Duygu Oranı")
+    ax.set_title("Metin Duygu Oranı")
 
     # 5) Baskın Ses Duygusu
     ax = axes[1, 1]
@@ -722,7 +722,7 @@ def plot_kpi_dashboard(face_summary: Dict, text_summary: Dict,
     ax.text(0.5, 0.5, dom_audio, fontsize=20, ha="center", va="center",
             fontweight="bold", color=EMOTION_COLORS.get(dom_audio, "#2c3e50"),
             transform=ax.transAxes)
-    ax.set_title("🎤 Baskın Ses Duygusu")
+    ax.set_title("Baskın Ses Duygusu")
     ax.axis("off")
 
     # 6) Konuşma/Sessizlik oranı
@@ -735,7 +735,7 @@ def plot_kpi_dashboard(face_summary: Dict, text_summary: Dict,
         ax.pie([speech, silence], labels=["Konuşma", "Sessizlik"],
                colors=["#2ecc71", "#e74c3c"], autopct="%1.0f%%",
                textprops={"fontsize": 9})
-    ax.set_title("🗣️ Konuşma/Sessizlik")
+    ax.set_title("Konuşma/Sessizlik")
 
     fig.tight_layout()
 
@@ -857,7 +857,7 @@ def plot_voice_valence_timeline_b64(segment_packages: List[Dict]) -> str:
     ax.set_yticklabels(["-1", "-0.5", "0", "+0.5", "+1"], color=_DARK_MUTE, fontsize=8)
     ax.set_xlabel("Zaman (saniye)", color=_DARK_MUTE, fontsize=9)
     ax.set_ylabel("Valence", color=_DARK_MUTE, fontsize=9)
-    ax.set_title("Ses Duygu Zaman Çizelgesi (HuBERT Valence)",
+    ax.set_title("Ses Duygu Zaman Çizelgesi (SER Valence)",
                  color=_DARK_TEXT, fontsize=11, fontweight="bold", pad=8)
     ax.text(times[-1], 0.85, "Pozitif", color="#34d399", fontsize=8, ha="right")
     ax.text(times[-1], -0.95, "Negatif", color="#fb7185", fontsize=8, ha="right")
@@ -937,6 +937,47 @@ def plot_speech_confidence_timeline_b64(segment_packages: List[Dict]) -> str:
                 label="Kritik an")
         ax.legend(loc="upper right", fontsize=8, facecolor=_DARK_BG,
                   edgecolor=_DARK_GRID, labelcolor=_DARK_MUTE, framealpha=0.8)
+    fig.tight_layout()
+    return _fig_to_b64(fig)
+
+
+def plot_voice_energy_timeline_b64(segment_packages: List[Dict]) -> str:
+    """
+    Chart 5: Ses Enerji Zaman Cizelgesi
+    Bar chart per segment, color-coded by energy level (rms_dbfs).
+    """
+    if not segment_packages:
+        return ""
+    times = [float(p.get("start", 0)) for p in segment_packages]
+    rms_vals = [float(p.get("rms_dbfs", -60)) for p in segment_packages]
+    widths = [max(0.5, float(p.get("end", 0)) - float(p.get("start", 0))) for p in segment_packages]
+
+    fig, ax = _dark_fig(12, 2.2)
+
+    # Color by energy level
+    colors = []
+    for rms in rms_vals:
+        if rms >= -20:
+            colors.append("#34d399")   # high energy - green
+        elif rms >= -35:
+            colors.append("#fbbf24")   # medium energy - yellow
+        else:
+            colors.append("#60a5fa")   # low energy - blue
+
+    ax.bar(times, rms_vals, width=widths, color=colors, alpha=0.8, align="edge")
+    ax.set_xlabel("Zaman (saniye)", color=_DARK_MUTE, fontsize=9)
+    ax.set_ylabel("RMS (dBFS)", color=_DARK_MUTE, fontsize=9)
+    ax.set_title("Ses Enerji Zaman Cizelgesi",
+                 color=_DARK_TEXT, fontsize=11, fontweight="bold", pad=8)
+    # Reference lines
+    ax.axhline(y=-20, color="#34d399", linewidth=0.8, linestyle="--", alpha=0.5)
+    ax.axhline(y=-35, color="#fbbf24", linewidth=0.8, linestyle="--", alpha=0.5)
+    ax.text(0.01, 0.95, "Yuksek", transform=ax.transAxes, fontsize=7,
+            color="#34d399", va="top")
+    ax.text(0.01, 0.55, "Orta", transform=ax.transAxes, fontsize=7,
+            color="#fbbf24", va="top")
+    ax.text(0.01, 0.15, "Dusuk", transform=ax.transAxes, fontsize=7,
+            color="#60a5fa", va="top")
     fig.tight_layout()
     return _fig_to_b64(fig)
 

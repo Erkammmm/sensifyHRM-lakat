@@ -21,7 +21,7 @@ from .vision.face_analyzer import FaceAnalyzer
 from .audio.voice_analyzer import VoiceAnalyzer
 from .vision.video_processor import VideoProcessor
 from .audio.audio_signal_fusion import AudioSignalFusion
-from .nlp.contextual_aggregator import build_segment_signal_packages
+from .nlp.contextual_aggregator import build_segment_signal_packages, build_time_blocks
 from .audio.thought_unit_merger import merge_into_thought_units
 def analyze_consistency(text_sentiment, face_emotion) -> str:
     """
@@ -272,6 +272,24 @@ class InterviewAnalysisPipeline:
             )
             print(f"[TIMING] ContextualAggregator.build: {time.time() - _t0:.1f}s")
 
+        # Zaman bloğu paragrafları (konuşma yapısı)
+        time_blocks = []
+        if phase3_enabled:
+            _video_duration = float(video_info.get("duration_seconds") or 0.0)
+            _voice_tl = (
+                voice_analysis.get("per_second_timeline", [])
+                if isinstance(voice_analysis, dict)
+                else (voice_analysis if isinstance(voice_analysis, list) else [])
+            )
+            time_blocks = build_time_blocks(
+                text_segments=text_data,
+                face_timeline=face_timeline,
+                audio_signal_timeline=audio_signal_data,
+                voice_timeline=_voice_tl,
+                duration=_video_duration,
+            )
+            print(f"[Pipeline] Zaman blokları: {len(time_blocks)} blok")
+
         # Geçici ses dosyasını temizle
         if os.path.exists(audio_path):
             try:
@@ -319,6 +337,8 @@ class InterviewAnalysisPipeline:
             "anomalies": anomalies,
             # FAZ-3 Segment Signal Package (LLM'ye giden tek veri)
             "segment_signal_packages": segment_signal_packages if phase3_enabled else [],
+            # Zaman bloğu paragrafları
+            "time_blocks": time_blocks if phase3_enabled else [],
         }
 
         print(f"\n{'='*60}")

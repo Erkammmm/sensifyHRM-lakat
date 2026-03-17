@@ -117,7 +117,7 @@ def _strip_voice_series(data: Dict) -> Dict:
 def _run_gemini(report_paths: Dict[str, str]) -> Dict[str, Any]:
     """Generate analysis text via Gemini (library entry)."""
     if not report_paths.get("json"):
-        return {}
+        return {"status": "error", "message": "no_json_report_path", "provider": "gemini"}
     try:
         json_path = report_paths["json"]
         if not os.path.exists(json_path):
@@ -126,22 +126,34 @@ def _run_gemini(report_paths: Dict[str, str]) -> Dict[str, Any]:
             report = json.load(f)
         from src.nlp.gemini import generate_analysis as _generate_gemini_analysis
 
+        print("[LLM] Gemini generate_analysis cagriliyor...")
         text = _generate_gemini_analysis(report)
         text = (text or "").strip()
-        return {"analysis": text, "provider": "gemini"} if text else {}
+        if not text:
+            print("[LLM] Gemini bos yanit dondu.")
+            return {"status": "error", "message": "empty_response", "provider": "gemini"}
+        print(f"[LLM] Gemini basarili ({len(text)} karakter).")
+        return {"analysis": text, "provider": "gemini"}
     except Exception as exc:
+        print(f"[LLM] Gemini exception: {exc}")
         return {"status": "error", "message": str(exc), "provider": "gemini"}
 
 
 def _run_ollama(full_report: Dict[str, Any]) -> Dict[str, Any]:
     """Run local Ollama/Gemma analysis via unified entrypoint."""
     try:
+        print("[LLM] Ollama generate_analysis cagriliyor...")
         from src.nlp.ollama_ai import generate_analysis as _generate_ollama_analysis
         text = _generate_ollama_analysis(full_report)
         text = (text or "").strip()
-        return {"analysis": text, "provider": "ollama"} if text else {}
+        if not text:
+            print("[LLM] Ollama bos yanit dondu.")
+            return {"status": "error", "message": "empty_response", "provider": "ollama"}
+        print(f"[LLM] Ollama basarili ({len(text)} karakter).")
+        return {"analysis": text, "provider": "ollama"}
     except Exception as exc:
-        return {"status": "error", "message": str(exc), "provider": "ollama"}
+        print(f"[LLM] Ollama exception: {type(exc).__name__}: {exc}")
+        return {"status": "error", "message": f"{type(exc).__name__}: {exc}", "provider": "ollama"}
 
 
 def _write_ai_to_reports(report_paths: Dict[str, str], ai_analysis: Dict) -> list:
@@ -267,14 +279,15 @@ async def analyze_interview(
     file: UploadFile = File(..., description="Video dosyası (MP4, AVI, MOV, MKV, WEBM)"),
     interview_id: Optional[str] = None,
     phase3: bool = True,
+    use_llm: bool = True,
     llm_provider: str = "gemini",
 ):
     """
     Video yükle → analiz et → JSON + HTML rapor döndür.
 
-    1. Swagger UI'da "Try it out" ile video seçin
-    2. "Execute" ile gönderin
-    3. JSON yanıtı + HTML/JSON rapor dosyaları oluşturulur
+    - use_llm=true: LLM analizi yap (Gemini Pro → Flash → Ollama fallback, yavaş ama kapsamlı)
+    - use_llm=false: Sadece sinyal analizi (hızlı, LLM atlanır)
+    - llm_provider: "gemini" (fallback zinciri), "ollama" (sadece yerel), "none" (LLM kapalı)
     """
     if pipeline is None:
         raise HTTPException(status_code=503, detail="Pipeline henüz hazır değil")
@@ -311,20 +324,31 @@ async def analyze_interview(
             except Exception as e:
                 warnings_list.append(f"report_generation_failed: {e}")
 
-        # 4) LLM değerlendirmesi (varsayılan: Gemini; kota/hatada Ollama fallback)
+        # 4) LLM değerlendirmesi — fallback zinciri: Gemini Pro → Flash → Ollama → skip
         provider = (llm_provider or "gemini").strip().lower()
         ai_analysis: Dict[str, Any] = {}
-        if report_paths.get("json"):
+
+        if not use_llm or provider == "none":
+            # LLM devre dışı — hızlı mod
+            ai_analysis = {"skipped": True, "provider": "none"}
+        elif report_paths.get("json"):
             if provider == "ollama":
                 ai_analysis = _run_ollama(full_report)
-            elif provider == "none":
-                ai_analysis = {}
             else:
+                # Gemini fallback zinciri (Pro → Flash → Ollama → graceful skip)
                 ai_analysis = _run_gemini(report_paths)
-                # Gemini kota/hatada otomatik fallback
                 if isinstance(ai_analysis, dict) and ai_analysis.get("status") == "error":
-                    warnings_list.append(f"gemini_failed_fallback_to_ollama: {ai_analysis.get('message', '')}")
+                    gemini_err = ai_analysis.get("message", "")
+                    warnings_list.append(f"gemini_failed: {gemini_err}")
+                    print(f"[LLM] Gemini tüm modeller başarısız, Ollama deneniyor...")
                     ai_analysis = _run_ollama(full_report)
+                    if isinstance(ai_analysis, dict) and ai_analysis.get("status") == "error":
+                        ollama_err = ai_analysis.get("message", "")
+                        warnings_list.append(f"ollama_failed: {ollama_err}")
+                        print(f"[LLM] Ollama da başarısız. LLM analizi atlanıyor.")
+                        ai_analysis = {"skipped": True, "provider": "none",
+                                       "message": "Tüm LLM sağlayıcıları başarısız oldu."}
+
         warnings_list.extend(_write_ai_to_reports(report_paths, ai_analysis))
 
         # 5) API yanıtı oluştur

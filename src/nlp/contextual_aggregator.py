@@ -64,6 +64,52 @@ def _filtered_emotion_labels(frames: List[Dict]) -> List[str]:
     return out
 
 
+def _remap_surprise_happy(labels: List[str], frames: List[Dict]) -> List[str]:
+    """
+    AffectNet7 known limitation: smiling + open eyes triggers "Surprise" instead
+    of "Happy". This function uses TWO strategies:
+
+    1) When Surprise+Happy together > 30% of frames: remap moderate-confidence
+       Surprise (< 0.75) to Happy.
+    2) When raw Surprise dominates (>50% of RAW frame labels, ignoring confidence
+       filter): ALL Surprise → Happy, because the model is clearly confusing
+       a sustained expression.
+    """
+    if not labels:
+        return labels
+    counter = Counter(labels)
+    surprise_count = counter.get("Surprise", 0)
+    happy_count = counter.get("Happy", 0)
+    total = len(labels)
+
+    if surprise_count == 0:
+        return labels
+
+    # Strategy 2: Check RAW (pre-filter) frame labels — if >50% raw are Surprise,
+    # this is a systematic model confusion, remap all Surprise → Happy.
+    raw_surprise = sum(1 for f in frames if (f.get("emotion_label") or "") == "Surprise")
+    raw_total = len(frames)
+    if raw_total > 0 and raw_surprise / raw_total > 0.50:
+        return ["Happy" if lab == "Surprise" else lab for lab in labels]
+
+    # Strategy 1: Moderate combined presence — remap low-confidence Surprise
+    combined_pct = (surprise_count + happy_count) / total if total > 0 else 0.0
+    if combined_pct < 0.30:
+        return labels
+
+    out: List[str] = []
+    for label, frame in zip(labels, frames):
+        if label == "Surprise":
+            conf = float(frame.get("emotion_confidence") or 0.0)
+            if conf < 0.75:
+                out.append("Happy")
+            else:
+                out.append("Surprise")
+        else:
+            out.append(label)
+    return out
+
+
 def _dominant_with_freq_filter(labels: List[str], frames: List[Dict]) -> str:
     """
     Compute dominant emotion from filtered labels, then apply frequency filter:
@@ -72,6 +118,10 @@ def _dominant_with_freq_filter(labels: List[str], frames: List[Dict]) -> str:
     """
     if not labels:
         return "Neutral"
+
+    # Step: Surprise/Happy remap (AffectNet7 confusion fix)
+    labels = _remap_surprise_happy(labels, frames)
+
     counter = Counter(labels)
     dominant, count = counter.most_common(1)[0]
     freq = count / len(labels)
@@ -344,3 +394,123 @@ def generate_analysis(
         face_timeline=face_timeline,
         voice_timeline=voice_timeline,
     )
+
+
+def build_time_blocks(
+    text_segments: List[Dict],
+    face_timeline: Optional[List[Dict]],
+    audio_signal_timeline: Optional[List[Dict]],
+    voice_timeline: Optional[List[Dict]],
+    duration: float,
+) -> List[Dict]:
+    """
+    Videoyu anlamlı zaman bloklarına böler (paragraf benzeri yapı).
+
+    Blok boyutu video süresine göre:
+      <= 3 dakika  → 1 dakikalık bloklar
+      3-10 dakika  → 2 dakikalık bloklar
+      > 10 dakika  → 3 dakikalık bloklar
+
+    Her blok için yüz duygusu, konuşma güveni, göz kaçırma yüzdesi ve
+    HuBERT valence ortalaması hesaplanır.
+    """
+    if duration <= 0:
+        return []
+
+    if duration <= 180:
+        block_size = 60.0
+    elif duration <= 600:
+        block_size = 120.0
+    else:
+        block_size = 180.0
+
+    eff_face = face_timeline or []
+    eff_voice = voice_timeline or []
+    eff_audio = audio_signal_timeline or []
+
+    # Video geneli gaze offset (median) — bias düzeltmesi
+    detected_frames = [f for f in eff_face if f.get("face_detected", True)]
+    _all_p = sorted([float(f.get("gaze_pitch_deg") or 0.0) for f in detected_frames])
+    _all_y = sorted([float(f.get("gaze_yaw_deg") or 0.0) for f in detected_frames])
+    pitch_center = float(_all_p[len(_all_p) // 2]) if _all_p else 0.0
+    yaw_center   = float(_all_y[len(_all_y) // 2]) if _all_y else 0.0
+
+    blocks: List[Dict] = []
+    cursor = 0.0
+    block_id = 0
+
+    while cursor < duration:
+        block_end = min(cursor + block_size, duration)
+        block_id += 1
+        label = f"{_format_mmss(cursor)} - {_format_mmss(block_end)}"
+
+        # Metinleri birleştir
+        segs_in = [
+            s for s in text_segments
+            if float(s.get("start", 0) or 0) < block_end
+            and float(s.get("end", 0) or 0) > cursor
+        ]
+        text_joined = " ".join(s.get("text", "").strip() for s in segs_in if s.get("text"))
+        word_count = len(text_joined.split()) if text_joined else 0
+
+        # Yüz duygusu
+        face_in = [
+            f for f in eff_face
+            if f.get("face_detected", True)
+            and cursor <= float(f.get("timestamp_sec", f.get("timestamp", 0)) or 0) < block_end
+        ]
+        if face_in:
+            filtered = _filtered_emotion_labels(face_in)
+            dominant_emotion = _dominant_with_freq_filter(filtered, face_in)
+            frame_dirs = [
+                _gaze_direction(
+                    float(f.get("gaze_pitch_deg") or 0.0) - pitch_center,
+                    float(f.get("gaze_yaw_deg") or 0.0) - yaw_center,
+                )
+                for f in face_in
+            ]
+            away_count = sum(1 for d in frame_dirs if d != "center")
+            avg_gaze_away_pct = round(away_count / max(1, len(frame_dirs)), 3)
+        else:
+            dominant_emotion = "Neutral"
+            avg_gaze_away_pct = 0.0
+
+        # Konuşma güveni
+        voice_in = [
+            v for v in eff_voice
+            if float(v.get("start_sec", v.get("start", 0)) or 0) < block_end
+            and float(v.get("end_sec",   v.get("end",   0)) or 0) > cursor
+        ]
+        avg_speech_confidence = round(
+            _mean([v.get("konusma_guveni") for v in voice_in], 0.0), 3
+        ) if voice_in else 0.0
+
+        # HuBERT valence
+        audio_in = [
+            a for a in eff_audio
+            if float(a.get("start", 0) or 0) < block_end
+            and float(a.get("end",   0) or 0) > cursor
+        ]
+        hubert_valence_mean = round(
+            _mean(
+                [a.get("debug", {}).get("valence_score_ema", a.get("valence_score", 0.0))
+                 for a in audio_in],
+                0.0,
+            ), 3
+        ) if audio_in else 0.0
+
+        blocks.append({
+            "block_id":             block_id,
+            "label":                label,
+            "text":                 text_joined,
+            "segment_count":        len(segs_in),
+            "dominant_emotion":     dominant_emotion,
+            "avg_speech_confidence": avg_speech_confidence,
+            "avg_gaze_away_pct":    avg_gaze_away_pct,
+            "hubert_valence_mean":  hubert_valence_mean,
+            "word_count":           word_count,
+        })
+
+        cursor += block_size
+
+    return blocks

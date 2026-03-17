@@ -76,6 +76,8 @@ def build_summary_payload(report: dict) -> dict:
         packages = report.get("segment_signal_packages", []) or []
         chunks = [packages[i : i + 10] for i in range(0, len(packages), 10)]
         payload["segment_signal_packages_chunks"] = chunks[:30]  # safety cap
+        # Zaman bloğu paragrafları (konuşma yapısı — blok bazlı analiz için)
+        payload["time_blocks"] = report.get("time_blocks", []) or []
 
     return payload
 
@@ -110,8 +112,26 @@ def _strip_voice_series(data: dict) -> dict:
     return cleaned
 
 
+def _try_gemini_model(model_name: str, full_prompt: str, api_key: str, timeout: int = 30) -> str:
+    """Tek bir Gemini modeline istek atar; başarısızsa exception fırlatır."""
+    import google.generativeai as genai
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(model_name)
+    response = model.generate_content(
+        full_prompt,
+        request_options={"timeout": timeout},
+    )
+    text = getattr(response, "text", "")
+    if not text or not text.strip():
+        raise RuntimeError(f"{model_name}: boş yanıt")
+    return text
+
+
 def generate_gemini_text(summary_text: str, phase: str = "v2") -> str:
-    """Prompt + özet metinle Gemini yanıtı üretir."""
+    """
+    Gemini fallback zinciri: Pro → Flash → hata.
+    Gemini başarısız olursa exception fırlatır (üst katman Ollama'ya geçer).
+    """
     _load_env_from_file()
     warnings.simplefilter("ignore", FutureWarning)
 
@@ -123,7 +143,6 @@ def generate_gemini_text(summary_text: str, phase: str = "v2") -> str:
     if not prompt:
         raise RuntimeError("prompt.txt bulunamadı veya boş.")
 
-    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-pro").strip()
     full_prompt = f"{prompt}\n\n{summary_text}"
 
     try:
@@ -132,11 +151,31 @@ def generate_gemini_text(summary_text: str, phase: str = "v2") -> str:
     except Exception:
         pass
 
-    import google.generativeai as genai
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-    response = model.generate_content(full_prompt)
-    return getattr(response, "text", "")
+    # Fallback zinciri: Gemini Pro (ücretli) → Gemini Flash (ücretsiz)
+    gemini_models = [
+        ("gemini-2.5-pro", 60),
+        ("gemini-2.5-flash", 45),
+        ("gemini-2.0-flash", 45),
+    ]
+
+    # Kullanıcı override: .env'den tek model belirtildiyse onu önce dene
+    env_model = os.getenv("GEMINI_MODEL", "").strip()
+    if env_model:
+        gemini_models.insert(0, (env_model, 60))
+
+    last_error = None
+    for model_name, timeout in gemini_models:
+        try:
+            print(f"[LLM] Gemini deneniyor: {model_name} (timeout={timeout}s)...")
+            text = _try_gemini_model(model_name, full_prompt, api_key, timeout)
+            print(f"[LLM] Gemini basarili: {model_name}")
+            return text
+        except Exception as exc:
+            last_error = exc
+            print(f"[LLM] Gemini basarisiz ({model_name}): {exc}")
+            continue
+
+    raise RuntimeError(f"Tüm Gemini modelleri başarısız: {last_error}")
 
 
 def _run_cli() -> int:

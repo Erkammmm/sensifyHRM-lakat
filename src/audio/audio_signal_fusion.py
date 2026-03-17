@@ -1,17 +1,14 @@
 """
-FAZ-3 Audio Signal Fusion  (FAZ-4 güncelleme: librosa → torchaudio)
+FAZ-4 Audio Signal Fusion
 
 Amaç:
-  - Duygu sınıflandırması YOK
-  - Ses + öğrenilmiş zayıf sinyal (HuBERT SER) -> Valence/Arousal sinyali
+  - wav2vec2 SER (ehcalabres, 8 sınıf) -> Valence/Arousal sinyali
   - Fiziksel ses özellikleri (torchaudio) -> yorumlanabilir discrete state'ler
   - Nihai çıktı: emotion label değil, sinyal state paketleri
 
 Not:
   - SER modelinin çıktıları "duygu" olarak raporlanmaz.
   - Sadece valence/arousal projeksiyonu için zayıf sinyal olarak kullanılır.
-  - HuBERT SER modeli ve inference mantığı değiştirilmedi.
-  - Yalnızca librosa önişleme adımları torchaudio karşılıklarıyla değiştirildi.
 """
 
 from __future__ import annotations
@@ -25,8 +22,19 @@ import torchaudio
 from transformers import pipeline as hf_pipeline
 
 
-# FAZ-3'te SER için tek kaynak model (değiştirilmesi istenmiyor)
-SER_MODEL_ID = "SeaBenSea/hubert-large-turkish-speech-emotion-recognition"
+# FAZ-4 SER modeli (güncel):
+# ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition
+#   — XLSR-53 backbone (53 dil, Türkçe dahil pretraining)
+#   — RAVDESS + CREMA-D + TESS + SAVEE veri seti üzerinde fine-tune edilmiş
+#   — 8 sınıf: angry, calm, disgust, fearful, happy, neutral, sad, surprised
+#   — "calm" sınıfı sayesinde enerjik ama sakin konuşma "angry" değil "calm" etiketleniyor
+#   — Önceki model (firdhokk): XLSR-53 tabanlı ama yalnızca 7 sınıf ve
+#     enerjik Türkçe konuşmayı %51 "angry" etiketliyordu.
+#   — HuggingFace'de en popüler SER modellerinden biri (~1M indirme).
+SER_MODEL_ID = "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition"
+
+# Eski model (referans):
+# firdhokk/speech-emotion-recognition-with-facebook-wav2vec2-large-xlsr-53
 
 TARGET_SR = 16000
 CHUNK_SEC = 3.0
@@ -34,11 +42,20 @@ STEP_SEC = 3.0  # non-overlapping chunks (FAZ-4 optimisation: was 1.0)
 EMA_ALPHA = float(os.getenv("SENSIFYHR_AUDIO_SIGNAL_EMA_ALPHA", "0.65"))
 
 EMOTION_TO_SIGNAL: Dict[str, Dict[str, float]] = {
-    "happy":   {"valence": +1.0, "arousal": +0.6},
-    "sad":     {"valence": -0.8, "arousal": -0.4},
-    "fear":    {"valence": -0.7, "arousal": +0.7},
-    "angry":   {"valence": -0.9, "arousal": +0.9},
-    "neutral": {"valence":  0.0, "arousal":  0.0},
+    # ehcalabres model labels (8 sınıf: angry/calm/disgust/fearful/happy/neutral/sad/surprised)
+    "happy":     {"valence": +1.0, "arousal": +0.6},
+    "calm":      {"valence": +0.2, "arousal": -0.3},   # enerjik ama sakin → düşük arousal
+    "neutral":   {"valence":  0.0, "arousal":  0.0},
+    "sad":       {"valence": -0.8, "arousal": -0.4},
+    "angry":     {"valence": -0.9, "arousal": +0.9},
+    "fearful":   {"valence": -0.7, "arousal": +0.7},
+    "disgust":   {"valence": -0.8, "arousal": +0.3},
+    "surprised": {"valence": +0.3, "arousal": +0.8},
+    # Compat aliases (diğer model formatları için)
+    "fear":      {"valence": -0.7, "arousal": +0.7},
+    "hap":       {"valence": +1.0, "arousal": +0.6},
+    "ang":       {"valence": -0.9, "arousal": +0.9},
+    "neu":       {"valence":  0.0, "arousal":  0.0},
 }
 
 _EPS = 1e-8
@@ -62,15 +79,25 @@ def _bucketize_arousal(a: float) -> str:
 
 _RMS_SILENCE_THRESHOLD = 10 ** (-45.0 / 20)  # -45 dBFS ≈ 0.00562
 
-_LABEL_MAP = {
-    "sadness":  "sad",
-    "neutral":  "neutral",
-    "happy":    "happy",
-    "angry":    "angry",
-    "fearful":  "fear",
-    "calm":     "neutral",
-    "disgust":  "angry",
+_LABEL_MAP_RAW = {
+    # ehcalabres model labels (8 sınıf) — identity mapping
+    "angry":     "angry",
+    "calm":      "calm",
+    "disgust":   "disgust",
+    "fearful":   "fearful",
+    "happy":     "happy",
+    "neutral":   "neutral",
+    "sad":       "sad",
+    "surprised": "surprised",
+    # Compat aliases (diğer model formatları)
+    "sadness":   "sad",
+    "fear":      "fearful",
+    "hap":       "happy",
+    "ang":       "angry",
+    "neu":       "neutral",
 }
+# Case-insensitive: model may output "Happy", "Angry" etc.
+_LABEL_MAP = {k.lower(): v for k, v in _LABEL_MAP_RAW.items()}
 
 _SILENT_RESULT: Dict[str, Any] = {
     "valence_score": 0.0,
@@ -83,22 +110,29 @@ _SILENT_RESULT: Dict[str, Any] = {
 }
 
 
-class HuBERTSerProjector:
+class SerProjector:
     """
-    HuBERT tabanlı SER — transformers pipeline() ile basit, referansa uygun implementasyon.
+    wav2vec2 tabanlı SER — transformers pipeline() ile basit implementasyon.
     Çıktıları valence/arousal sinyaline projekte eder.
+    Model: ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition (8 sınıf)
     """
 
     def __init__(self, model_id: str = SER_MODEL_ID):
-        print(f"[HuBERTSerProjector] Başlatılıyor... Model: {model_id}")
+        print(f"[SER] Başlatılıyor... Model: {model_id}")
         self.model_id = model_id
         device = 0 if torch.cuda.is_available() else -1
-        self._pipeline = hf_pipeline(
-            "audio-classification",
-            model=model_id,
-            device=device,
-        )
-        print(f"[HuBERTSerProjector] Hazır! Cihaz: {'CUDA' if device == 0 else 'CPU'}")
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*not used when initializing.*")
+            warnings.filterwarnings("ignore", message=".*were not initialized.*")
+            warnings.filterwarnings("ignore", message=".*should probably TRAIN.*")
+            warnings.filterwarnings("ignore", message=".*gradient_checkpointing.*")
+            self._pipeline = hf_pipeline(
+                "audio-classification",
+                model=model_id,
+                device=device,
+            )
+        print(f"[SER] Hazır! Cihaz: {'CUDA' if device == 0 else 'CPU'}")
 
     def project(self, audio: np.ndarray, sr: int) -> Dict[str, Any]:
         # Sessiz chunk filtresi: -45 dBFS altı veya boş
@@ -113,10 +147,10 @@ class HuBERTSerProjector:
         # result = [{'label': 'sadness', 'score': 0.85}, ...]
 
         top       = result[0]
-        top_label = _LABEL_MAP.get(top["label"], top["label"])
+        top_label = _LABEL_MAP.get(top["label"].lower(), top["label"].lower())
         top_score = round(float(top["score"]), 3)
         all_scores = {
-            _LABEL_MAP.get(r["label"], r["label"]): round(float(r["score"]), 3)
+            _LABEL_MAP.get(r["label"].lower(), r["label"].lower()): round(float(r["score"]), 3)
             for r in result
         }
 
@@ -124,7 +158,7 @@ class HuBERTSerProjector:
         valence = 0.0
         arousal = 0.0
         for r in result:
-            lab = _LABEL_MAP.get(r["label"], r["label"])
+            lab = _LABEL_MAP.get(r["label"].lower(), r["label"].lower())
             sig = EMOTION_TO_SIGNAL.get(lab, EMOTION_TO_SIGNAL["neutral"])
             valence += float(r["score"]) * float(sig["valence"])
             arousal += float(r["score"]) * float(sig["arousal"])
@@ -311,7 +345,7 @@ class AudioSignalFusion:
     def __init__(self, ser_model_id: str = SER_MODEL_ID):
         print(f"[AudioSignalFusion] Başlatılıyor...")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.ser_projector = HuBERTSerProjector(ser_model_id)
+        self.ser_projector = SerProjector(ser_model_id)
         print(f"[AudioSignalFusion] Hazır!")
 
     def process_audio(self, audio_path: str) -> List[Dict]:
