@@ -2,13 +2,14 @@
 FAZ-4 Audio Signal Fusion
 
 Amaç:
-  - wav2vec2 SER (ehcalabres, 8 sınıf) -> Valence/Arousal sinyali
-  - Fiziksel ses özellikleri (torchaudio) -> yorumlanabilir discrete state'ler
-  - Nihai çıktı: emotion label değil, sinyal state paketleri
+  - torchaudio f0 + enerji tabanlı kural sistemi → Valence/Arousal sinyali
+  - Fiziksel ses özellikleri (torchaudio) → yorumlanabilir discrete state'ler
+  - Nihai çıktı: duygu etiketi değil, sinyal state paketleri
 
 Not:
-  - SER modelinin çıktıları "duygu" olarak raporlanmaz.
-  - Sadece valence/arousal projeksiyonu için zayıf sinyal olarak kullanılır.
+  - SER modeli (wav2vec2) kaldırıldı — Türkçe için güvenilir değildi.
+  - Valence/arousal artık f0_std + rms_dbfs kural tabanlı ses profilinden geliyor.
+  - Dil bağımsız: sadece ses enerjisi ve pitch varyasyonu kullanılıyor.
 """
 
 from __future__ import annotations
@@ -19,46 +20,67 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torchaudio
-from transformers import pipeline as hf_pipeline
 
-
-# FAZ-4 SER modeli (güncel):
-# ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition
-#   — XLSR-53 backbone (53 dil, Türkçe dahil pretraining)
-#   — RAVDESS + CREMA-D + TESS + SAVEE veri seti üzerinde fine-tune edilmiş
-#   — 8 sınıf: angry, calm, disgust, fearful, happy, neutral, sad, surprised
-#   — "calm" sınıfı sayesinde enerjik ama sakin konuşma "angry" değil "calm" etiketleniyor
-#   — Önceki model (firdhokk): XLSR-53 tabanlı ama yalnızca 7 sınıf ve
-#     enerjik Türkçe konuşmayı %51 "angry" etiketliyordu.
-#   — HuggingFace'de en popüler SER modellerinden biri (~1M indirme).
-SER_MODEL_ID = "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition"
-
-# Eski model (referans):
-# firdhokk/speech-emotion-recognition-with-facebook-wav2vec2-large-xlsr-53
 
 TARGET_SR = 16000
 CHUNK_SEC = 3.0
-STEP_SEC = 3.0  # non-overlapping chunks (FAZ-4 optimisation: was 1.0)
+STEP_SEC = 3.0  # non-overlapping chunks
 EMA_ALPHA = float(os.getenv("SENSIFYHR_AUDIO_SIGNAL_EMA_ALPHA", "0.65"))
 
-EMOTION_TO_SIGNAL: Dict[str, Dict[str, float]] = {
-    # ehcalabres model labels (8 sınıf: angry/calm/disgust/fearful/happy/neutral/sad/surprised)
-    "happy":     {"valence": +1.0, "arousal": +0.6},
-    "calm":      {"valence": +0.2, "arousal": -0.3},   # enerjik ama sakin → düşük arousal
-    "neutral":   {"valence":  0.0, "arousal":  0.0},
-    "sad":       {"valence": -0.8, "arousal": -0.4},
-    "angry":     {"valence": -0.9, "arousal": +0.9},
-    "fearful":   {"valence": -0.7, "arousal": +0.7},
-    "disgust":   {"valence": -0.8, "arousal": +0.3},
-    "surprised": {"valence": +0.3, "arousal": +0.8},
-    # Compat aliases (diğer model formatları için)
-    "fear":      {"valence": -0.7, "arousal": +0.7},
-    "hap":       {"valence": +1.0, "arousal": +0.6},
-    "ang":       {"valence": -0.9, "arousal": +0.9},
-    "neu":       {"valence":  0.0, "arousal":  0.0},
+# Ses profili → valence/arousal mapping
+# Gerçek veriden kalibre edildi (sadievrenhocamız: f0_std mean=15.5, rms mean=-18.2 dBFS)
+VOICE_PROFILES: Dict[str, Dict[str, float]] = {
+    "Canlı":    {"valence": +0.6, "arousal": +0.7},   # yüksek enerji + yüksek varyasyon
+    "Kararlı":  {"valence": +0.3, "arousal": +0.5},   # yüksek enerji + orta/düşük varyasyon
+    "Gergin":   {"valence": -0.4, "arousal": +0.6},   # orta enerji + yüksek varyasyon
+    "Dengeli":  {"valence": +0.1, "arousal": +0.2},   # orta enerji + orta varyasyon
+    "Sakin":    {"valence": -0.1, "arousal": -0.2},   # düşük/orta enerji + düşük varyasyon
 }
 
 _EPS = 1e-8
+
+# Eşikler — gerçek veri aralıklarından kalibre edildi
+_RMS_HIGH_DBFS  = -25.0   # > -25 dBFS → yüksek enerji
+_RMS_MED_DBFS   = -40.0   # > -40 dBFS → orta enerji; <= -40 → düşük
+_F0STD_HIGH_HZ  = 50.0    # > 50 Hz → yüksek varyasyon
+_F0STD_MED_HZ   = 20.0    # > 20 Hz → orta; <= 20 → düşük
+
+
+def _rms_dbfs(audio: np.ndarray) -> float:
+    """RMS değerini dBFS cinsinden hesaplar."""
+    rms = float(np.sqrt(np.mean(audio ** 2) + _EPS))
+    return 20.0 * np.log10(rms)
+
+
+def _classify_energy(rms_dbfs_val: float) -> str:
+    if rms_dbfs_val > _RMS_HIGH_DBFS:
+        return "high"
+    if rms_dbfs_val > _RMS_MED_DBFS:
+        return "medium"
+    return "low"
+
+
+def _classify_variation(f0_std_val: float) -> str:
+    if f0_std_val > _F0STD_HIGH_HZ:
+        return "high"
+    if f0_std_val > _F0STD_MED_HZ:
+        return "medium"
+    return "low"
+
+
+def _get_voice_profile(energy: str, variation: str) -> str:
+    """
+    Enerji + varyasyon kombinasyonundan ses profili belirler.
+    """
+    if energy == "high" and variation == "high":
+        return "Canlı"
+    if energy == "high":
+        return "Kararlı"   # yüksek enerji, orta/düşük varyasyon
+    if variation == "high":
+        return "Gergin"    # orta enerji, yüksek varyasyon
+    if variation == "medium":
+        return "Dengeli"   # orta enerji, orta varyasyon
+    return "Sakin"         # düşük/orta enerji, düşük varyasyon
 
 
 def _bucketize_valence(v: float) -> str:
@@ -77,101 +99,6 @@ def _bucketize_arousal(a: float) -> str:
     return "MEDIUM"
 
 
-_RMS_SILENCE_THRESHOLD = 10 ** (-45.0 / 20)  # -45 dBFS ≈ 0.00562
-
-_LABEL_MAP_RAW = {
-    # ehcalabres model labels (8 sınıf) — identity mapping
-    "angry":     "angry",
-    "calm":      "calm",
-    "disgust":   "disgust",
-    "fearful":   "fearful",
-    "happy":     "happy",
-    "neutral":   "neutral",
-    "sad":       "sad",
-    "surprised": "surprised",
-    # Compat aliases (diğer model formatları)
-    "sadness":   "sad",
-    "fear":      "fearful",
-    "hap":       "happy",
-    "ang":       "angry",
-    "neu":       "neutral",
-}
-# Case-insensitive: model may output "Happy", "Angry" etc.
-_LABEL_MAP = {k.lower(): v for k, v in _LABEL_MAP_RAW.items()}
-
-_SILENT_RESULT: Dict[str, Any] = {
-    "valence_score": 0.0,
-    "arousal_score": 0.0,
-    "valence_state": "NEUTRAL",
-    "arousal_state": "LOW",
-    "top_label":     "neutral",
-    "top_score":     0.0,
-    "all_scores":    {},
-}
-
-
-class SerProjector:
-    """
-    wav2vec2 tabanlı SER — transformers pipeline() ile basit implementasyon.
-    Çıktıları valence/arousal sinyaline projekte eder.
-    Model: ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition (8 sınıf)
-    """
-
-    def __init__(self, model_id: str = SER_MODEL_ID):
-        print(f"[SER] Başlatılıyor... Model: {model_id}")
-        self.model_id = model_id
-        device = 0 if torch.cuda.is_available() else -1
-        import warnings
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message=".*not used when initializing.*")
-            warnings.filterwarnings("ignore", message=".*were not initialized.*")
-            warnings.filterwarnings("ignore", message=".*should probably TRAIN.*")
-            warnings.filterwarnings("ignore", message=".*gradient_checkpointing.*")
-            self._pipeline = hf_pipeline(
-                "audio-classification",
-                model=model_id,
-                device=device,
-            )
-        print(f"[SER] Hazır! Cihaz: {'CUDA' if device == 0 else 'CPU'}")
-
-    def project(self, audio: np.ndarray, sr: int) -> Dict[str, Any]:
-        # Sessiz chunk filtresi: -45 dBFS altı veya boş
-        if audio.size == 0:
-            return dict(_SILENT_RESULT)
-        rms_val = float(np.sqrt(np.mean(audio ** 2)))
-        if rms_val < _RMS_SILENCE_THRESHOLD:
-            return dict(_SILENT_RESULT)
-
-        # pipeline() float32 numpy array (shape: N,) kabul eder, sr=16000 varsayılan
-        result = self._pipeline(audio)
-        # result = [{'label': 'sadness', 'score': 0.85}, ...]
-
-        top       = result[0]
-        top_label = _LABEL_MAP.get(top["label"].lower(), top["label"].lower())
-        top_score = round(float(top["score"]), 3)
-        all_scores = {
-            _LABEL_MAP.get(r["label"].lower(), r["label"].lower()): round(float(r["score"]), 3)
-            for r in result
-        }
-
-        # Valence/arousal projeksiyonu (ağırlıklı toplam)
-        valence = 0.0
-        arousal = 0.0
-        for r in result:
-            lab = _LABEL_MAP.get(r["label"].lower(), r["label"].lower())
-            sig = EMOTION_TO_SIGNAL.get(lab, EMOTION_TO_SIGNAL["neutral"])
-            valence += float(r["score"]) * float(sig["valence"])
-            arousal += float(r["score"]) * float(sig["arousal"])
-
-        return {
-            "valence_score": float(valence),
-            "arousal_score": float(arousal),
-            "valence_state": _bucketize_valence(float(valence)),
-            "arousal_state": _bucketize_arousal(float(arousal)),
-            "top_label":     top_label,
-            "top_score":     top_score,
-            "all_scores":    all_scores,
-        }
 
 
 
@@ -339,13 +266,13 @@ def _extract_physical_signal_states(audio: np.ndarray, sr: int) -> Dict[str, str
 
 class AudioSignalFusion:
     """
-    Fiziksel ses özellikleri + SER projeksiyonunu birleştirip audio signal timeline üretir.
+    Fiziksel ses özellikleri (f0 + enerji) tabanlı ses profili → audio signal timeline üretir.
+    SER modeli kaldırıldı; dil bağımsız kural sistemi kullanılıyor.
     """
 
-    def __init__(self, ser_model_id: str = SER_MODEL_ID):
-        print(f"[AudioSignalFusion] Başlatılıyor...")
+    def __init__(self):
+        print(f"[AudioSignalFusion] Başlatılıyor (f0+enerji kural sistemi)...")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.ser_projector = SerProjector(ser_model_id)
         print(f"[AudioSignalFusion] Hazır!")
 
     def process_audio(self, audio_path: str) -> List[Dict]:
@@ -359,12 +286,11 @@ class AudioSignalFusion:
             waveform = torchaudio.functional.resample(waveform, sr_orig, TARGET_SR)
         sr = TARGET_SR
 
-        # Mono (HuBERT feature_extractor 1-D numpy array bekler)
+        # Mono
         if waveform.shape[0] > 1:
             waveform = waveform.mean(dim=0, keepdim=True)
         y = waveform.squeeze(0).numpy().astype(np.float32)
 
-        # [librosa.get_duration → len / sr]
         duration = float(len(y)) / float(sr)
         if duration <= 0:
             return []
@@ -382,17 +308,25 @@ class AudioSignalFusion:
             chunk = y[s:e].copy()
 
             phys = _extract_physical_signal_states(chunk, sr)
-            proj = self.ser_projector.project(chunk, sr)
 
-            # SER projeksiyonunu yumuşat (zayıf sinyal dalgalanmasını azaltır)
+            # Ses profili: f0_std + rms_dbfs kural sistemi
+            rms_db = _rms_dbfs(chunk)
+            _, f0_std_chunk, _ = _extract_pitch_stats(chunk, sr)
+            energy = _classify_energy(rms_db)
+            variation = _classify_variation(f0_std_chunk)
+            profile = _get_voice_profile(energy, variation)
+            valence_raw = VOICE_PROFILES[profile]["valence"]
+            arousal_raw = VOICE_PROFILES[profile]["arousal"]
+
+            # EMA yumuşatma (ani sinyal değişimlerini azaltır)
             if val_ema is None:
-                val_ema = float(proj.get("valence_score", 0.0))
+                val_ema = valence_raw
             else:
-                val_ema = (alpha * float(proj.get("valence_score", 0.0))) + ((1.0 - alpha) * float(val_ema))
+                val_ema = (alpha * valence_raw) + ((1.0 - alpha) * val_ema)
             if aro_ema is None:
-                aro_ema = float(proj.get("arousal_score", 0.0))
+                aro_ema = arousal_raw
             else:
-                aro_ema = (alpha * float(proj.get("arousal_score", 0.0))) + ((1.0 - alpha) * float(aro_ema))
+                aro_ema = (alpha * arousal_raw) + ((1.0 - alpha) * aro_ema)
 
             val_state = _bucketize_valence(float(val_ema))
             aro_state = _bucketize_arousal(float(aro_ema))
@@ -406,15 +340,16 @@ class AudioSignalFusion:
                     "speech_energy":   phys["speech_energy"],
                     "speech_rate":     phys["speech_rate"],
                     "pitch_stability": phys["pitch_stability"],
-                    # Debug değerler (rapora yazdırmak zorunlu değil)
                     "debug": {
-                        "valence_score_raw": round(proj.get("valence_score", 0.0), 3),
-                        "arousal_score_raw": round(proj.get("arousal_score", 0.0), 3),
+                        "voice_profile":     profile,
+                        "voice_energy":      energy,
+                        "voice_variation":   variation,
+                        "rms_dbfs":          round(rms_db, 2),
+                        "f0_std":            round(f0_std_chunk, 2),
+                        "valence_score_raw": round(valence_raw, 3),
+                        "arousal_score_raw": round(arousal_raw, 3),
                         "valence_score_ema": round(float(val_ema), 3),
                         "arousal_score_ema": round(float(aro_ema), 3),
-                        "ser_top_label":     proj.get("top_label", ""),
-                        "ser_top_score":     round(proj.get("top_score", 0.0), 3),
-                        "ser_all_scores":    proj.get("all_scores", {}),
                     },
                 }
             )

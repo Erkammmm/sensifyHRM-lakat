@@ -1029,37 +1029,33 @@ def _compute_emotion_distribution(face_timeline: List[Dict]) -> Dict:
     return {"no_data": False, "labels": labels, "values": values, "colors": colors}
 
 
-_VOICE_EMO_COLORS = {
-    # ehcalabres model labels (8 sınıf)
-    "happy":     "rgba(52,211,153,0.85)",
-    "calm":      "rgba(52,211,153,0.65)",   # benzer tona daha açık
-    "neutral":   "rgba(107,114,128,0.65)",
-    "sad":       "rgba(96,165,250,0.85)",
-    "angry":     "rgba(251,113,133,0.85)",
-    "fearful":   "rgba(167,139,250,0.85)",
-    "disgust":   "rgba(251,146,60,0.85)",
-    "surprised": "rgba(250,204,21,0.85)",
+_VOICE_PROFILE_COLORS = {
+    # torchaudio f0+enerji ses profili renkleri
+    "canlı":    "rgba(52,211,153,0.85)",    # yeşil — enerjik ve pozitif
+    "kararlı":  "rgba(96,165,250,0.85)",    # mavi — güçlü ve stabil
+    "dengeli":  "rgba(107,114,128,0.65)",   # gri — nötr
+    "sakin":    "rgba(147,197,253,0.65)",   # açık mavi — sakin
+    "gergin":   "rgba(251,146,60,0.85)",    # turuncu — stresli
 }
-_VOICE_EMO_ORDER = ["happy", "calm", "neutral", "surprised", "sad", "fearful", "disgust", "angry"]
+_VOICE_PROFILE_ORDER = ["canlı", "kararlı", "dengeli", "sakin", "gergin"]
 
 
 def _compute_voice_emotion_distribution(audio_signal_timeline: List[Dict]) -> Dict:
     """
-    SER (ses duygu tanıma) dağılımını hesaplar.
+    Ses profili dağılımını hesaplar (torchaudio f0+enerji kural sistemi).
 
-    ser_all_scores varsa: her chunk'un tüm label skorlarını toplar (weighted).
-    ser_all_scores yoksa: ser_top_label sayar (fallback).
-    Sessiz chunk'lar (ser_top_score == 0.0) atlanır.
+    debug.voice_profile alanını okur: "Canlı"|"Kararlı"|"Dengeli"|"Sakin"|"Gergin"
+    Sessiz chunk'lar (voice_profile eksik) atlanır.
 
     Döndürür:
       {
         "no_data": bool,
-        "labels":  [str, ...],   # capitalize edilmiş, pct > 0 olanlar
+        "labels":  [str, ...],   # capitalize, pct > 0 olanlar
         "values":  [float, ...], # yüzde (0-100, 1 ondalık)
         "colors":  [str, ...],
-        "dominant_label": str,   # en yüksek pct'li etiket (capitalize)
+        "dominant_label": str,
         "dominant_pct":   float,
-        "top2_str":       str,   # "Sad %88.9 | Neutral %11.1" formatı KPI sub-line için
+        "top2_str":       str,
       }
     """
     _empty = {
@@ -1069,58 +1065,46 @@ def _compute_voice_emotion_distribution(audio_signal_timeline: List[Dict]) -> Di
     if not audio_signal_timeline:
         return _empty
 
-    score_totals: Dict[str, float] = {}
+    profile_counts: Dict[str, int] = {}
     valid_chunks = 0
 
     for chunk in audio_signal_timeline:
         dbg = chunk.get("debug", {})
-        top_score = float(dbg.get("ser_top_score") or 0.0)
-        if top_score == 0.0:  # sessiz chunk — atla
+        profile = (dbg.get("voice_profile") or "").strip()
+        if not profile:
             continue
-        all_scores = dbg.get("ser_all_scores")
-        if all_scores:
-            # Weighted: her label'ın skorunu topla
-            for label, score in all_scores.items():
-                key = label.strip().lower()
-                if key:
-                    score_totals[key] = score_totals.get(key, 0.0) + float(score)
-            valid_chunks += 1
-        else:
-            # Fallback: sadece top_label'ı say
-            label = (dbg.get("ser_top_label") or "").strip().lower()
-            if label:
-                score_totals[label] = score_totals.get(label, 0.0) + 1.0
-                valid_chunks += 1
+        key = profile.lower()
+        profile_counts[key] = profile_counts.get(key, 0) + 1
+        valid_chunks += 1
 
-    if valid_chunks == 0 or not score_totals:
+    if valid_chunks == 0 or not profile_counts:
         return _empty
 
-    total = sum(score_totals.values())
+    total = sum(profile_counts.values())
     if total == 0:
         return _empty
 
     labels, values, colors = [], [], []
-    for emo in _VOICE_EMO_ORDER:
-        raw = score_totals.get(emo, 0.0)
-        if raw == 0.0:
+    for profile in _VOICE_PROFILE_ORDER:
+        count = profile_counts.get(profile, 0)
+        if count == 0:
             continue
-        pct = round(raw / total * 100, 1)
-        labels.append(emo.capitalize())
+        pct = round(count / total * 100, 1)
+        labels.append(profile.capitalize())
         values.append(pct)
-        colors.append(_VOICE_EMO_COLORS.get(emo, "rgba(107,114,128,0.65)"))
+        colors.append(_VOICE_PROFILE_COLORS.get(profile, "rgba(107,114,128,0.65)"))
 
-    # Any unexpected labels not in order
-    for emo, raw in score_totals.items():
-        if emo not in _VOICE_EMO_ORDER and raw > 0.0:
-            pct = round(raw / total * 100, 1)
-            labels.append(emo.capitalize())
+    # Beklenmeyen profiller
+    for profile, count in profile_counts.items():
+        if profile not in _VOICE_PROFILE_ORDER and count > 0:
+            pct = round(count / total * 100, 1)
+            labels.append(profile.capitalize())
             values.append(pct)
             colors.append("rgba(107,114,128,0.65)")
 
     if not labels:
         return _empty
 
-    # Dominant and top-2 string
     sorted_pairs = sorted(zip(values, labels), reverse=True)
     dominant_label = sorted_pairs[0][1]
     dominant_pct = sorted_pairs[0][0]

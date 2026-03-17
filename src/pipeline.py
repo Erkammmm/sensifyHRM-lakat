@@ -21,7 +21,7 @@ from .vision.face_analyzer import FaceAnalyzer
 from .audio.voice_analyzer import VoiceAnalyzer
 from .vision.video_processor import VideoProcessor
 from .audio.audio_signal_fusion import AudioSignalFusion
-from .nlp.contextual_aggregator import build_segment_signal_packages, build_time_blocks
+from .nlp.contextual_aggregator import build_segment_signal_packages, build_smart_blocks
 from .audio.thought_unit_merger import merge_into_thought_units
 def analyze_consistency(text_sentiment, face_emotion) -> str:
     """
@@ -281,14 +281,14 @@ class InterviewAnalysisPipeline:
                 if isinstance(voice_analysis, dict)
                 else (voice_analysis if isinstance(voice_analysis, list) else [])
             )
-            time_blocks = build_time_blocks(
+            time_blocks = build_smart_blocks(
                 text_segments=text_data,
                 face_timeline=face_timeline,
                 audio_signal_timeline=audio_signal_data,
                 voice_timeline=_voice_tl,
                 duration=_video_duration,
             )
-            print(f"[Pipeline] Zaman blokları: {len(time_blocks)} blok")
+            print(f"[Pipeline] Akıllı bloklar: {len(time_blocks)} blok")
 
         # Geçici ses dosyasını temizle
         if os.path.exists(audio_path):

@@ -396,7 +396,7 @@ def generate_analysis(
     )
 
 
-def build_time_blocks(
+def build_smart_blocks(
     text_segments: List[Dict],
     face_timeline: Optional[List[Dict]],
     audio_signal_timeline: Optional[List[Dict]],
@@ -404,60 +404,107 @@ def build_time_blocks(
     duration: float,
 ) -> List[Dict]:
     """
-    Videoyu anlamlı zaman bloklarına böler (paragraf benzeri yapı).
+    Whisper segmentleri arasındaki sessizlik boşluklarını kullanarak
+    doğal paragraf bloklarına böler.
 
-    Blok boyutu video süresine göre:
-      <= 3 dakika  → 1 dakikalık bloklar
-      3-10 dakika  → 2 dakikalık bloklar
-      > 10 dakika  → 3 dakikalık bloklar
-
-    Her blok için yüz duygusu, konuşma güveni, göz kaçırma yüzdesi ve
-    HuBERT valence ortalaması hesaplanır.
+    Bölme kuralları (öncelik sırası):
+      1. Ardışık iki segment arası > 2s boşluk VE blokta >= 50 kelime → kes
+      2. Blokta >= 150 kelime → bir sonraki boşlukta kes (her boşluk yeterli)
+      3. Blok süresi >= 3 dakika → zorla kes
+      4. Son segment → zorla kes
+      5. Minimum: blok < 20 kelimeyse → bir sonrakiyle birleştir
     """
-    if duration <= 0:
+    if not text_segments:
         return []
-
-    if duration <= 180:
-        block_size = 60.0
-    elif duration <= 600:
-        block_size = 120.0
-    else:
-        block_size = 180.0
 
     eff_face = face_timeline or []
     eff_voice = voice_timeline or []
     eff_audio = audio_signal_timeline or []
 
-    # Video geneli gaze offset (median) — bias düzeltmesi
+    # Video geneli gaze offset (median)
     detected_frames = [f for f in eff_face if f.get("face_detected", True)]
     _all_p = sorted([float(f.get("gaze_pitch_deg") or 0.0) for f in detected_frames])
     _all_y = sorted([float(f.get("gaze_yaw_deg") or 0.0) for f in detected_frames])
     pitch_center = float(_all_p[len(_all_p) // 2]) if _all_p else 0.0
     yaw_center   = float(_all_y[len(_all_y) // 2]) if _all_y else 0.0
 
+    # Sort segments by start time
+    sorted_segs = sorted(text_segments, key=lambda s: float(s.get("start", 0) or 0))
+
+    raw_blocks: List[List[Dict]] = []
+    current_group: List[Dict] = []
+
+    for i, seg in enumerate(sorted_segs):
+        current_group.append(seg)
+        text_so_far = " ".join(s.get("text", "").strip() for s in current_group)
+        word_count = len(text_so_far.split())
+
+        # Blok süresini hesapla
+        block_start = float(current_group[0].get("start", 0) or 0)
+        block_end_t = float(seg.get("end", seg.get("start", 0)) or 0)
+        block_dur = block_end_t - block_start
+
+        is_last = (i == len(sorted_segs) - 1)
+
+        # Bir sonraki segmentin başlangıcı ile bu segmentin bitişi arasındaki boşluk
+        gap = 0.0
+        if not is_last:
+            next_start = float(sorted_segs[i + 1].get("start", 0) or 0)
+            gap = next_start - block_end_t
+
+        # Kural 4: son segment → zorla kes
+        if is_last:
+            raw_blocks.append(current_group)
+            current_group = []
+            continue
+
+        # Kural 3: blok süresi >= 3 dakika → zorla kes
+        if block_dur >= 180.0:
+            raw_blocks.append(current_group)
+            current_group = []
+            continue
+
+        # Kural 2: >= 150 kelime → bir sonraki boşlukta kes (herhangi bir Whisper sınırı)
+        if word_count >= 150 and gap > 0.05:
+            raw_blocks.append(current_group)
+            current_group = []
+            continue
+
+        # Kural 2b: yoğun konuşmada boşluk olmasa bile zorla kes
+        if word_count >= 200:
+            raw_blocks.append(current_group)
+            current_group = []
+            continue
+
+        # Kural 1: > 2s boşluk VE >= 50 kelime → kes
+        if gap > 2.0 and word_count >= 50:
+            raw_blocks.append(current_group)
+            current_group = []
+            continue
+
+    # Kural 5: < 20 kelimeli blokları bir sonrakiyle birleştir
+    merged_blocks: List[List[Dict]] = []
+    for blk in raw_blocks:
+        text = " ".join(s.get("text", "").strip() for s in blk)
+        wc = len(text.split())
+        if wc < 20 and merged_blocks:
+            merged_blocks[-1].extend(blk)
+        else:
+            merged_blocks.append(blk)
+
+    # Her blok için sinyal özeti hesapla
     blocks: List[Dict] = []
-    cursor = 0.0
-    block_id = 0
-
-    while cursor < duration:
-        block_end = min(cursor + block_size, duration)
-        block_id += 1
-        label = f"{_format_mmss(cursor)} - {_format_mmss(block_end)}"
-
-        # Metinleri birleştir
-        segs_in = [
-            s for s in text_segments
-            if float(s.get("start", 0) or 0) < block_end
-            and float(s.get("end", 0) or 0) > cursor
-        ]
-        text_joined = " ".join(s.get("text", "").strip() for s in segs_in if s.get("text"))
+    for block_id, seg_group in enumerate(merged_blocks, start=1):
+        b_start = float(seg_group[0].get("start", 0) or 0)
+        b_end = float(seg_group[-1].get("end", seg_group[-1].get("start", 0)) or 0)
+        label = f"{_format_mmss(b_start)} - {_format_mmss(b_end)}"
+        text_joined = " ".join(s.get("text", "").strip() for s in seg_group if s.get("text"))
         word_count = len(text_joined.split()) if text_joined else 0
 
-        # Yüz duygusu
         face_in = [
             f for f in eff_face
             if f.get("face_detected", True)
-            and cursor <= float(f.get("timestamp_sec", f.get("timestamp", 0)) or 0) < block_end
+            and b_start <= float(f.get("timestamp_sec", f.get("timestamp", 0)) or 0) < b_end
         ]
         if face_in:
             filtered = _filtered_emotion_labels(face_in)
@@ -475,21 +522,19 @@ def build_time_blocks(
             dominant_emotion = "Neutral"
             avg_gaze_away_pct = 0.0
 
-        # Konuşma güveni
         voice_in = [
             v for v in eff_voice
-            if float(v.get("start_sec", v.get("start", 0)) or 0) < block_end
-            and float(v.get("end_sec",   v.get("end",   0)) or 0) > cursor
+            if float(v.get("start_sec", v.get("start", 0)) or 0) < b_end
+            and float(v.get("end_sec", v.get("end", 0)) or 0) > b_start
         ]
         avg_speech_confidence = round(
             _mean([v.get("konusma_guveni") for v in voice_in], 0.0), 3
         ) if voice_in else 0.0
 
-        # HuBERT valence
         audio_in = [
             a for a in eff_audio
-            if float(a.get("start", 0) or 0) < block_end
-            and float(a.get("end",   0) or 0) > cursor
+            if float(a.get("start", 0) or 0) < b_end
+            and float(a.get("end", 0) or 0) > b_start
         ]
         hubert_valence_mean = round(
             _mean(
@@ -500,17 +545,33 @@ def build_time_blocks(
         ) if audio_in else 0.0
 
         blocks.append({
-            "block_id":             block_id,
-            "label":                label,
-            "text":                 text_joined,
-            "segment_count":        len(segs_in),
-            "dominant_emotion":     dominant_emotion,
+            "block_id":              block_id,
+            "label":                 label,
+            "text":                  text_joined,
+            "segment_count":         len(seg_group),
+            "dominant_emotion":      dominant_emotion,
             "avg_speech_confidence": avg_speech_confidence,
-            "avg_gaze_away_pct":    avg_gaze_away_pct,
-            "hubert_valence_mean":  hubert_valence_mean,
-            "word_count":           word_count,
+            "avg_gaze_away_pct":     avg_gaze_away_pct,
+            "hubert_valence_mean":   hubert_valence_mean,
+            "word_count":            word_count,
         })
 
-        cursor += block_size
-
     return blocks
+
+
+# backward-compat alias
+def build_time_blocks(
+    text_segments: List[Dict],
+    face_timeline: Optional[List[Dict]],
+    audio_signal_timeline: Optional[List[Dict]],
+    voice_timeline: Optional[List[Dict]],
+    duration: float,
+) -> List[Dict]:
+    """Eski isim — build_smart_blocks'a yönlendirir."""
+    return build_smart_blocks(
+        text_segments=text_segments,
+        face_timeline=face_timeline,
+        audio_signal_timeline=audio_signal_timeline,
+        voice_timeline=voice_timeline,
+        duration=duration,
+    )

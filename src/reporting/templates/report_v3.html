@@ -439,17 +439,17 @@
   </div>
 
   <!-- ═══════════════════════════════════════════
-       BÖLÜM 1B2 — Ses Duygu Dağılımı (SER)
+       BÖLÜM 1B2 — Ses Profili Dağılımı
        ═══════════════════════════════════════════ -->
-  <div class="section-label">Ses Duygu Dağılımı (SER)</div>
+  <div class="section-label">Ses Profili Dağılımı</div>
   <div class="emo-dist-section">
-    <div class="chart-title">Ses Duygu Dağılımı (SER)</div>
+    <div class="chart-title">Ses Profili Dağılımı</div>
     <div class="chart-subtitle" id="ser-model-subtitle">
-      ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition &middot; 8 sınıf: angry / calm / disgust / fearful / happy / neutral / sad / surprised
+      torchaudio &middot; f0 + enerji tabanlı &middot; dil bağımsız
     </div>
 
     {% if voice_emo_dist_no_data %}
-    <div class="no-data">Yeterli ses verisi yok — SER analizi tamamlanamadı.</div>
+    <div class="no-data">Yeterli ses verisi yok — ses profili hesaplanamadı.</div>
     {% else %}
     <div class="emo-dist-wrapper">
       <canvas id="voiceEmoDistChart"></canvas>
