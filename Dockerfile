@@ -1,6 +1,6 @@
 # =============================================
 # SensifyHR Mülakat Analiz Sistemi v3.x
-# Docker Image (varsayılan: CPU). GPU için CUDA tabanlı imaj + CUDA'lı PyTorch kurulumunu ayrıca uyarlamanız gerekir.
+# Docker Image — CPU (GPU versiyonu için requirements.txt + CUDA tabanlı base image kullanın)
 # =============================================
 
 FROM python:3.10-slim
@@ -24,31 +24,29 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# GPU kullanımı: boş bırak = otomatik tespit, "" = CPU only
-# ENV CUDA_VISIBLE_DEVICES=""
+# CPU modu: CUDA devre dışı
+ENV CUDA_VISIBLE_DEVICES=""
 
-# Gereksinimler (lock dosyası ile)
-COPY requirements.lock.sonn.txt ./requirements.lock.sonn.txt
-RUN sed -i '/^packaging @/c\packaging' requirements.lock.sonn.txt \
-    && python -m pip install --upgrade pip \
+# Tüm CPU çekirdeklerini kullan (8 çekirdek)
+ENV OMP_NUM_THREADS=8
+ENV MKL_NUM_THREADS=8
+ENV NUMEXPR_NUM_THREADS=8
+ENV OPENBLAS_NUM_THREADS=8
+ENV TORCH_NUM_THREADS=8
+
+# Gereksinimler
+COPY requirements.cpu.txt ./requirements.cpu.txt
+RUN python -m pip install --upgrade pip \
     && python -m pip install --no-cache-dir \
         --index-url https://pypi.org/simple \
-        -r requirements.lock.sonn.txt
-
-# Ek paketler (lock dosyasında olmayabilir)
-RUN pip install --no-cache-dir openai-whisper ollama 2>/dev/null || true
+        -r requirements.cpu.txt
 
 # Uygulama kodları
 COPY . .
 
-# Gerekli klasörler (uploads yok: API temp_uploads kullanır ve analiz sonrası temizler)
+# Gerekli klasörler
 RUN mkdir -p temp_uploads reports
 
-# MediaPipe model dosyasını indir (weights/ altına)
-RUN python -c "import urllib.request; urllib.request.urlretrieve( \
-    'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', \
-    'weights/face_landmarker.task')" 2>/dev/null || echo "Model indirme atlandı (offline build)"
+EXPOSE 8090
 
-EXPOSE 8000
-
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8090", "--workers", "4"]

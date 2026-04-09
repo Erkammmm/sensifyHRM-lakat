@@ -42,6 +42,14 @@ test_*.py
 # Lock dosyaları (Docker build'de dahil)
 # requirements.lock.sonn.txt -> DAHIL EDİLMELİ
 
+# Office / Sunum dosyaları
+*.pptx
+*.ppt
+*.docx
+*.doc
+*.xlsx
+*.xls
+
 # Büyük model dosyaları (Docker içinde indirilecek)
 *.pt
 *.pth

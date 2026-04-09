@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  sensifyhr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sensifyhr-api
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    env_file:
+      - .env
+    environment:
+      - CUDA_VISIBLE_DEVICES=""
+      - OMP_NUM_THREADS=8
+      - MKL_NUM_THREADS=8
+      - NUMEXPR_NUM_THREADS=8
+      - OPENBLAS_NUM_THREADS=8
+      - TORCH_NUM_THREADS=8
+    volumes:
+      - ./reports:/app/reports
+      - ./weights:/app/weights
+      - ./temp_uploads:/app/temp_uploads
+    deploy:
+      resources:
+        limits:
+          cpus: "8.0"
+          memory: 14G
+        reservations:
+          cpus: "2.0"
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

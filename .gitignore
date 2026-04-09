@@ -64,6 +64,14 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Office / Sunum dosyaları
+*.pptx
+*.ppt
+*.docx
+*.doc
+*.xlsx
+*.xls
+
 # Generated reports
 reports/
 

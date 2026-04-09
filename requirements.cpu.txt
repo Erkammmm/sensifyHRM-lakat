@@ -1,0 +1,54 @@
+# SensifyHR FAZ-4 — CPU-only Requirements
+# Sunucu kurulumu için (GPU yok, CUDA yok)
+# Python 3.10
+
+# ── Deep Learning Core (CPU) ─────────────────────────────────────────
+torch==2.5.1
+torchaudio==2.5.1
+torchvision==0.20.1
+
+# ── HuggingFace (Whisper STT) ────────────────────────────────────────
+transformers==4.41.2
+accelerate
+safetensors==0.7.0
+tokenizers==0.19.1
+huggingface_hub==0.36.1
+
+# ── Whisper STT ──────────────────────────────────────────────────────
+faster-whisper==1.2.1
+openai-whisper==20250625
+ctranslate2==4.7.1
+
+# ── Face Analysis (UniFace: RetinaFace + DDAMFN + MobileGaze) ────────
+uniface==3.0.0
+onnxruntime==1.23.2
+
+# ── Vision ───────────────────────────────────────────────────────────
+opencv-python==4.8.1.78
+pillow==12.0.0
+
+# ── Audio ────────────────────────────────────────────────────────────
+scipy==1.15.3
+soundfile==0.13.1
+librosa==0.11.0
+
+# ── LLM Integration ──────────────────────────────────────────────────
+google-generativeai==0.8.6
+google-genai==1.62.0
+ollama==0.6.1
+
+# ── API ──────────────────────────────────────────────────────────────
+fastapi==0.128.1
+uvicorn[standard]==0.40.0
+python-multipart==0.0.22
+aiofiles==25.1.0
+
+# ── Utilities ────────────────────────────────────────────────────────
+python-dotenv==1.2.1
+numpy==1.26.4
+matplotlib==3.10.8
+jinja2==3.1.6
+tqdm==4.67.3
+requests==2.32.5
+pydantic==2.12.5
+ffmpeg-python==0.2.0
