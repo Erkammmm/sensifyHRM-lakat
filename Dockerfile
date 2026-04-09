@@ -49,4 +49,4 @@ RUN mkdir -p temp_uploads reports
 
 EXPOSE 8090
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8090", "--workers", "4"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8090", "--workers", "2"]
