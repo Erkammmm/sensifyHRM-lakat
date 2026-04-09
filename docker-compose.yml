@@ -36,3 +36,14 @@ services:
       timeout: 10s
       retries: 5
       start_period: 600s
+
+  reports:
+    image: nginx:alpine
+    container_name: sensifyhr-reports
+    restart: unless-stopped
+    ports:
+      - "8091:80"
+    volumes:
+      - ./reports:/usr/share/nginx/html:ro
+    depends_on:
+      - sensifyhr
