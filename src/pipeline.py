@@ -103,6 +103,12 @@ class InterviewAnalysisPipeline:
         print("[Pipeline] SensifyHR Mülakat Analiz Sistemi Başlatılıyor...")
         print("=" * 60)
 
+        # CPU thread optimizasyonu — OMP_NUM_THREADS env varına uy
+        import torch as _torch
+        _n_threads = int(os.getenv("OMP_NUM_THREADS", str(os.cpu_count() or 4)))
+        _torch.set_num_threads(_n_threads)
+        print(f"[Pipeline] CPU thread sayısı: {_n_threads}")
+
         # v3 default (ürün modu)
         self.phase3_enabled = bool(phase3_enabled)
 

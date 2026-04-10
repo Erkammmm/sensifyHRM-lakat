@@ -68,6 +68,15 @@ Emotion(model_name=DDAMFNWeights.AFFECNET7);\
 print('UniFace modelleri hazir!')\
 "
 
+# Whisper small modelini build sırasında indir → container başlarken bekleme yok
+RUN python3 -c "\
+import os; os.environ['CUDA_VISIBLE_DEVICES']='';\
+from faster_whisper import WhisperModel;\
+print('Whisper small modeli indiriliyor...');\
+WhisperModel('small', device='cpu', compute_type='int8');\
+print('Whisper small hazir!')\
+"
+
 # Uygulama kodları
 COPY . .
 
