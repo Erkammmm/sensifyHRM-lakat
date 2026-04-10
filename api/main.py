@@ -202,7 +202,8 @@ def _md_to_html(text: str) -> str:
             if not in_list:
                 parts.append('<ul class="ai-list">')
                 in_list = True
-            parts.append(f'<li>{fmt(re.sub(r"^\d+\.\s*", "", stripped))}</li>')
+            item_text = re.sub(r'^\d+\.\s*', '', stripped)
+            parts.append(f'<li>{fmt(item_text)}</li>')
 
         else:
             close_list()
