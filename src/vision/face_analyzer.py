@@ -19,11 +19,9 @@ from uniface.constants import DDAMFNWeights, GazeWeights, RetinaFaceWeights
 from uniface.detection import RetinaFace
 from uniface.gaze import MobileGaze
 
-# Her 15. kare işlenir; aradakiler cap.grab() ile atlanır (performans optimizasyonu)
-# FAZ-4: 10 -> 15 (interview footage: frontal, slow movement, ~2fps efektif yeterli)
-# ONNX modelleri (RetinaFace, MobileGaze) zaten CUDAExecutionProvider kullanıyor.
-# DDAMFN (Emotion) TorchScript ile CUDA device'ta calısıyor.
-PROCESS_EVERY_N = 15
+# Her 30. kare işlenir — CPU optimizasyonu.
+# 30fps video → ~1fps efektif; interview analizi için yeterli, GPU'suz sunucuda 2x hızlanma.
+PROCESS_EVERY_N = 30
 
 
 class FaceAnalyzer:

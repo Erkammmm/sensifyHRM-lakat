@@ -27,6 +27,9 @@ ENV PYTHONUNBUFFERED=1
 # CPU modu: CUDA devre dışı
 ENV CUDA_VISIBLE_DEVICES=""
 
+# Whisper modeli: CPU için small (large-v3-turbo CPU'da çok yavaş)
+ENV SENSIFYHR_STT_MODEL=small
+
 # Tüm CPU çekirdeklerini kullan (8 çekirdek)
 ENV OMP_NUM_THREADS=8
 ENV MKL_NUM_THREADS=8

@@ -204,12 +204,28 @@ class ReportGenerator:
             audio_signal_tl = report.get("audio_signal_analysis", {}).get("timeline", []) or []
             voice_emo_dist = _compute_voice_emotion_distribution(audio_signal_tl)
 
-            # 5 matplotlib timeline charts (base64 PNG)
-            chart_face_b64    = plot_face_emotion_timeline_b64(segment_packages)
-            chart_valence_b64 = plot_voice_valence_timeline_b64(segment_packages)
-            chart_gaze_b64    = plot_gaze_timeline_b64(segment_packages)
-            chart_speech_b64  = plot_speech_confidence_timeline_b64(segment_packages)
-            chart_energy_b64  = plot_voice_energy_timeline_b64(segment_packages)
+            # Öne çıkan anlar — tension_score >= 0.5 veya is_critical_moment=True
+            _neg_emos_set = {"Sad", "Fear", "Angry", "Disgust"}
+            critical_moments = []
+            for pkg in segment_packages:
+                ts = float(pkg.get("tension_score", 0) or 0)
+                if pkg.get("is_critical_moment") or ts >= 0.5:
+                    emo = (pkg.get("dominant_emotion") or "Neutral").strip()
+                    emo_cls = ("emo-negative" if emo in _neg_emos_set
+                               else ("emo-positive" if emo in ("Happy", "Surprise") else "emo-neutral"))
+                    critical_moments.append({
+                        "timestamp": pkg.get("timestamp", "—"),
+                        "emotion": emo,
+                        "emotion_class": emo_cls,
+                        "gaze_away": bool(pkg.get("gaze_away", False)),
+                        "voice_stress": bool(pkg.get("voice_stress", False)),
+                        "incongruence": bool(pkg.get("incongruence", False)),
+                        "speech_confidence": round(float(pkg.get("speech_confidence", 0) or 0), 2),
+                        "tension_pct": f"%{int(ts * 100)}",
+                        "tension_level": "high" if ts >= 0.7 else "medium",
+                        "text": (pkg.get("text", "") or "")[:180],
+                    })
+            critical_moments = critical_moments[:8]
 
             # "Baskın Duygu" KPI card — top emotion from confidence-filtered distribution
             _neg_emos = {"Sad", "Fear", "Angry", "Disgust"}
@@ -252,12 +268,9 @@ class ReportGenerator:
                 baskin_duygu_label=baskin_duygu_label,
                 baskin_duygu_pct=baskin_duygu_pct,
                 baskin_duygu_card_class=baskin_duygu_card_class,
-                # 5 matplotlib zaman çizelgesi grafikleri (base64 PNG)
-                chart_face_b64=chart_face_b64,
-                chart_valence_b64=chart_valence_b64,
-                chart_gaze_b64=chart_gaze_b64,
-                chart_speech_b64=chart_speech_b64,
-                chart_energy_b64=chart_energy_b64,
+                # Öne çıkan anlar
+                critical_moments=critical_moments,
+                critical_moment_count=len(critical_moments),
                 # Konuşma istatistikleri (Step F)
                 speech_dur_str=speech_stats["speech_dur_str"],
                 silence_dur_str=speech_stats["silence_dur_str"],

@@ -261,6 +261,43 @@
     }
     .ai-section-card strong { color: #f0e6ff; }
 
+    /* ── Critical Moments ── */
+    .critical-card {
+      background: linear-gradient(180deg, rgba(251,113,133,.05), rgba(255,255,255,.02));
+      border: 1px solid rgba(251,113,133,.18);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 32px;
+    }
+    .critical-card .card-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+    }
+    .cm-list { display: flex; flex-direction: column; gap: 10px; }
+    .cm-item {
+      background: rgba(251,113,133,.04);
+      border: 1px solid rgba(251,113,133,.12);
+      border-left: 3px solid rgba(251,113,133,.5);
+      border-radius: 8px;
+      padding: 13px 16px;
+    }
+    .cm-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .cm-timestamp {
+      font-family: monospace; font-size: 13px; font-weight: 700; color: #c4b5fd;
+      flex-shrink: 0;
+    }
+    .cm-tension {
+      font-size: 11px; font-weight: 700; padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .cm-tension.high { background: rgba(251,113,133,.18); color: var(--danger); }
+    .cm-tension.medium { background: rgba(251,191,36,.14); color: var(--warn); }
+    .cm-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .cm-text {
+      font-size: 12px; color: var(--muted); line-height: 1.55;
+      font-style: italic; border-top: 1px solid rgba(255,255,255,.05); padding-top: 8px;
+    }
+
     /* ── No-data ── */
     .no-data {
       color: var(--muted); font-size: 14px; padding: 24px 0;
@@ -303,7 +340,7 @@
         ID: {{ interview_id }} &nbsp;·&nbsp; Video: {{ video_duration }}s &nbsp;·&nbsp; {{ analysis_date }}
       </div>
     </div>
-    <div class="tag">FAZ-4</div>
+    <div class="tag">HR Analiz</div>
   </div>
 
   <!-- ═══════════════════════════════════════════
@@ -587,13 +624,9 @@
         <div class="tb-text" style="color:var(--muted);font-style:italic;">Bu blokta konuşma tespit edilmedi.</div>
         {% endif %}
         <div class="tb-indicators">
-          <span class="tb-badge {{ emo_class }}">Duygu: {{ emo }}</span>
-          <span class="tb-badge {{ conf_class }}">Güven: {{ "%.2f"|format(conf) }}</span>
-          <span class="tb-badge {{ gaze_class }}">Kamera: %{{ ((1 - away) * 100) | int }}</span>
-          {% if blk.hubert_valence_mean is defined %}
-          {% set val = blk.hubert_valence_mean %}
-          <span class="tb-badge {% if val > 0.1 %}emo-positive{% elif val < -0.1 %}emo-negative{% else %}emo-neutral{% endif %}">Valans: {{ "%.2f"|format(val) }}</span>
-          {% endif %}
+          <span class="tb-badge {{ emo_class }}">{{ emo }}</span>
+          <span class="tb-badge {{ conf_class }}">Ses güveni: {% if conf >= 0.7 %}Yüksek{% elif conf >= 0.5 %}Orta{% else %}Düşük{% endif %}</span>
+          <span class="tb-badge {{ gaze_class }}">Göz teması: %{{ ((1 - away) * 100) | int }}</span>
         </div>
       </div>
       {% endfor %}
@@ -602,33 +635,42 @@
   {% endif %}
 
   <!-- ═══════════════════════════════════════════
-       BÖLÜM 2 — Zaman Çizelgeleri (4 ayrı grafik)
+       BÖLÜM 2 — Öne Çıkan Anlar (Kritik Davranışsal Sinyaller)
        ═══════════════════════════════════════════ -->
-  <div class="section-label">Davranışsal Zaman Çizelgeleri</div>
-  <div class="chart-section">
-    <div class="chart-title">Yüz Duygusu · Ses Valansı · Göz Bakışı · Konuşma Güveni</div>
-    <div class="chart-subtitle">
-      4 bağımsız zaman çizelgesi — segment başlangıç zamanlarına göre hizalanmış
+  {% if critical_moment_count > 0 %}
+  <div class="section-label">Öne Çıkan Anlar</div>
+  <div class="critical-card">
+    <div class="card-title">{{ critical_moment_count }} Kritik An Tespit Edildi — Dikkat Gerektiren Davranışsal Sinyaller</div>
+    <div class="cm-list">
+      {% for cm in critical_moments %}
+      <div class="cm-item">
+        <div class="cm-header">
+          <span class="cm-timestamp">{{ cm.timestamp }}</span>
+          <span class="cm-tension {{ cm.tension_level }}">Gerilim {{ cm.tension_pct }}</span>
+        </div>
+        <div class="cm-badges">
+          <span class="tb-badge {{ cm.emotion_class }}">{{ cm.emotion }}</span>
+          {% if cm.gaze_away %}
+          <span class="tb-badge gaze-away">Göz kaçırma</span>
+          {% endif %}
+          {% if cm.voice_stress %}
+          <span class="tb-badge conf-low">Ses stresi</span>
+          {% endif %}
+          {% if cm.incongruence %}
+          <span class="tb-badge emo-negative">Yüz-ses tutarsızlığı</span>
+          {% endif %}
+          <span class="tb-badge {{ 'conf-high' if cm.speech_confidence >= 0.7 else 'conf-low' }}">
+            Konuşma güveni: {% if cm.speech_confidence >= 0.7 %}Yüksek{% elif cm.speech_confidence >= 0.5 %}Orta{% else %}Düşük{% endif %}
+          </span>
+        </div>
+        {% if cm.text %}
+        <div class="cm-text">"{{ cm.text }}{% if cm.text | length >= 180 %}…{% endif %}"</div>
+        {% endif %}
+      </div>
+      {% endfor %}
     </div>
-    {% if chart_face_b64 %}
-    <img src="data:image/png;base64,{{ chart_face_b64 }}" style="width:100%; margin-bottom:12px; border-radius:6px;" />
-    {% endif %}
-    {% if chart_valence_b64 %}
-    <img src="data:image/png;base64,{{ chart_valence_b64 }}" style="width:100%; margin-bottom:12px; border-radius:6px;" />
-    {% endif %}
-    {% if chart_gaze_b64 %}
-    <img src="data:image/png;base64,{{ chart_gaze_b64 }}" style="width:100%; margin-bottom:12px; border-radius:6px;" />
-    {% endif %}
-    {% if chart_speech_b64 %}
-    <img src="data:image/png;base64,{{ chart_speech_b64 }}" style="width:100%; margin-bottom:12px; border-radius:6px;" />
-    {% endif %}
-    {% if chart_energy_b64 %}
-    <img src="data:image/png;base64,{{ chart_energy_b64 }}" style="width:100%; border-radius:6px;" />
-    {% endif %}
-    {% if not chart_face_b64 %}
-    <div class="no-data">Zaman çizelgesi verisi bulunamadı.</div>
-    {% endif %}
   </div>
+  {% endif %}
 
   <!-- ═══════════════════════════════════════════
        BÖLÜM 3 — LLM Davranışsal Rapor
@@ -642,7 +684,7 @@
   </div>
 
   <div class="report-footer">
-    SensifyHR FAZ-4 &nbsp;·&nbsp; Davranışsal sinyal analizi — işe alım kararı üretmez.
+    SensifyHR &nbsp;·&nbsp; Davranışsal sinyal analizi — işe alım kararı üretmez &nbsp;·&nbsp; Bilgi amaçlıdır.
   </div>
 
 </div>
