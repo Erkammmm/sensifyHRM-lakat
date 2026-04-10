@@ -168,8 +168,8 @@ def generate_gemini_text(summary_text: str, phase: str = "v2") -> str:
     models.extend([
         "gemini-2.5-flash",          # birincil
         "gemini-2.5-flash-8b",       # daha küçük, daha az yoğun
-        "gemini-1.5-flash",          # stabil yedek
-        "gemini-1.5-flash-latest",
+        "gemini-2.5-flash-lite",     # lite yedek
+        "gemini-3.1-flash-lite",     # son yedek
     ])
     seen: set = set()
     candidates = [m for m in models if m and not (m in seen or seen.add(m))]

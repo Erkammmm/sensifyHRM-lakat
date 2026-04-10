@@ -156,6 +156,62 @@ def _run_ollama(full_report: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "error", "message": f"{type(exc).__name__}: {exc}", "provider": "ollama"}
 
 
+def _md_to_html(text: str) -> str:
+    """LLM markdown çıktısını → stillendirilmiş HTML'e dönüştürür."""
+    import re
+
+    def fmt(s: str) -> str:
+        """Satır içi dönüşümler: HTML escape → zaman damgaları → kalın."""
+        s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        # [MM:SS] veya [MM:SS - MM:SS] → renkli rozet
+        s = re.sub(
+            r'\[(\d{1,2}:\d{2}(?:\s*[-–]\s*\d{1,2}:\d{2})?)\]',
+            r'<span class="ts-badge">\1</span>', s
+        )
+        # **bold**
+        s = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', s)
+        return s
+
+    lines = text.replace("\r\n", "\n").split("\n")
+    parts: list = []
+    in_list = False
+
+    def close_list():
+        nonlocal in_list
+        if in_list:
+            parts.append('</ul>')
+            in_list = False
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            close_list()
+            continue
+
+        if stripped.startswith("## "):
+            close_list()
+            parts.append(f'<div class="ai-section">{fmt(stripped[3:].strip())}</div>')
+
+        elif stripped.startswith(("- ", "* ")):
+            if not in_list:
+                parts.append('<ul class="ai-list">')
+                in_list = True
+            parts.append(f'<li>{fmt(stripped[2:].strip())}</li>')
+
+        elif re.match(r'^\d+\.\s', stripped):
+            if not in_list:
+                parts.append('<ul class="ai-list">')
+                in_list = True
+            parts.append(f'<li>{fmt(re.sub(r"^\d+\.\s*", "", stripped))}</li>')
+
+        else:
+            close_list()
+            parts.append(f'<p>{fmt(stripped)}</p>')
+
+    close_list()
+    return "\n".join(parts)
+
+
 def _write_ai_to_reports(report_paths: Dict[str, str], ai_analysis: Dict) -> list:
     """AI metnini JSON ve HTML raporlara ekler."""
     warns = []
@@ -177,19 +233,14 @@ def _write_ai_to_reports(report_paths: Dict[str, str], ai_analysis: Dict) -> lis
         try:
             with open(report_paths["html"], "r", encoding="utf-8") as f:
                 html = f.read()
-            escaped = gemini_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            paragraphs = [p.strip() for p in escaped.replace("\r\n", "\n").split("\n\n") if p.strip()]
-            formatted = "</p><p>".join(p.replace("\n", "<br>") for p in paragraphs)
-            block = (
-                '<div class="section"><h2>🤖 AI Destekli İK Değerlendirmesi</h2>'
-                f'<div class="ai-analysis"><p>{formatted}</p></div></div>'
-            )
+            rendered = _md_to_html(gemini_text)
+            # .ai-section-card içindeki gizli <div class="footer"> öncesine enjekte et
             if '<div class="footer">' in html:
-                html = html.replace('<div class="footer">', f'{block}\n<div class="footer">')
+                html = html.replace('<div class="footer">', f'{rendered}\n<div class="footer">')
             elif "</body>" in html:
-                html = html.replace("</body>", f"{block}\n</body>")
+                html = html.replace("</body>", f'<div class="ai-section-card">{rendered}</div>\n</body>')
             else:
-                html += block
+                html += f'<div class="ai-section-card">{rendered}</div>'
             with open(report_paths["html"], "w", encoding="utf-8") as f:
                 f.write(html)
         except Exception:

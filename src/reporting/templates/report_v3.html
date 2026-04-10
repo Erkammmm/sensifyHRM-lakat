@@ -260,6 +260,15 @@
       margin-bottom: 6px;
     }
     .ai-section-card strong { color: #f0e6ff; }
+    .ts-badge {
+      display: inline-block;
+      font-family: monospace; font-size: 12px; font-weight: 700;
+      color: #c4b5fd; background: rgba(124,92,255,.15);
+      border: 1px solid rgba(124,92,255,.3);
+      border-radius: 5px; padding: 1px 7px;
+      margin: 0 2px;
+      white-space: nowrap;
+    }
 
     /* ── Critical Moments ── */
     .critical-card {
@@ -310,22 +319,8 @@
       text-align: center;
     }
 
-    /* ── Injected AI section overrides (api injects .section > .ai-analysis before the hidden .footer inside .ai-section-card) ── */
+    /* ── Injected AI section: hide placeholder footer div ── */
     .ai-section-card > .footer { display: none; }
-    .ai-section-card .section {
-      background: transparent; border: none; padding: 0; margin: 0;
-    }
-    .ai-section-card .section > h2 {
-      font-size: 17px; font-weight: 700; color: #c4b5fd;
-      margin: 0 0 16px 0; padding-bottom: 8px;
-      border-bottom: 1px solid rgba(124,92,255,.2);
-    }
-    .ai-section-card .ai-analysis {
-      background: transparent; border: none; padding: 0; margin: 0;
-    }
-    .ai-section-card .ai-analysis p {
-      font-size: 14px; line-height: 1.75; color: var(--text); margin-bottom: 10px;
-    }
   </style>
 </head>
 
