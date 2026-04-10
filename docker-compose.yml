@@ -14,6 +14,7 @@ services:
     environment:
       - CUDA_VISIBLE_DEVICES=""
       - SENSIFYHR_STT_MODEL=small
+      - SENSIFYHR_OLLAMA_ENABLED=0
       - OMP_NUM_THREADS=8
       - MKL_NUM_THREADS=8
       - NUMEXPR_NUM_THREADS=8

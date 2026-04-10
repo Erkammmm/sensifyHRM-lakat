@@ -335,19 +335,25 @@ async def analyze_interview(
             if provider == "ollama":
                 ai_analysis = _run_ollama(full_report)
             else:
-                # Gemini fallback zinciri (Pro → Flash → Ollama → graceful skip)
+                # Gemini — Ollama SENSIFYHR_OLLAMA_ENABLED=1 olmadan devre dışı
                 ai_analysis = _run_gemini(report_paths)
                 if isinstance(ai_analysis, dict) and ai_analysis.get("status") == "error":
                     gemini_err = ai_analysis.get("message", "")
                     warnings_list.append(f"gemini_failed: {gemini_err}")
-                    print(f"[LLM] Gemini tüm modeller başarısız, Ollama deneniyor...")
-                    ai_analysis = _run_ollama(full_report)
-                    if isinstance(ai_analysis, dict) and ai_analysis.get("status") == "error":
-                        ollama_err = ai_analysis.get("message", "")
-                        warnings_list.append(f"ollama_failed: {ollama_err}")
-                        print(f"[LLM] Ollama da başarısız. LLM analizi atlanıyor.")
+                    ollama_enabled = os.getenv("SENSIFYHR_OLLAMA_ENABLED", "0").strip() == "1"
+                    if ollama_enabled:
+                        print(f"[LLM] Gemini başarısız, Ollama deneniyor...")
+                        ai_analysis = _run_ollama(full_report)
+                        if isinstance(ai_analysis, dict) and ai_analysis.get("status") == "error":
+                            ollama_err = ai_analysis.get("message", "")
+                            warnings_list.append(f"ollama_failed: {ollama_err}")
+                            print(f"[LLM] Ollama da başarısız. LLM analizi atlanıyor.")
+                            ai_analysis = {"skipped": True, "provider": "none",
+                                           "message": "Tüm LLM sağlayıcıları başarısız oldu."}
+                    else:
+                        print(f"[LLM] Gemini başarısız, Ollama devre dışı. LLM atlanıyor.")
                         ai_analysis = {"skipped": True, "provider": "none",
-                                       "message": "Tüm LLM sağlayıcıları başarısız oldu."}
+                                       "message": f"Gemini başarısız: {gemini_err}"}
 
         warnings_list.extend(_write_ai_to_reports(report_paths, ai_analysis))
 

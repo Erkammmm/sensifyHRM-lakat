@@ -102,27 +102,44 @@ def _strip_voice_series(data: dict) -> dict:
 
 # ─── Gemini çağrısı (yeni SDK) ─────────────────────────────────────────────
 
-def _try_gemini_model(model_name: str, full_prompt: str, api_key: str) -> str:
+def _try_gemini_model(model_name: str, full_prompt: str, api_key: str,
+                      retries: int = 3, retry_delay: float = 8.0) -> str:
     """
     google-genai SDK ile tek model denemesi.
-    Başarısızsa exception fırlatır.
+    503 (geçici yoğunluk) için retry uygular; diğer hatalarda anında çıkar.
     """
+    import time
     from google import genai as google_genai
 
     client = google_genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=model_name,
-        contents=full_prompt,
-    )
-    text = getattr(response, "text", "") or ""
-    if not text.strip():
-        raise RuntimeError(f"{model_name}: boş yanıt")
-    return text
+    last_exc: Optional[Exception] = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=full_prompt,
+            )
+            text = getattr(response, "text", "") or ""
+            if not text.strip():
+                raise RuntimeError(f"{model_name}: boş yanıt")
+            return text
+        except Exception as exc:
+            last_exc = exc
+            err_str = str(exc)
+            # 503 geçici → retry; 404 / 400 → kalıcı hata, tekrar deneme
+            if "503" in err_str and attempt < retries:
+                print(f"[LLM] {model_name} 503 geçici yoğunluk, {retry_delay}s sonra tekrar ({attempt}/{retries})...")
+                time.sleep(retry_delay)
+                continue
+            raise
+
+    raise last_exc  # type: ignore
 
 
 def generate_gemini_text(summary_text: str, phase: str = "v2") -> str:
     """
-    Gemini fallback zinciri: 2.5-flash → 2.0-flash → hata.
+    Gemini fallback zinciri: 2.5-flash → 2.5-flash-8b → 1.5-flash → hata.
     """
     _load_env_from_file()
     warnings.simplefilter("ignore", FutureWarning)
@@ -143,17 +160,18 @@ def generate_gemini_text(summary_text: str, phase: str = "v2") -> str:
     except Exception:
         pass
 
-    # Env override + fallback zinciri
+    # Env override + fallback zinciri (404 olan gemini-2.0-flash kaldırıldı)
     env_model = os.getenv("GEMINI_MODEL", "").strip()
     models = []
     if env_model:
         models.append(env_model)
     models.extend([
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
+        "gemini-2.5-flash",          # birincil
+        "gemini-2.5-flash-8b",       # daha küçük, daha az yoğun
+        "gemini-1.5-flash",          # stabil yedek
+        "gemini-1.5-flash-latest",
     ])
-    # Deduplicate
-    seen = set()
+    seen: set = set()
     candidates = [m for m in models if m and not (m in seen or seen.add(m))]
 
     last_error: Optional[Exception] = None

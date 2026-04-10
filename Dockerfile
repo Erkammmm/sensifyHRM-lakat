@@ -29,6 +29,8 @@ ENV CUDA_VISIBLE_DEVICES=""
 
 # Whisper modeli: CPU için small (large-v3-turbo CPU'da çok yavaş)
 ENV SENSIFYHR_STT_MODEL=small
+# Ollama devre dışı (sunucuda GPU yok)
+ENV SENSIFYHR_OLLAMA_ENABLED=0
 
 # Tüm CPU çekirdeklerini kullan (8 çekirdek)
 ENV OMP_NUM_THREADS=8
