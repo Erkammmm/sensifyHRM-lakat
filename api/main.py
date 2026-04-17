@@ -14,6 +14,7 @@ import math
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, Dict, Any
 import uuid
 import aiofiles
@@ -30,6 +31,15 @@ app = FastAPI(
     title="SensifyHR Mülakat Analiz API",
     description="Multimodal AI Mülakat Değerlendirme Sistemi (v3: signal fusion + LLM reasoning, v2: legacy sentiment/emotion opsiyonel)",
     version="3.0.0",
+)
+
+# CORS — tüm originlere izin ver (frontend farklı origin'den istek atıyor)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Global instance'lar
