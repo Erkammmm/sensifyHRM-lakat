@@ -27,8 +27,8 @@ ENV PYTHONUNBUFFERED=1
 # CPU modu: CUDA devre dışı
 ENV CUDA_VISIBLE_DEVICES=""
 
-# Whisper modeli: CPU için small (large-v3-turbo CPU'da çok yavaş)
-ENV SENSIFYHR_STT_MODEL=small
+# Whisper modeli: large-v3-turbo (int8 CPU optimizasyonu ile)
+ENV SENSIFYHR_STT_MODEL=whisper-large-v3-turbo
 # Ollama devre dışı (sunucuda GPU yok)
 ENV SENSIFYHR_OLLAMA_ENABLED=0
 
@@ -70,13 +70,13 @@ Emotion(model_name=DDAMFNWeights.AFFECNET7);\
 print('UniFace modelleri hazir!')\
 "
 
-# Whisper small modelini build sırasında indir → container başlarken bekleme yok
+# Whisper large-v3-turbo modelini build sırasında indir → container başlarken bekleme yok
 RUN python3 -c "\
 import os; os.environ['CUDA_VISIBLE_DEVICES']='';\
 from faster_whisper import WhisperModel;\
-print('Whisper small modeli indiriliyor...');\
-WhisperModel('small', device='cpu', compute_type='int8');\
-print('Whisper small hazir!')\
+print('Whisper large-v3-turbo modeli indiriliyor...');\
+WhisperModel('Systran/faster-whisper-large-v3-turbo', device='cpu', compute_type='int8');\
+print('Whisper large-v3-turbo hazir!')\
 "
 
 # Uygulama kodları

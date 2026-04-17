@@ -37,6 +37,12 @@ GİRDİ — 5 SİNYAL KAYNAĞI
    - f0_std: pitch varyasyonu Hz  (düşük = monoton, yüksek = dinamik/gergin)
    - rms_dbfs: ses seviyesi dBFS  (yüksek ≈ -20, düşük ≈ -45)
 
+NOT — KONUŞMACI ETİKETİ:
+Her segment için "speaker" alanı vardır: "Aday" veya "Mülakatçı".
+Davranışsal analizi YALNIZCA "Aday" segmentleri üzerinden yap.
+"Mülakatçı" segmentlerini bağlam için kullan (hangi soru soruldu), analiz etme.
+Etiketler heuristik tabanlıdır (soru işareti + uzunluk kuralı) — %100 doğru değil.
+
 5. KONUŞMA BLOĞU PAKETLERİ (Doğal Paragraflar)
    Her blok doğal sessizlik sınırlarında ayrılmış; bir düşünce bütününü temsil eder (50-150 kelime).
    Her blok için:

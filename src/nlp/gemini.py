@@ -166,9 +166,9 @@ def generate_gemini_text(summary_text: str, phase: str = "v2") -> str:
     if env_model:
         models.append(env_model)
     models.extend([
-        "gemini-2.5-flash",          # birincil
-        "gemini-2.5-flash-8b",       # daha küçük, daha az yoğun
-        "gemini-2.5-flash-lite",     # lite yedek
+        "gemini-2.5-flash-lite",     # birincil (hızlı + ekonomik)
+        "gemini-2.5-flash",          # yedek
+        "gemini-2.5-flash-8b",       # daha küçük
         "gemini-3.1-flash-lite",     # son yedek
     ])
     seen: set = set()

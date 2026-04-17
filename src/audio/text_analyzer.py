@@ -31,6 +31,28 @@ def _sanitize_stt_model_name(name: str) -> str:
 SENTIMENT_MODEL = "savasy/bert-base-turkish-sentiment-cased"
 
 
+def _detect_speaker(text: str, duration: float) -> str:
+    """
+    Basit heuristik konuşmacı tespiti (pyannote olmadan, CPU uyumlu).
+
+    Kural:
+      - Soru işareti içeren + kısa segment  → Mülakatçı
+      - Soru işareti içeren + orta segment  → Mülakatçı
+      - Uzun ya da soru işareti yok          → Aday
+
+    NOT: Heuristik — %100 doğru değil. Gerçek diarizasyon için pyannote gerekir.
+    """
+    text = (text or "").strip()
+    word_count = len(text.split())
+    has_question = "?" in text
+
+    if has_question and word_count <= 30:
+        return "Mülakatçı"
+    if duration <= 5.0 and has_question:
+        return "Mülakatçı"
+    return "Aday"
+
+
 def _is_cuda_oom(exc: Exception) -> bool:
     msg = str(exc).lower()
     return ("out of memory" in msg) or ("cuda failed" in msg) or ("cublas" in msg and "alloc" in msg)
@@ -363,6 +385,12 @@ class TextAnalyzer:
         print(f"Dosya işleniyor (faster-whisper fallback): {video_path}")
         self._ensure_fw_model()
 
+        # Mülakat bağlamı prompt'u: Whisper'ın Türkçe mülakat transkriptini iyileştirir
+        _interview_prompt = (
+            "Bu bir Türkçe iş mülakatıdır. Mülakatçı sorular soruyor, aday cevap veriyor. "
+            "Konuşmacılar sırayla konuşuyor."
+        )
+
         try:
             segments, _info = self._fw_model.transcribe(
                 video_path,
@@ -370,6 +398,8 @@ class TextAnalyzer:
                 vad_filter=True,
                 word_timestamps=False,
                 beam_size=1,
+                initial_prompt=_interview_prompt,
+                condition_on_previous_text=False,
             )
         except Exception as exc:
             # Transcribe sırasında CUDA OOM olursa CPU int8 ile tekrar dene
@@ -381,7 +411,6 @@ class TextAnalyzer:
                 from faster_whisper import WhisperModel
 
                 print("[TextAnalyzer] CUDA OOM -> faster-whisper CPU(int8) retry...")
-                # Aynı model adını mümkünse daha stabil adla dene
                 model_name = _sanitize_stt_model_name(STT_MODEL)
                 retry_name = "Systran/faster-whisper-large-v3" if "turbo" in model_name.lower() else model_name
                 self._fw_model = WhisperModel(retry_name, device="cpu", compute_type="int8")
@@ -391,6 +420,8 @@ class TextAnalyzer:
                     vad_filter=True,
                     word_timestamps=False,
                     beam_size=1,
+                    initial_prompt=_interview_prompt,
+                    condition_on_previous_text=False,
                 )
             else:
                 raise
@@ -403,7 +434,8 @@ class TextAnalyzer:
                 continue
 
             if phase3_enabled:
-                segments_data.append({"start": start_time, "end": end_time, "text": text})
+                speaker = _detect_speaker(text, end_time - start_time)
+                segments_data.append({"start": start_time, "end": end_time, "text": text, "speaker": speaker})
             else:
                 label, score = self.analyze_sentiment(text)
                 if label:

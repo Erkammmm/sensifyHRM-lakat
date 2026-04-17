@@ -13,7 +13,7 @@ services:
       - .env
     environment:
       - CUDA_VISIBLE_DEVICES=""
-      - SENSIFYHR_STT_MODEL=small
+      - SENSIFYHR_STT_MODEL=whisper-large-v3-turbo
       - SENSIFYHR_OLLAMA_ENABLED=0
       - OMP_NUM_THREADS=8
       - MKL_NUM_THREADS=8
