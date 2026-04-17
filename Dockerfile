@@ -76,7 +76,7 @@ RUN python3 -c "\
 import os; os.environ['CUDA_VISIBLE_DEVICES']='';\
 from faster_whisper import WhisperModel;\
 print('Whisper large-v3-turbo modeli indiriliyor...');\
-WhisperModel('Systran/faster-whisper-large-v3-turbo', device='cpu', compute_type='int8');\
+WhisperModel('large-v3-turbo', device='cpu', compute_type='int8');\
 print('Whisper large-v3-turbo hazir!')\
 "
 
