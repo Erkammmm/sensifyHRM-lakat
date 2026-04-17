@@ -242,6 +242,18 @@ class ReportGenerator:
                 text_segments,
                 float(video_info.get("duration_seconds") or 0.0),
             )
+
+            # Yüz algılama oranı (ham binary tespit: face_detected=True oranı)
+            face_detected_pct = "—"
+            if face_timeline:
+                det = sum(1 for f in face_timeline if f.get("face_detected", True))
+                face_detected_pct = f"{det / len(face_timeline) * 100:.0f}"
+
+            # Genel katılım skoru (0-10, yalnızca güvenilir sinyaller)
+            eng_score, eng_label, eng_class = _compute_engagement_score(
+                report, segment_packages, face_timeline
+            )
+
             template = self.template_env.get_template("report_v3.html")
             html = template.render(
                 interview_id=interview_id,
@@ -295,6 +307,11 @@ class ReportGenerator:
                 # Zaman Bloğu Paragrafları
                 time_blocks=time_blocks,
                 time_block_count=len(time_blocks),
+                # Genel Katılım Skoru (yeni)
+                engagement_score=eng_score,
+                engagement_label=eng_label,
+                engagement_class=eng_class,
+                face_detected_pct=face_detected_pct,
                 # LLM raporu: injected by _write_ai_to_reports after generation
             )
         else:
@@ -887,6 +904,53 @@ def _compute_faz4_dashboard_data(segment_packages: List[Dict], face_timeline: Li
         "chart_speech": chart_speech,
         "chart_critical": chart_critical,
     }
+
+
+def _compute_engagement_score(
+    report: Dict,
+    segment_packages: List[Dict],
+    face_timeline: List[Dict],
+) -> tuple:
+    """
+    Yalnızca güvenilir sinyallerden 0-10 katılım skoru üretir.
+
+    Bileşenler:
+      - avg_speech_confidence (0-1)  × 5.0   [en güvenilir sinyal]
+      - face_detected_pct (0-1)      × 3.0
+      - speech_ratio (konuşma/süre)  × 2.0
+
+    Döndürür: (score_str, label, css_class)
+    """
+    # Speech confidence — segment paketlerinden
+    if segment_packages:
+        confs = [float(p.get("speech_confidence") or 0.0) for p in segment_packages]
+        avg_conf = sum(confs) / len(confs)
+    else:
+        avg_conf = 0.5
+
+    # Face detection rate
+    if face_timeline:
+        det = sum(1 for f in face_timeline if f.get("face_detected", True))
+        face_rate = det / len(face_timeline)
+    else:
+        face_rate = 0.7  # veri yoksa ortadan başla
+
+    # Speech ratio (konuşma süresi / toplam video süresi)
+    voice_raw = report.get("voice_analysis", {}).get("raw_voice_features", {}) or {}
+    ss = voice_raw.get("speech_silence", {}) or {}
+    total_dur = float(report.get("video_info", {}).get("duration_seconds") or 0) or 60.0
+    speech_sec = float(ss.get("total_speech_seconds") or 0.0)
+    speech_ratio = min(1.0, speech_sec / total_dur) if total_dur > 0 else 0.5
+
+    raw = avg_conf * 5.0 + face_rate * 3.0 + speech_ratio * 2.0
+    score = round(min(10.0, max(0.0, raw)), 1)
+    score_str = f"{score:.1f}"
+
+    if score >= 7.5:
+        return score_str, "GÜÇLÜ", "good"
+    if score >= 5.0:
+        return score_str, "ORTA", "warn"
+    return score_str, "ZEKİF", "bad"
 
 
 def _compute_speech_stats(segments: List[Dict], video_duration: float) -> Dict:

@@ -126,6 +126,11 @@ class FaceAnalyzer:
                 emotion_label = emo_result.emotion.capitalize()
                 emotion_confidence = round(float(emo_result.confidence), 3)
 
+                # Surprise bias patch: Türk yüz mimiklerinde DDAMFN Surprise'a
+                # aşırı yükleniyor. Düşük güvenle gelen Surprise → Neutral say.
+                if emotion_label == "Surprise" and emotion_confidence < 0.75:
+                    emotion_label = "Neutral"
+
                 # --- Bakış yönü tahmini ---
                 crop_y1 = max(0, y1)
                 crop_y2 = min(frame_height, y2)
