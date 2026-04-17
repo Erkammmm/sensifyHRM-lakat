@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     libsndfile1 \
     libportaudio2 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
