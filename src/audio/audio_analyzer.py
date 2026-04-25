@@ -8,17 +8,27 @@ Not:
   - Bu modül v2 geriye uyumluluk için tutulur.
 """
 
+import gc
 import os
+import random
 import subprocess
 import uuid
-import random
-import gc
-
-import numpy as np
-import librosa
-import torch
-from typing import Dict, List, Any, Optional, Tuple
 from collections import Counter
+from typing import Dict, List, Any, Tuple
+
+import librosa
+import numpy as np
+import torch
+
+# Amaç:
+# Ortak logging altyapısını kullanmak.
+try:
+    from ..logging_config import get_logger
+except ImportError:
+    from src.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 from transformers import (
     AutoModelForAudioClassification,
     Wav2Vec2FeatureExtractor,
@@ -42,16 +52,16 @@ class AudioAnalyzer:
     """
 
     def __init__(self):
-        print(f"[{self.__class__.__name__}] Başlatılıyor...")
+        logger.info("[%s] Başlatılıyor...", self.__class__.__name__)
 
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cpu"
         self._set_deterministic()
 
         # Lazy-load: GPU OOM riskini azaltır (STT önce yüklensin)
         self.config = None
         self.feature_extractor = None
         self.model = None
-        print(f"[{self.__class__.__name__}] Hazır! (lazy-load) Cihaz tercihi: {self.device.upper()}")
+        logger.info("[%s] Hazır! (lazy-load) Cihaz tercihi: %s", self.__class__.__name__, self.device.upper())
 
     def _ensure_model(self):
         if self.model is not None:
@@ -72,7 +82,7 @@ class AudioAnalyzer:
             )
             missing = set((loading_info or {}).get("missing_keys", []) or [])
             if any(k.startswith("classifier.") or k.startswith("projector.") for k in missing):
-                print("[AudioAnalyzer] UYARI: classifier/projector ağırlıkları eksik görünüyor. Remap ile tekrar yükleniyor...")
+                logger.info("[AudioAnalyzer] UYARI: classifier/projector ağırlıkları eksik görünüyor. Remap ile tekrar yükleniyor...")
                 self.model = AutoModelForAudioClassification.from_config(self.config)
                 state_dict = _download_and_load_state_dict(MODEL_ID)
                 state_dict = _remap_classifier_keys(state_dict)
@@ -87,18 +97,10 @@ class AudioAnalyzer:
                 self.device = "cpu"
                 self.model.to(self.device)
             self.model.eval()
-            print(f"[{self.__class__.__name__}] Ses modeli yüklendi -> {self.device.upper()}")
+            logger.info("[%s] Ses modeli yüklendi -> %s", self.__class__.__name__, self.device.upper())
         except Exception as e:
-            print(f"Ses Modeli Yükleme Hatası: {e}")
+            logger.error("Ses Modeli Yükleme Hatası: %s", e)
             raise
-
-    def _set_deterministic(self, seed=42):
-        """Sonuçların tekrarlanabilir olması için seed ayarla."""
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
 
     def _set_deterministic(self, seed=42):
         """Sonuçların tekrarlanabilir olması için seed ayarla."""
@@ -120,10 +122,10 @@ class AudioAnalyzer:
             torch.cuda.empty_cache()
 
         if not os.path.exists(video_path):
-            print(f"Dosya bulunamadı: {video_path}")
+            logger.warning("Dosya bulunamadı: %s", video_path)
             return []
 
-        print(f"Ses işleniyor: {video_path}")
+        logger.info("Ses işleniyor: %s", video_path)
         # inline: convert video -> temporary wav (ffmpeg)
         unique_name = f"temp_{str(uuid.uuid4())[:8]}.wav"
         cmd = [
@@ -147,13 +149,13 @@ class AudioAnalyzer:
             subprocess.run(cmd, check=True)
             wav_file = unique_name
         except Exception as e:
-            print(f"FFmpeg Hatası: {e}")
+            logger.error("FFmpeg Hatası: %s", e)
             return []
 
         try:
             y, sr = librosa.load(wav_file, sr=TARGET_SR, dtype=np.float32)
         except Exception as e:
-            print(f"Ses okuma hatası: {e}")
+            logger.error("Ses okuma hatası: %s", e)
             if os.path.exists(wav_file):
                 os.remove(wav_file)
             return []
@@ -161,7 +163,7 @@ class AudioAnalyzer:
         duration = librosa.get_duration(y=y, sr=sr)
         timeline = []
 
-        print(f"Ses süresi: {duration:.2f} sn. Analiz ediliyor...")
+        logger.info("Ses süresi: %.2f sn. Analiz ediliyor...", duration)
 
         cursor = 0.0
         while cursor + CHUNK_SEC <= duration:
@@ -214,7 +216,7 @@ class AudioAnalyzer:
         if os.path.exists(wav_file):
             os.remove(wav_file)
 
-        print(f"Ses duygu analizi tamamlandı: {len(timeline)} parça.")
+        logger.info("Ses duygu analizi tamamlandı: %s parça.", len(timeline))
         return timeline
 
     @staticmethod
@@ -294,4 +296,4 @@ def _filter_state_dict_by_shape(model: torch.nn.Module, state_dict: Dict[str, to
 
 if __name__ == "__main__":
     analyzer = AudioAnalyzer()
-    print("AudioAnalyzer modülü hazır.")
+    logger.info("AudioAnalyzer modülü hazır.")

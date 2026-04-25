@@ -22,6 +22,15 @@ import numpy as np
 import torch
 import torchaudio
 
+# Amaç:
+# Ortak logging altyapısını kullanmak.
+try:
+    from ..logging_config import get_logger
+except ImportError:
+    from src.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 # ── Analiz sabitleri ──────────────────────────────────────────────────────────
 TARGET_SR       = 16000
 SEGMENT_SEC     = 1.0        # her segment 1 saniye
@@ -156,7 +165,7 @@ def _global_pitch_trace(mono: torch.Tensor, sr: int) -> torch.Tensor:
             freq_high=F0_MAX,
         ).squeeze(0).cpu()
     except Exception as e:
-        print(f"[VoiceAnalyzer] Pitch hesaplanamadı: {e}")
+        logger.error("[VoiceAnalyzer] Pitch hesaplanamadı: %s", e)
         return torch.empty(0, dtype=torch.float32)
 
 
@@ -295,6 +304,7 @@ def _safe_f(v) -> float:
         f = float(v)
         return 0.0 if not math.isfinite(f) else f
     except Exception:
+        logger.error("[VoiceAnalyzer] Geçersiz değer: %s", v)
         return 0.0
 
 
@@ -327,7 +337,7 @@ class VoiceAnalyzer:
     """
 
     def __init__(self):
-        print(f"[{self.__class__.__name__}] Hazır!")
+        logger.info("[%s] Hazır!", self.__class__.__name__)
 
     def analyze_audio(self, wav_path: str) -> Dict:
         """
@@ -340,7 +350,7 @@ class VoiceAnalyzer:
             {"per_second_timeline": List[Dict], "raw_voice_features": {}}
         """
         if not os.path.exists(wav_path):
-            print(f"[{self.__class__.__name__}] Ses dosyası bulunamadı: {wav_path}")
+            logger.error("[%s] Ses dosyası bulunamadı: %s", self.__class__.__name__, wav_path)
             return {"per_second_timeline": [], "raw_voice_features": {}}
 
         # ── 1) Yükleme ve yeniden örnekleme ──────────────────────────────────
@@ -350,7 +360,7 @@ class VoiceAnalyzer:
             sr = TARGET_SR
 
         if float(waveform.abs().max().item()) < 1e-7:
-            print(f"[{self.__class__.__name__}] Uyarı: ses neredeyse tamamen sessiz.")
+            logger.warning("[%s] Uyarı: ses neredeyse tamamen sessiz.", self.__class__.__name__)
             return {"per_second_timeline": [], "raw_voice_features": {}}
 
         # ── 2) Mono — en yüksek RMS kanalını seç ────────────────────────────
@@ -364,9 +374,12 @@ class VoiceAnalyzer:
         total_sec = mono.shape[1] / sr
         n_segments = int(math.ceil(total_sec / SEGMENT_SEC))
 
-        print(
-            f"[{self.__class__.__name__}] Analiz başladı: "
-            f"{total_sec:.1f} sn, {n_segments} segment, SR={sr}"
+        logger.info(
+            "[%s] Analiz başladı: %.1f sn, %s segment, SR=%s",
+            self.__class__.__name__,
+            total_sec,
+            n_segments,
+            sr,
         )
 
         # ── 3) Global frame özellikleri ──────────────────────────────────────
@@ -378,7 +391,7 @@ class VoiceAnalyzer:
 
         nonzero = rms_frames[rms_frames > 1e-8]
         if nonzero.size == 0:
-            print(f"[{self.__class__.__name__}] Tüm frame RMS sıfır; ses analiz edilemiyor.")
+            logger.error("[%s] Tüm frame RMS sıfır; ses analiz edilemiyor.", self.__class__.__name__)
             return {"per_second_timeline": [], "raw_voice_features": {}}
 
         # Adaptif eşikler
@@ -536,9 +549,10 @@ class VoiceAnalyzer:
                 }
             )
 
-        print(
-            f"[{self.__class__.__name__}] Ses analizi tamamlandı: "
-            f"{len(timeline)} saniye segmenti."
+        logger.info(
+            "[%s] Ses analizi tamamlandı: %s saniye segmenti.",
+            self.__class__.__name__,
+            len(timeline),
         )
         return {
             "per_second_timeline": timeline,
@@ -549,5 +563,5 @@ class VoiceAnalyzer:
 
 if __name__ == "__main__":
     analyzer = VoiceAnalyzer()
-    print("VoiceAnalyzer modülü hazır.")
-    print("Kullanım: analyzer.analyze_audio('audio.wav')")
+    logger.info("VoiceAnalyzer modülü hazır.")
+    logger.info("Kullanım: analyzer.analyze_audio('audio.wav')")

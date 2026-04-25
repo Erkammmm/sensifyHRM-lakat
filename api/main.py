@@ -3,28 +3,61 @@ FastAPI Ana Uygulama
 SensifyHR Mülakat Analiz API endpoint'leri.
 """
 
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
-
+import warnings
 import os
 import sys
 import json
-import subprocess
 import math
-
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional, Dict, Any
 import uuid
-import aiofiles
 from datetime import datetime
+from typing import Optional, Dict, Any
+
+import aiofiles
+import torch
+import torchvision
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from src.logging_config import get_logger
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+ENV_PATH = BASE_DIR / ".env"
+
+try:
+    load_dotenv(dotenv_path=ENV_PATH, encoding="utf-8")
+except UnicodeDecodeError:
+    warnings.warn(".env UTF-8 olarak okunamadı. Dosyayı UTF-8 kaydet veya yeniden oluştur.")
+except Exception as e:
+    warnings.warn(f".env yüklenemedi: {e}")
+
+
+# Amaç:
+# Sunucuda CPU thread sayısını baştan sabitlemek.
+# Varsayılan 8, istenirse env ile değiştirilebilir.
+CPU_THREADS = os.getenv("SENSIFYHR_CPU_THREADS", "8").strip()
+
+# Windows / HF / Torch yardımcı env ayarları
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# CPU thread ayarları
+os.environ["OMP_NUM_THREADS"] = CPU_THREADS
+os.environ["MKL_NUM_THREADS"] = CPU_THREADS
+os.environ["OPENBLAS_NUM_THREADS"] = CPU_THREADS
+os.environ["NUMEXPR_NUM_THREADS"] = CPU_THREADS
 
 # Proje root'unu path'e ekle
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.pipeline import InterviewAnalysisPipeline
 from src.reporting.report_generator import ReportGenerator
+
+logger = get_logger(__name__)
 
 # FastAPI uygulaması
 app = FastAPI(
@@ -136,33 +169,33 @@ def _run_gemini(report_paths: Dict[str, str]) -> Dict[str, Any]:
             report = json.load(f)
         from src.nlp.gemini import generate_analysis as _generate_gemini_analysis
 
-        print("[LLM] Gemini generate_analysis cagriliyor...")
+        logger.info("[LLM] Gemini generate_analysis cagriliyor...")
         text = _generate_gemini_analysis(report)
         text = (text or "").strip()
         if not text:
-            print("[LLM] Gemini bos yanit dondu.")
+            logger.warning("[LLM] Gemini bos yanit dondu.")
             return {"status": "error", "message": "empty_response", "provider": "gemini"}
-        print(f"[LLM] Gemini basarili ({len(text)} karakter).")
+        logger.info("[LLM] Gemini basarili (%s karakter).", len(text))
         return {"analysis": text, "provider": "gemini"}
     except Exception as exc:
-        print(f"[LLM] Gemini exception: {exc}")
+        logger.error("[LLM] Gemini exception: %s", exc)
         return {"status": "error", "message": str(exc), "provider": "gemini"}
 
 
 def _run_ollama(full_report: Dict[str, Any]) -> Dict[str, Any]:
     """Run local Ollama/Gemma analysis via unified entrypoint."""
     try:
-        print("[LLM] Ollama generate_analysis cagriliyor...")
+        logger.info("[LLM] Ollama generate_analysis cagriliyor...")
         from src.nlp.ollama_ai import generate_analysis as _generate_ollama_analysis
         text = _generate_ollama_analysis(full_report)
         text = (text or "").strip()
         if not text:
-            print("[LLM] Ollama bos yanit dondu.")
+            logger.warning("[LLM] Ollama bos yanit dondu.")
             return {"status": "error", "message": "empty_response", "provider": "ollama"}
-        print(f"[LLM] Ollama basarili ({len(text)} karakter).")
+        logger.info("[LLM] Ollama basarili (%s karakter).", len(text))
         return {"analysis": text, "provider": "ollama"}
     except Exception as exc:
-        print(f"[LLM] Ollama exception: {type(exc).__name__}: {exc}")
+        logger.error("[LLM] Ollama exception: %s: %s", type(exc).__name__, exc)
         return {"status": "error", "message": f"{type(exc).__name__}: {exc}", "provider": "ollama"}
 
 
@@ -269,33 +302,33 @@ async def startup_event():
     global pipeline, report_generator
 
     try:
-        print("[API] Pipeline yükleniyor...")
+        logger.info("[API] Pipeline yükleniyor...")
         pipeline = InterviewAnalysisPipeline(phase3_enabled=True)
-        print("[API] Pipeline hazır!")
+        logger.info("[API] Pipeline hazır!")
 
         # Opsiyonel: model prewarm (ilk analizde beklemeyi azaltır)
         if os.getenv("SENSIFYHR_PREWARM_MODELS", "0").strip() == "1":
             try:
-                print("[API] Prewarm: STT (faster-whisper) yükleniyor...")
+                logger.info("[API] Prewarm: STT (faster-whisper) yükleniyor...")
                 pipeline.text_analyzer._ensure_fw_model()
             except Exception as exc:
-                print(f"[API] Prewarm uyarı (STT): {exc}")
+                logger.warning("[API] Prewarm uyarı (STT): %s", exc)
             try:
-                print("[API] Prewarm: HuBERT SER (audio signal) yükleniyor...")
+                logger.info("[API] Prewarm: HuBERT SER (audio signal) yükleniyor...")
                 pipeline._get_audio_signal_fusion()
             except Exception as exc:
-                print(f"[API] Prewarm uyarı (SER): {exc}")
+                logger.warning("[API] Prewarm uyarı (SER): %s", exc)
     except Exception as e:
-        print(f"[API] KRİTİK: Pipeline yüklenemedi: {e}")
+        logger.error("[API] KRİTİK: Pipeline yüklenemedi: %s", e)
         import traceback
         traceback.print_exc()
         pipeline = None
 
     try:
         report_generator = ReportGenerator()
-        print("[API] Report Generator hazır.")
+        logger.info("[API] Report Generator hazır.")
     except Exception as e:
-        print(f"[API] Hata: Report Generator: {e}")
+        logger.error("[API] Hata: Report Generator: %s", e)
         report_generator = None
 
 

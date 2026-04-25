@@ -13,6 +13,15 @@ import concurrent.futures
 from collections import Counter
 from typing import Dict, List, Optional
 
+# Amaç:
+# Ortak logging altyapısını kullanmak.
+try:
+    from ..logging_config import get_logger
+except ImportError:
+    from src.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 _LLM_TIMEOUT_SEC = 150
 _LLM_FALLBACK    = "LLM analizi zaman aşımına uğradı — lütfen tekrar deneyin"
 _LLM_OPTIONS     = {"temperature": 0.3}
@@ -30,14 +39,14 @@ class OllamaAI:
 
     def __init__(self, model_name: str = MODEL_NAME):
         self.model_name = model_name
-        print(f"[OllamaAI] Mülakat Asistanı Başlatılıyor... Model: {model_name}")
+        logger.info("[OllamaAI] Mülakat Asistanı Başlatılıyor... Model: %s", model_name)
 
         try:
             import ollama
             self._client = ollama
             # Bağlantı testi
             self._client.list()
-            print(f"[OllamaAI] Ollama bağlantısı başarılı.")
+            logger.info("[OllamaAI] Ollama bağlantısı başarılı.")
         except ImportError:
             raise ImportError(
                 "ollama paketi bulunamadı. Yükleyin: pip install ollama"
@@ -148,7 +157,7 @@ Lütfen aşağıdaki başlıklarda profesyonel ve nesnel bir İK raporu üret:
 NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret etmektedir", "göstermektedir" kullan.
 """
 
-        print(f"[OllamaAI] Değerlendirme yapılıyor ({self.model_name})...")
+        logger.info("[OllamaAI] Değerlendirme yapılıyor (%s)...", self.model_name)
 
         response = self._client.chat(
             model=self.model_name,
@@ -156,7 +165,7 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
         )
 
         result = response["message"]["content"]
-        print(f"[OllamaAI] Değerlendirme tamamlandı.")
+        logger.info("[OllamaAI] Değerlendirme tamamlandı.")
         return result
 
     # ==================================================================
@@ -202,7 +211,7 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
                 response = future.result(timeout=_LLM_TIMEOUT_SEC)
                 return (response.get("message", {}) or {}).get("content", "") or ""
             except concurrent.futures.TimeoutError:
-                print(f"[OllamaAI] Zaman aşımı ({_LLM_TIMEOUT_SEC}s) — yanıt bekleniyor.")
+                logger.warning("[OllamaAI] Zaman aşımı (%ss) — yanıt bekleniyor.", _LLM_TIMEOUT_SEC)
                 return _LLM_FALLBACK
 
     def _load_phase3_prompt(self) -> str:
@@ -249,8 +258,7 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
         packages = segment_signal_packages
         if len(packages) > 15:
             packages = self._select_representative(packages, n=10)
-            print(f"[OllamaAI] Segment sayısı {len(segment_signal_packages)} > 15; "
-                  f"temsili {len(packages)} segment seçildi.")
+            logger.info("[OllamaAI] Segment sayısı %s > 15; temsili %s segment seçildi.", len(segment_signal_packages), len(packages))
 
         chunks = self._chunk_list(packages, chunk_size=chunk_size)
         chunk_analyses: List[str] = []
@@ -298,9 +306,9 @@ NOT: Abartı ve klinik teşhis yapma. Kesinlik ifadelerinden kaçın, "işaret e
 if __name__ == "__main__":
     try:
         ai = OllamaAI()
-        print("OllamaAI modülü hazır.")
+        logger.info("OllamaAI modülü hazır.")
     except Exception as e:
-        print(f"OllamaAI başlatılamadı: {e}")
+        logger.error("OllamaAI başlatılamadı: %s", e)
 
 
 def generate_analysis(report: Dict, job_description: str = "", chunk_size: int = 10) -> str:

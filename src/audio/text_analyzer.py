@@ -7,13 +7,24 @@ Phase-3: STT-only (sentiment YOK)
 Güncelleme:
   - STT varsayılanı: whisper-large-v3-turbo (faster-whisper) -> daha kaliteli transkript
 """
-
 import os
-import torch
-from typing import Optional, List, Dict, Any
-from transformers import pipeline as hf_pipeline
+import re
 from collections import Counter
+from typing import List, Dict, Any
+
 import librosa
+import torch
+from transformers import pipeline as hf_pipeline
+
+# Amaç:
+# Ortak logging altyapısını kullanmak.
+# Modül tek başına çalıştırıldığında da import edilebilsin diye fallback bırakıyoruz.
+try:
+    from ..logging_config import get_logger
+except ImportError:
+    from src.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # --- Ayarlar ---
 # STT modeli (faster-whisper)
@@ -31,26 +42,6 @@ def _sanitize_stt_model_name(name: str) -> str:
 SENTIMENT_MODEL = "savasy/bert-base-turkish-sentiment-cased"
 
 
-def _detect_speaker(text: str, duration: float) -> str:
-    """
-    Basit heuristik konuşmacı tespiti (pyannote olmadan, CPU uyumlu).
-
-    Kural:
-      - Soru işareti içeren + kısa segment  → Mülakatçı
-      - Soru işareti içeren + orta segment  → Mülakatçı
-      - Uzun ya da soru işareti yok          → Aday
-
-    NOT: Heuristik — %100 doğru değil. Gerçek diarizasyon için pyannote gerekir.
-    """
-    text = (text or "").strip()
-    word_count = len(text.split())
-    has_question = "?" in text
-
-    if has_question and word_count <= 30:
-        return "Mülakatçı"
-    if duration <= 5.0 and has_question:
-        return "Mülakatçı"
-    return "Aday"
 
 
 def _is_cuda_oom(exc: Exception) -> bool:
@@ -64,6 +55,48 @@ def _get_audio_duration_seconds(path: str) -> float:
     except Exception:
         return 0.0
 
+# Amaç:
+# Phase-3 STT segmentlerini daha küçük cümle/parçalara bölmek.
+# Bu, aynı segment içine hem soru hem cevap dolmasını azaltır.
+_PHASE3_SPLIT_RE = re.compile(r"(?<=[\?\!\.])\s+")
+
+
+def _split_phase3_segment(start: float, end: float, text: str) -> List[Dict[str, Any]]:
+    text = " ".join((text or "").strip().split())
+    if not text:
+        return []
+
+    parts = [p.strip() for p in _PHASE3_SPLIT_RE.split(text) if p and p.strip()]
+    if len(parts) <= 1:
+        return [{"start": float(start), "end": float(end), "text": text}]
+
+    total_dur = max(0.0, float(end) - float(start))
+    if total_dur <= 0.0:
+        return [{"start": float(start), "end": float(end), "text": p} for p in parts]
+
+    # Amaç:
+    # Süreyi parça uzunluklarına göre oransal paylaştırmak.
+    total_chars = sum(max(1, len(p)) for p in parts)
+    cur = float(start)
+    out = []
+
+    for i, part in enumerate(parts):
+        weight = max(1, len(part)) / total_chars
+        piece_dur = total_dur * weight
+
+        piece_start = cur
+        piece_end = float(end) if i == len(parts) - 1 else min(float(end), cur + piece_dur)
+
+        out.append(
+            {
+                "start": round(piece_start, 2),
+                "end": round(piece_end, 2),
+                "text": part,
+            }
+        )
+        cur = piece_end
+
+    return out
 
 class TextAnalyzer:
     """
@@ -72,10 +105,10 @@ class TextAnalyzer:
     """
 
     def __init__(self):
-        print(f"[{self.__class__.__name__}] Başlatılıyor...")
+        logger.info("[%s] Başlatılıyor...", self.__class__.__name__)
 
         # GPU kullanımı
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device ="cpu"
 
         # Sentiment (v2 legacy) artık lazy-load: v3 modunda gereksiz model yüklemesini engeller
         self.sentiment_pipeline = None
@@ -95,7 +128,7 @@ class TextAnalyzer:
             model=SENTIMENT_MODEL,
             device=device_id,
         )
-        print(f"[{self.__class__.__name__}] Sentiment modeli yüklendi. Device={'CUDA' if device_id==0 else 'CPU'}")
+        logger.info("[%s] Sentiment modeli yüklendi. Device=%s", self.__class__.__name__, "CUDA" if device_id == 0 else "CPU")
 
     def analyze_sentiment(self, text):
         """Tek bir cümlenin duygu analizini yapar."""
@@ -194,12 +227,13 @@ class TextAnalyzer:
         if device == "cuda":
             compute_fallbacks.extend(["float16", "int8_float16", "int8"])
 
+        cpu_threads = int(os.getenv("SENSIFYHR_STT_CPU_THREADS", "8"))
         last_exc = None
         for cand in candidates:
             for ct in compute_fallbacks:
                 try:
-                    self._fw_model = WhisperModel(cand, device=device, compute_type=ct)
-                    print(f"[{self.__class__.__name__}] faster-whisper ({cand}) yüklendi -> {device.upper()} ({ct})")
+                    self._fw_model = WhisperModel(cand, device=device, compute_type=ct, cpu_threads=cpu_threads)
+                    logger.info("[%s] faster-whisper (%s) yüklendi -> %s (%s)", self.__class__.__name__, cand, device.upper(), ct)
                     return
                 except Exception as exc:
                     last_exc = exc
@@ -210,8 +244,8 @@ class TextAnalyzer:
         # Son çare: CPU int8
         if torch.cuda.is_available() and device == "cuda":
             try:
-                self._fw_model = WhisperModel(candidates[0], device="cpu", compute_type="int8")
-                print(f"[{self.__class__.__name__}] faster-whisper CPU fallback yüklendi -> CPU (int8)")
+                self._fw_model = WhisperModel(candidates[0], device="cpu", compute_type="int8", cpu_threads=cpu_threads)
+                logger.info("[%s] faster-whisper CPU fallback yüklendi -> CPU (int8)", self.__class__.__name__)
                 return
             except Exception as exc:
                 last_exc = exc
@@ -259,7 +293,7 @@ class TextAnalyzer:
             torch_dtype=torch_dtype,
             device=device_idx,
         )
-        print(f"[{self.__class__.__name__}] transformers ASR ({model_id}) yüklendi -> {('CUDA' if device_idx==0 else 'CPU')}")
+        logger.info("[%s] transformers ASR (%s) yüklendi -> %s", self.__class__.__name__, model_id, "CUDA" if device_idx == 0 else "CPU")
 
     def process_video(self, video_path: str, phase3_enabled: bool = False) -> List[Dict[str, Any]]:
         """
@@ -281,7 +315,7 @@ class TextAnalyzer:
                   {"start","end","text"}
         """
         if not os.path.exists(video_path):
-            print(f"HATA: '{video_path}' dosyası bulunamadı!")
+            logger.error("HATA: '%s' dosyası bulunamadı!", video_path)
             return []
 
         segments_data: List[Dict[str, Any]] = []
@@ -295,7 +329,7 @@ class TextAnalyzer:
         # 1) Opsiyonel: Transformers pipeline (hız için default kapalı)
         if use_transformers:
             try:
-                print(f"Dosya işleniyor (transformers ASR): {video_path}")
+                logger.info("Dosya işleniyor (transformers ASR): %s", video_path)
                 self._ensure_hf_asr(force_cpu=force_cpu_for_long_audio)
                 result = self._hf_asr_pipe(
                     video_path,
@@ -316,7 +350,7 @@ class TextAnalyzer:
                     end_time = float(ts[1] or start_time)
 
                     if phase3_enabled:
-                        segments_data.append({"start": start_time, "end": end_time, "text": text})
+                        segments_data.extend(_split_phase3_segment(start_time, end_time, text))
                     else:
                         label, score = self.analyze_sentiment(text)
                         if label:
@@ -332,7 +366,7 @@ class TextAnalyzer:
                 if segments_data:
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
-                    print(f"Metin analizi tamamlandı: {len(segments_data)} segment.")
+                    logger.info("Metin analizi tamamlandı: %s segment.", len(segments_data))
                     return segments_data
             except Exception as _exc:
                 # CUDA OOM ise transformers'ı CPU'da tekrar dene
@@ -340,7 +374,7 @@ class TextAnalyzer:
                     try:
                         torch.cuda.empty_cache()
                         self._hf_asr_pipe = None
-                        print(f"[TextAnalyzer] CUDA OOM -> transformers ASR CPU fallback deneniyor...")
+                        logger.info("[TextAnalyzer] CUDA OOM -> transformers ASR CPU fallback deneniyor...")
                         self._ensure_hf_asr(force_cpu=True)
                         result = self._hf_asr_pipe(
                             video_path,
@@ -359,7 +393,7 @@ class TextAnalyzer:
                             start_time = float(ts[0] or 0.0)
                             end_time = float(ts[1] or start_time)
                             if phase3_enabled:
-                                segments_data.append({"start": start_time, "end": end_time, "text": text})
+                                segments_data.extend(_split_phase3_segment(start_time, end_time, text))
                             else:
                                 label, score = self.analyze_sentiment(text)
                                 if label:
@@ -373,7 +407,7 @@ class TextAnalyzer:
                                         }
                                     )
                         if segments_data:
-                            print(f"Metin analizi tamamlandı: {len(segments_data)} segment.")
+                            logger.info("Metin analizi tamamlandı: %s segment.", len(segments_data))
                             return segments_data
                     except Exception:
                         self._hf_asr_pipe = None
@@ -382,7 +416,7 @@ class TextAnalyzer:
                     raise
 
         # 2) Fallback: faster-whisper
-        print(f"Dosya işleniyor (faster-whisper fallback): {video_path}")
+        logger.info("Dosya işleniyor (faster-whisper fallback): %s", video_path)
         self._ensure_fw_model()
 
         # Mülakat bağlamı prompt'u: Whisper'ın Türkçe mülakat transkriptini iyileştirir
@@ -392,6 +426,7 @@ class TextAnalyzer:
         )
 
         try:
+            logger.info("[TextAnalyzer] Transcribe cagrisi hazirlaniyor (VAD filter=True, beam_size=1)...")
             segments, _info = self._fw_model.transcribe(
                 video_path,
                 language="tr",
@@ -401,6 +436,7 @@ class TextAnalyzer:
                 initial_prompt=_interview_prompt,
                 condition_on_previous_text=False,
             )
+            logger.info("[TextAnalyzer] Transcribe çağrıldı (dil: %s). İlk segment bekleniyor (CPU'da işlem yapıyorsa VAD ve ilk ses analizi birkaç dakika sürebilir)...", _info.language)
         except Exception as exc:
             # Transcribe sırasında CUDA OOM olursa CPU int8 ile tekrar dene
             if _is_cuda_oom(exc) and torch.cuda.is_available():
@@ -410,10 +446,11 @@ class TextAnalyzer:
                     pass
                 from faster_whisper import WhisperModel
 
-                print("[TextAnalyzer] CUDA OOM -> faster-whisper CPU(int8) retry...")
+                logger.info("[TextAnalyzer] CUDA OOM -> faster-whisper CPU(int8) retry...")
                 model_name = _sanitize_stt_model_name(STT_MODEL)
                 retry_name = "Systran/faster-whisper-large-v3" if "turbo" in model_name.lower() else model_name
-                self._fw_model = WhisperModel(retry_name, device="cpu", compute_type="int8")
+                cpu_threads_retry = int(os.getenv("SENSIFYHR_STT_CPU_THREADS", "8"))
+                self._fw_model = WhisperModel(retry_name, device="cpu", compute_type="int8", cpu_threads=cpu_threads_retry)
                 segments, _info = self._fw_model.transcribe(
                     video_path,
                     language="tr",
@@ -426,7 +463,10 @@ class TextAnalyzer:
             else:
                 raise
 
+        segment_count = 0
         for seg in segments:
+            segment_count += 1
+            logger.info("[TextAnalyzer] Segment %s çözüldü: %.2f - %.2f", segment_count, getattr(seg, "start", 0.0), getattr(seg, "end", 0.0))
             start_time = float(getattr(seg, "start", 0.0))
             end_time = float(getattr(seg, "end", 0.0))
             text = (getattr(seg, "text", "") or "").strip()
@@ -434,8 +474,7 @@ class TextAnalyzer:
                 continue
 
             if phase3_enabled:
-                speaker = _detect_speaker(text, end_time - start_time)
-                segments_data.append({"start": start_time, "end": end_time, "text": text, "speaker": speaker})
+                segments_data.extend(_split_phase3_segment(start_time, end_time, text))
             else:
                 label, score = self.analyze_sentiment(text)
                 if label:
@@ -452,7 +491,7 @@ class TextAnalyzer:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        print(f"Metin analizi tamamlandı: {len(segments_data)} segment.")
+        logger.info("Metin analizi tamamlandı: %s segment.", len(segments_data))
         return segments_data
 
     @staticmethod
@@ -502,4 +541,4 @@ class TextAnalyzer:
 
 if __name__ == "__main__":
     analyzer = TextAnalyzer()
-    print("TextAnalyzer modülü hazır.")
+    logger.info("TextAnalyzer modülü hazır.")

@@ -272,7 +272,7 @@ class AudioSignalFusion:
 
     def __init__(self):
         print(f"[AudioSignalFusion] Başlatılıyor (f0+enerji kural sistemi)...")
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cpu"
         print(f"[AudioSignalFusion] Hazır!")
 
     def process_audio(self, audio_path: str) -> List[Dict]:
@@ -356,9 +356,11 @@ class AudioSignalFusion:
 
             cursor += STEP_SEC
 
+        """
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-
+        """
+        
         print(f"[AudioSignalFusion] Audio signal tamamlandı: {len(timeline)} parça.")
         return timeline
 
