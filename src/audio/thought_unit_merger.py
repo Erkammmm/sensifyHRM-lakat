@@ -118,9 +118,20 @@ def merge_into_thought_units(stt_segments: List[Dict]) -> List[Dict]:
 
             continue
 
+        prev_text = (cur_segments[-1].get("text", "") or "").strip()
+        prev_ends_question = prev_text.endswith("?")
+        curr_is_question = t.endswith("?")
+
         # Amaç:
-        # Çok kısa thought unit oluşmasını önlemek için, yakın segmenti zorla birleştirmek.
-        if cur_dur < MIN_BLOCK_SEC and gap <= (MAX_GAP_SEC * 2.0):
+        # Çok kısa thought unit oluşmasını önlemek için yakın segmenti zorla birleştir,
+        # ama speaker/role değiştiyse veya soru -> cevap sınırı varsa bunu yapma.
+        if (
+            cur_dur < MIN_BLOCK_SEC
+            and same_speaker
+            and same_role
+            and gap <= (MAX_GAP_SEC * 2.0)
+            and not (prev_ends_question and not curr_is_question)
+        ):
             cur_text_parts.append(t)
             cur_segments.append(seg)
             cur_end = max(float(cur_end), e)

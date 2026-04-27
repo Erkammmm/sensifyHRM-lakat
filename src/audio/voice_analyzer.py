@@ -337,7 +337,7 @@ class VoiceAnalyzer:
     """
 
     def __init__(self):
-        logger.info("[%s] Hazır!", self.__class__.__name__)
+        logger.debug("[%s] Hazır!", self.__class__.__name__)
 
     def analyze_audio(self, wav_path: str) -> Dict:
         """
@@ -374,7 +374,7 @@ class VoiceAnalyzer:
         total_sec = mono.shape[1] / sr
         n_segments = int(math.ceil(total_sec / SEGMENT_SEC))
 
-        logger.info(
+        logger.debug(
             "[%s] Analiz başladı: %.1f sn, %s segment, SR=%s",
             self.__class__.__name__,
             total_sec,
@@ -549,7 +549,7 @@ class VoiceAnalyzer:
                 }
             )
 
-        logger.info(
+        logger.debug(
             "[%s] Ses analizi tamamlandı: %s saniye segmenti.",
             self.__class__.__name__,
             len(timeline),

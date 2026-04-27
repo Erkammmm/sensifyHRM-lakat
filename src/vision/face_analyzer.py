@@ -49,11 +49,11 @@ class FaceAnalyzer:
     """
 
     def __init__(self):
-        logger.info("[%s] Başlatılıyor... UniFace modelleri yükleniyor...", self.__class__.__name__)
+        logger.debug("[%s] Başlatılıyor... UniFace modelleri yükleniyor...", self.__class__.__name__)
         self.detector = RetinaFace(model_name=RetinaFaceWeights.MNET_025)
         self.gaze_estimator = MobileGaze(model_name=GazeWeights.RESNET18)
         self.emotion_predictor = Emotion(model_name=DDAMFNWeights.AFFECNET7)
-        logger.info("[%s] Hazır!", self.__class__.__name__)
+        logger.debug("[%s] Hazır!", self.__class__.__name__)
 
     def process_video(
         self,
@@ -92,7 +92,7 @@ class FaceAnalyzer:
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
-        logger.info(
+        logger.debug(
             "[%s] Video Analizi Başladı (Kaynak FPS: %.0f -> Her %s. kare işleniyor, ~%.1f kare/sn efektif)...",
             self.__class__.__name__,
             fps,
@@ -214,7 +214,7 @@ class FaceAnalyzer:
             "data_count": len(timeline),
         }
 
-        logger.info(
+        logger.debug(
             "[%s] Yüz analizi tamamlandı: %s kayıt (%s karede yüz tespit edildi).",
             self.__class__.__name__,
             len(timeline),
