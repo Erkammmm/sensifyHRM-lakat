@@ -61,7 +61,10 @@
       "Bash(rm stajyer_kodlari/gaze-emotion-json_sefa.py stajyer_kodlari/voice_test_said.py)",
       "Bash(rmdir stajyer_kodlari)",
       "Bash(rm src/nlp/prompt.txt)",
-      "Bash(rm requirements.lock.sonn.txt)"
+      "Bash(rm requirements.lock.sonn.txt)",
+      "Bash(git -C /c/Users/ecetkin/Desktop/SensifyHR-FAZ3 show HEAD:CLAUDE.md)",
+      "Bash(git *)",
+      "Bash(conda run -n gpu_env_videoai python -c ' *)"
     ]
   }
 }

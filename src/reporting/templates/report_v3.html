@@ -28,12 +28,12 @@
       padding: 32px 24px;
       min-height: 100vh;
     }
-    .container { max-width: 960px; margin: 0 auto; }
+    .container { max-width: 1020px; margin: 0 auto; }
 
     /* ── Header ── */
     .header {
       display: flex; align-items: flex-start; justify-content: space-between;
-      gap: 16px; margin-bottom: 36px;
+      gap: 16px; margin-bottom: 32px;
     }
     .header h1 { font-size: 22px; font-weight: 700; letter-spacing: .2px; }
     .header .meta { color: var(--muted); font-size: 13px; margin-top: 6px; }
@@ -48,175 +48,155 @@
     .section-label {
       font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
       text-transform: uppercase; color: var(--muted);
-      margin-bottom: 12px; margin-top: 0;
+      margin-bottom: 12px;
     }
 
-    /* ── Hero engagement score ── */
-    .hero-card {
-      background: linear-gradient(135deg, rgba(124,92,255,.11), rgba(52,211,153,.05));
-      border: 1px solid rgba(124,92,255,.28);
-      border-radius: var(--radius);
-      padding: 28px 32px;
+    /* ────────────────────────────────────────────────
+       ÜST GRAFİK BÖLÜMÜ — 3 yan yana kart
+       ──────────────────────────────────────────────── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
       margin-bottom: 32px;
-      display: flex; align-items: center; gap: 36px;
     }
-    .hero-score-block { text-align: center; flex-shrink: 0; min-width: 110px; }
-    .hero-score-number {
-      font-size: 60px; font-weight: 900; line-height: 1; letter-spacing: -2px;
+    @media (max-width: 780px) {
+      .charts-grid { grid-template-columns: 1fr; }
     }
-    .hero-score-number.good { color: var(--accent2); }
-    .hero-score-number.warn { color: var(--warn); }
-    .hero-score-number.bad  { color: var(--danger); }
-    .hero-score-denom { font-size: 18px; color: var(--muted); font-weight: 400; }
-    .hero-score-label {
-      font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
-      text-transform: uppercase; margin-top: 7px;
+    .chart-card {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px 16px;
     }
-    .hero-score-label.good { color: var(--accent2); }
-    .hero-score-label.warn { color: var(--warn); }
-    .hero-score-label.bad  { color: var(--danger); }
-    .hero-divider { width: 1px; height: 90px; background: var(--border); flex-shrink: 0; }
-    .hero-metrics { display: flex; gap: 28px; flex: 1; flex-wrap: wrap; }
-    .hero-metric { display: flex; flex-direction: column; gap: 4px; }
-    .hm-label {
-      font-size: 11px; text-transform: uppercase; letter-spacing: .9px; color: var(--muted);
+    .chart-card .chart-title {
+      font-size: 12px; font-weight: 700; letter-spacing: .8px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
     }
-    .hm-value { font-size: 18px; font-weight: 700; color: var(--text); }
-    .hm-sub   { font-size: 12px; color: var(--muted); }
-    .reliable-tag {
-      display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: .6px;
-      text-transform: uppercase; color: var(--accent2);
-      background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.25);
-      border-radius: 4px; padding: 1px 6px; margin-top: 3px; width: fit-content;
-    }
-    @media (max-width: 720px) {
-      .hero-card { flex-direction: column; gap: 20px; }
-      .hero-divider { width: 100%; height: 1px; }
-      .hero-metrics { gap: 16px; }
-    }
+    .chart-wrapper { position: relative; }
 
-    /* ── AI Davranışsal Değerlendirme ── */
+    /* Göz teması — özel renk */
+    .chart-card.gaze-card { border-color: rgba(52,211,153,.18); }
+    .chart-card.gaze-card .chart-title { color: var(--accent2); }
+    .chart-card.emo-card  { border-color: rgba(124,92,255,.18); }
+    .chart-card.emo-card  .chart-title { color: #c4b5fd; }
+    .chart-card.ses-card  { border-color: rgba(251,191,36,.18); }
+    .chart-card.ses-card  .chart-title { color: var(--warn); }
+
+    /* Göz teması: legend */
+    .gaze-legend {
+      display: flex; gap: 14px; margin-bottom: 8px; font-size: 11px; color: var(--muted);
+    }
+    .gaze-legend span { display: flex; align-items: center; gap: 4px; }
+    .gaze-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+    /* ────────────────────────────────────────────────
+       AI BÖLÜMÜ
+       ──────────────────────────────────────────────── */
     .ai-section-card {
       background: linear-gradient(180deg, rgba(124,92,255,.09), rgba(255,255,255,.02));
       border: 1px solid rgba(124,92,255,.22);
       border-radius: var(--radius);
-      padding: 28px 32px;
+      padding: 28px 30px;
       margin-bottom: 32px;
     }
-    .ai-section {
-      font-size: 16px; font-weight: 700; color: #c4b5fd;
-      margin: 22px 0 10px;
-      padding-bottom: 7px;
-      border-bottom: 1px solid rgba(124,92,255,.18);
-    }
-    .ai-section:first-child { margin-top: 0; }
-    .ai-section-card p {
-      font-size: 14px; line-height: 1.8; color: var(--text); margin-bottom: 10px;
-    }
-    .ai-list { padding-left: 18px; margin: 8px 0 14px; }
-    .ai-list li { font-size: 14px; line-height: 1.75; color: var(--text); margin-bottom: 6px; }
-    .ai-section-card strong { color: #f0e6ff; }
-    .ts-badge {
-      display: inline-block; font-family: monospace; font-size: 12px; font-weight: 700;
-      color: #c4b5fd; background: rgba(124,92,255,.15);
-      border: 1px solid rgba(124,92,255,.3); border-radius: 5px;
-      padding: 1px 7px; margin: 0 2px; white-space: nowrap;
-    }
-    /* Injection target — hide placeholder div */
     .ai-section-card > .footer { display: none; }
 
-    /* ── Konuşma İstatistikleri ── */
-    .speech-stats-card {
-      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
-      border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 22px 26px; margin-bottom: 32px;
-    }
-    .speech-stats-card .card-title {
-      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-      text-transform: uppercase; color: var(--muted); margin-bottom: 16px;
-    }
-    .speech-stats-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 12px 28px;
-    }
-    .speech-stat { display: flex; flex-direction: column; gap: 3px; }
-    .speech-stat .stat-label {
-      font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px;
-    }
-    .speech-stat .stat-value { font-size: 17px; font-weight: 700; color: var(--text); }
-    .speech-stat .stat-sub   { font-size: 12px; color: var(--muted); }
-    .pace-badge {
-      display: inline-block; padding: 2px 10px; border-radius: 999px;
-      font-size: 12px; font-weight: 600;
-    }
-    .pace-badge.slow   { background: rgba(251,191,36,.15); color: var(--warn); }
-    .pace-badge.normal { background: rgba(52,211,153,.15);  color: var(--accent2); }
-    .pace-badge.fast   { background: rgba(251,113,133,.15); color: var(--danger); }
-
-    /* ── Time Blocks ── */
-    .time-blocks-card {
-      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
-      border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 22px 24px; margin-bottom: 32px;
-    }
-    .time-blocks-card .card-title {
-      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-      text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
-    }
-    .tb-list { display: flex; flex-direction: column; gap: 10px; }
-    .tb-block {
+    /* AI bölüm blokları */
+    .ai-block {
+      border-radius: 10px; padding: 18px 20px;
+      margin-bottom: 14px; border: 1px solid var(--border);
       background: rgba(255,255,255,.03);
-      border: 1px solid rgba(255,255,255,.06);
-      border-radius: 10px; padding: 14px 16px;
     }
-    .tb-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-    .tb-label {
-      font-size: 12px; font-weight: 700; color: #c4b5fd;
-      font-family: monospace; flex-shrink: 0;
+    .ai-block:last-child { margin-bottom: 0; }
+    .ai-block-header {
+      font-size: 12px; font-weight: 700; letter-spacing: .8px;
+      text-transform: uppercase; margin-bottom: 10px;
     }
-    .tb-wc { font-size: 11px; color: var(--muted); }
-    .tb-text { font-size: 13px; color: var(--text); line-height: 1.6; margin-bottom: 10px; }
-    .tb-indicators { display: flex; flex-wrap: wrap; gap: 6px; }
-    .tb-badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 9px; border-radius: 999px;
-      font-size: 11px; font-weight: 600;
-      border: 1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.06); color: var(--muted);
-    }
-    .tb-badge.emo-positive { border-color: rgba(52,211,153,.4);  color: var(--accent2); }
-    .tb-badge.emo-negative { border-color: rgba(251,113,133,.4); color: var(--danger); }
-    .tb-badge.emo-neutral  { border-color: rgba(107,114,128,.4); color: #9ca3af; }
-    .tb-badge.conf-high    { border-color: rgba(52,211,153,.4);  color: var(--accent2); }
-    .tb-badge.conf-low     { border-color: rgba(251,191,36,.4);  color: var(--warn); }
-    .tb-badge.gaze-ok      { border-color: rgba(52,211,153,.4);  color: var(--accent2); }
-    .tb-badge.gaze-away    { border-color: rgba(251,113,133,.4); color: var(--danger); }
+    .ai-block-body { font-size: 14px; line-height: 1.8; color: var(--text); }
+    .ai-block-body p { margin-bottom: 8px; }
+    .ai-block-body p:last-child { margin-bottom: 0; }
 
-    /* ── Chart cards ── */
-    .chart-card {
-      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
-      border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 22px; margin-bottom: 32px;
+    .ai-block-genel-izlenim {
+      background: linear-gradient(135deg, rgba(124,92,255,.10), rgba(255,255,255,.02));
+      border-color: rgba(124,92,255,.28);
     }
-    .chart-card .chart-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-    .chart-card .chart-subtitle {
-      font-size: 12px; color: var(--muted); margin-bottom: 20px;
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    }
-    .chart-wrapper { position: relative; }
+    .ai-block-genel-izlenim .ai-block-header { color: #c4b5fd; }
 
-    .disclaimer-tag {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 11px; color: var(--warn);
-      background: rgba(251,191,36,.08);
-      border: 1px solid rgba(251,191,36,.22);
-      border-radius: 5px; padding: 2px 8px; white-space: nowrap;
+    .ai-block-guclu-yanlar {
+      background: linear-gradient(135deg, rgba(52,211,153,.08), rgba(255,255,255,.02));
+      border-color: rgba(52,211,153,.22);
     }
+    .ai-block-guclu-yanlar .ai-block-header { color: var(--accent2); }
 
-    /* ── No data ── */
-    .no-data {
-      color: var(--muted); font-size: 14px; padding: 24px 0; text-align: center;
+    .ai-block-gelisim-alanlari {
+      background: linear-gradient(135deg, rgba(251,191,36,.08), rgba(255,255,255,.02));
+      border-color: rgba(251,191,36,.20);
     }
+    .ai-block-gelisim-alanlari .ai-block-header { color: var(--warn); }
+
+    .ai-block-sozel-profil {
+      background: linear-gradient(135deg, rgba(96,165,250,.08), rgba(255,255,255,.02));
+      border-color: rgba(96,165,250,.20);
+    }
+    .ai-block-sozel-profil .ai-block-header { color: #93c5fd; }
+
+    .ai-block-uyarilar {
+      background: linear-gradient(135deg, rgba(251,113,133,.07), rgba(255,255,255,.02));
+      border-color: rgba(251,113,133,.20);
+    }
+    .ai-block-uyarilar .ai-block-header { color: var(--danger); }
+
+    .ai-block-swot {
+      background: linear-gradient(135deg, rgba(251,146,60,.07), rgba(255,255,255,.02));
+      border-color: rgba(251,146,60,.22);
+    }
+    .ai-block-swot .ai-block-header { color: #fdba74; }
+
+    .ai-block-generic .ai-block-header { color: var(--muted); }
+
+    .ai-list { padding-left: 18px; margin: 4px 0 8px; }
+    .ai-list li { font-size: 14px; line-height: 1.75; margin-bottom: 5px; }
+    .ai-block-body strong { color: #f0e6ff; }
+
+    /* Profil boyutları */
+    .profile-item {
+      display: flex; flex-direction: column; gap: 3px;
+      padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .profile-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .profile-label {
+      font-size: 11.5px; font-weight: 700; color: #93c5fd;
+    }
+    .profile-body { font-size: 13.5px; line-height: 1.7; }
+
+    /* ── Göz Kaçırma Olayları ── */
+    .gaze-events-card {
+      background: linear-gradient(180deg, rgba(52,211,153,.05), rgba(255,255,255,.02));
+      border: 1px solid rgba(52,211,153,.18); border-radius: var(--radius);
+      padding: 18px 22px; margin-bottom: 32px;
+    }
+    .gaze-events-card .card-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: var(--accent2); margin-bottom: 12px;
+    }
+    .gaze-note {
+      font-size: 13.5px; line-height: 1.7; margin-bottom: 8px;
+    }
+    .gaze-note-ok   { color: var(--accent2); }
+    .gaze-note-warn { color: var(--text); }
+    .gaze-note strong { color: var(--warn); }
+    .gaze-event-list {
+      list-style: none; padding: 0; margin: 0;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .gaze-event-item {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      background: rgba(255,255,255,.03); border: 1px solid rgba(251,113,133,.15);
+      border-radius: 8px; padding: 8px 12px;
+    }
+    .gaze-ts   { font-family: monospace; font-size: 12.5px; color: var(--warn); font-weight: 700; }
+    .gaze-dur  { font-size: 11.5px; color: var(--muted); }
+    .gaze-interp { font-size: 13px; color: var(--text); flex: 1; }
 
     /* ── Footer ── */
     .report-footer {
@@ -227,9 +207,7 @@
 <body>
 <div class="container">
 
-  <!-- ─────────────────────────────────────────
-       Header
-       ───────────────────────────────────────── -->
+  <!-- ── Header ── -->
   <div class="header">
     <div>
       <h1>SensifyHR — Mülakat Analizi</h1>
@@ -237,120 +215,119 @@
         ID: {{ interview_id }} &nbsp;·&nbsp; Süre: {{ video_duration }}s &nbsp;·&nbsp; {{ analysis_date }}
       </div>
     </div>
-    <div class="tag">HR Analiz</div>
+    <div class="tag">Davranışsal Analiz</div>
   </div>
 
-  <!-- ─────────────────────────────────────────
-       BÖLÜM 1 — Genel Katılım Skoru
-       ───────────────────────────────────────── -->
-  <div class="section-label">Genel Katılım Değerlendirmesi</div>
-  <div class="hero-card">
-    <div class="hero-score-block">
-      <div class="hero-score-number {{ engagement_class }}">
-        {{ engagement_score }}<span class="hero-score-denom">/10</span>
-      </div>
-      <div class="hero-score-label {{ engagement_class }}">{{ engagement_label }}</div>
-    </div>
+  <!-- ────────────────────────────────────────────────
+       ÜST GRAFİKLER — Duygusal Seyir · Göz Teması · Ses Profili
+       ──────────────────────────────────────────────── -->
+  {% if not emo_dist_no_data or not voice_emo_dist_no_data or chart_has_data %}
+  <div class="section-label">Sinyal Özeti</div>
+  <div class="charts-grid">
 
-    <div class="hero-divider"></div>
-
-    <div class="hero-metrics">
-      <div class="hero-metric">
-        <span class="hm-label">Konuşma Süresi</span>
-        <span class="hm-value">{{ speech_dur_str }}</span>
-        <span class="hm-sub">Sessizlik: {{ silence_dur_str }}</span>
-        <span class="reliable-tag">Güvenilir</span>
-      </div>
-      <div class="hero-metric">
-        <span class="hm-label">Ses Güveni</span>
-        <span class="hm-value">{{ speech_label }}</span>
-        <span class="hm-sub">Ort. {{ avg_speech_confidence }}</span>
-        <span class="reliable-tag">Güvenilir</span>
-      </div>
-      <div class="hero-metric">
-        <span class="hm-label">Yüz Algılama</span>
-        <span class="hm-value">%{{ face_detected_pct }}</span>
-        <span class="hm-sub">Ekran varlığı</span>
-        <span class="reliable-tag">Güvenilir</span>
-      </div>
-      <div class="hero-metric">
-        <span class="hm-label">Konuşma Hızı</span>
-        <span class="hm-value">
-          <span class="pace-badge {{ 'slow' if pace_label == 'Yavaş' else ('fast' if pace_label == 'Hızlı' else 'normal') }}">
-            {{ pace_label }}
-          </span>
-        </span>
-        <span class="hm-sub">Ort. {{ avg_words }} kelime/segment</span>
-        <span class="reliable-tag">Güvenilir</span>
+    <!-- 1. Duygusal Seyir — dağılım bar chart -->
+    {% if not emo_dist_no_data %}
+    <div class="chart-card emo-card">
+      <div class="chart-title">Duygusal Seyir</div>
+      <div class="chart-wrapper" style="height:180px;">
+        <canvas id="emotionDistChart"></canvas>
       </div>
     </div>
-  </div>
+    {% endif %}
 
-  <!-- ─────────────────────────────────────────
-       BÖLÜM 2 — AI Davranışsal Değerlendirme
-       _write_ai_to_reports (api/main.py) bu bölümün
-       içindeki gizli .footer div'inden önce içerik enjekte eder.
-       .footer div'ini kaldırma.
-       ───────────────────────────────────────── -->
-  <div class="section-label">AI Davranışsal Değerlendirme</div>
-  <div class="ai-section-card">
-    <div class="footer"></div>
-  </div>
-
-  <!-- ─────────────────────────────────────────
-       BÖLÜM 3 — Konuşma Yapısı (Zaman Blokları)
-       ───────────────────────────────────────── -->
-  {% if time_block_count > 0 %}
-  <div class="section-label">Konuşma Yapısı ({{ time_block_count }} Blok)</div>
-  <div class="time-blocks-card">
-    <div class="card-title">Zaman Blokları — Doğal sessizlik sınırlarında ayrılmış</div>
-    <div class="tb-list">
-      {% for blk in time_blocks %}
-      {% set emo = blk.dominant_emotion | default('Neutral') %}
-      {% set conf = blk.avg_speech_confidence | default(0) %}
-      {% set away = blk.avg_gaze_away_pct | default(0) %}
-      {% set txt = (blk.text or '') %}
-      {% set emo_class = 'emo-positive' if emo in ('Happy','Surprise') else ('emo-negative' if emo in ('Sad','Fear','Angry','Disgust') else 'emo-neutral') %}
-      {% set conf_class = 'conf-high' if conf >= 0.7 else 'conf-low' %}
-      {% set gaze_class = 'gaze-ok' if away <= 0.25 else 'gaze-away' %}
-      <div class="tb-block">
-        <div class="tb-header">
-          <span class="tb-label">{{ blk.label }}</span>
-          {% if blk.word_count > 0 %}
-          <span class="tb-wc">{{ blk.word_count }} kelime</span>
-          {% endif %}
-        </div>
-        {% if txt %}
-        <div class="tb-text">{{ txt[:240] }}{% if txt | length > 240 %}…{% endif %}</div>
-        {% else %}
-        <div class="tb-text" style="color:var(--muted);font-style:italic;">Bu blokta konuşma tespit edilmedi.</div>
-        {% endif %}
-        <div class="tb-indicators">
-          <span class="tb-badge {{ emo_class }}">{{ emo }}</span>
-          <span class="tb-badge {{ conf_class }}">Ses güveni: {% if conf >= 0.7 %}Yüksek{% elif conf >= 0.5 %}Orta{% else %}Düşük{% endif %}</span>
-          <span class="tb-badge {{ gaze_class }}">Göz teması: %{{ ((1 - away) * 100) | int }}</span>
-        </div>
+    <!-- 2. Göz Teması — yüzde bar chart -->
+    <div class="chart-card gaze-card">
+      <div class="chart-title">Göz Teması</div>
+      <div class="chart-wrapper" style="height:100px;">
+        <canvas id="gazeDistChart"></canvas>
       </div>
-      {% endfor %}
     </div>
+
+    <!-- 3. Ses Profili -->
+    {% if not voice_emo_dist_no_data %}
+    <div class="chart-card ses-card">
+      <div class="chart-title">Ses Profili</div>
+      <div class="chart-wrapper" style="height:160px;">
+        <canvas id="voiceProfileChart"></canvas>
+      </div>
+    </div>
+    {% endif %}
+
   </div>
   {% endif %}
 
-  <!-- ─────────────────────────────────────────
-       BÖLÜM 4 — Ses Profili Dağılımı
-       ───────────────────────────────────────── -->
+  <!-- Chart.js scriptleri -->
+  {% if not emo_dist_no_data %}
+  <script>
+  (function() {
+    const labels = {{ emo_dist_labels_json | safe }};
+    const values = {{ emo_dist_values_json | safe }};
+    const colors = {{ emo_dist_colors_json | safe }};
+    new Chart(document.getElementById('emotionDistChart'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{ data: values, backgroundColor: colors,
+          borderColor: colors.map(c => c.replace(/[\d.]+\)$/, '1)')),
+          borderWidth: 1, borderRadius: 4, barThickness: 18 }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false },
+          tooltip: { backgroundColor: 'rgba(15,26,51,0.95)',
+            titleColor: '#e8eefc', bodyColor: '#a9b6d3',
+            callbacks: { label: ctx => ` ${ctx.parsed.x.toFixed(1)}%` }
+          }
+        },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,.05)' },
+               ticks: { color: '#a9b6d3', font: { size: 10 }, callback: v => v + '%' },
+               max: 100 },
+          y: { grid: { display: false },
+               ticks: { color: '#e8eefc', font: { size: 11 } } }
+        }
+      }
+    });
+  })();
+  </script>
+  {% endif %}
+
+  <script>
+  (function() {
+    const gazeFocusPct = {{ gaze_focus_pct_num }};
+    const gazeAwayPct  = Math.max(0, 100 - gazeFocusPct);
+    new Chart(document.getElementById('gazeDistChart'), {
+      type: 'bar',
+      data: {
+        labels: ['Kameraya bakıyor', 'Bakış kaydı'],
+        datasets: [{
+          data: [gazeFocusPct, gazeAwayPct],
+          backgroundColor: ['rgba(52,211,153,0.85)', 'rgba(251,113,133,0.85)'],
+          borderColor:     ['rgba(52,211,153,1)',    'rgba(251,113,133,1)'],
+          borderWidth: 1, borderRadius: 4, barThickness: 22
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false },
+          tooltip: { backgroundColor: 'rgba(15,26,51,0.95)',
+            titleColor: '#e8eefc', bodyColor: '#a9b6d3',
+            callbacks: { label: ctx => ` ${ctx.parsed.x.toFixed(1)}%` }
+          }
+        },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,.05)' },
+               ticks: { color: '#a9b6d3', font: { size: 10 }, callback: v => v + '%' },
+               max: 100 },
+          y: { grid: { display: false },
+               ticks: { color: '#e8eefc', font: { size: 11 } } }
+        }
+      }
+    });
+  })();
+  </script>
+
   {% if not voice_emo_dist_no_data %}
-  <div class="section-label">Ses Profili Dağılımı</div>
-  <div class="chart-card">
-    <div class="chart-title">Konuşma Tonu Profili</div>
-    <div class="chart-subtitle">
-      torchaudio f0 + enerji tabanlı · Dil bağımsız
-      <span class="reliable-tag">Güvenilir</span>
-    </div>
-    <div class="chart-wrapper" style="height: 180px;">
-      <canvas id="voiceProfileChart"></canvas>
-    </div>
-  </div>
   <script>
   (function() {
     const labels = {{ voice_emo_dist_labels_json | safe }};
@@ -362,7 +339,7 @@
         labels: labels,
         datasets: [{ data: values, backgroundColor: colors,
           borderColor: colors.map(c => c.replace(/[\d.]+\)$/, '1)')),
-          borderWidth: 1, borderRadius: 4, barThickness: 22 }]
+          borderWidth: 1, borderRadius: 4, barThickness: 18 }]
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -374,10 +351,10 @@
         },
         scales: {
           x: { grid: { color: 'rgba(255,255,255,.05)' },
-               ticks: { color: '#a9b6d3', font: { size: 11 }, callback: v => v + '%' },
+               ticks: { color: '#a9b6d3', font: { size: 10 }, callback: v => v + '%' },
                max: 100 },
           y: { grid: { display: false },
-               ticks: { color: '#e8eefc', font: { size: 12 } } }
+               ticks: { color: '#e8eefc', font: { size: 11 } } }
         }
       }
     });
@@ -385,60 +362,31 @@
   </script>
   {% endif %}
 
-  <!-- ─────────────────────────────────────────
-       BÖLÜM 5 — Duygu Dağılımı (yaklaşık)
-       ───────────────────────────────────────── -->
-  {% if not emo_dist_no_data %}
-  <div class="section-label">
-    Duygu Dağılımı &nbsp;<span class="disclaimer-tag">⚠ Yaklaşık · Referans için</span>
+  <!-- ────────────────────────────────────────────────
+       Göz Teması — Delta Analizi (Bakış Kayma Olayları)
+       ──────────────────────────────────────────────── -->
+  {% if gaze_event_html %}
+  <div class="section-label">Göz Teması Detayı</div>
+  <div class="gaze-events-card">
+    <div class="card-title">Bakış Kayma Olayları (≥6 saniye)</div>
+    {{ gaze_event_html | safe }}
   </div>
-  <div class="chart-card">
-    <div class="chart-title">Yüz Duygu Dağılımı</div>
-    <div class="chart-subtitle">
-      Güven ≥ 0.55 olan kareler · UniFace DDAMFN AffectNet7 ·
-      Surprise &lt;0.75 güven → Neutral sayılmıştır
-    </div>
-    <div class="chart-wrapper" style="height: 220px;">
-      <canvas id="emoDistChart"></canvas>
-    </div>
-  </div>
-  <script>
-  (function() {
-    const labels = {{ emo_dist_labels_json | safe }};
-    const values = {{ emo_dist_values_json | safe }};
-    const colors = {{ emo_dist_colors_json | safe }};
-    new Chart(document.getElementById('emoDistChart'), {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{ data: values, backgroundColor: colors,
-          borderColor: colors.map(c => c.replace(/[\d.]+\)$/, '1)')),
-          borderWidth: 1, borderRadius: 4, barThickness: 26 }]
-      },
-      options: {
-        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false },
-          tooltip: { backgroundColor: 'rgba(15,26,51,0.95)',
-            titleColor: '#e8eefc', bodyColor: '#a9b6d3',
-            callbacks: { label: ctx => ` ${ctx.parsed.x.toFixed(1)}%` }
-          }
-        },
-        scales: {
-          x: { grid: { color: 'rgba(255,255,255,.05)' },
-               ticks: { color: '#a9b6d3', font: { size: 11 }, callback: v => v + '%' },
-               max: 100 },
-          y: { grid: { display: false },
-               ticks: { color: '#e8eefc', font: { size: 12 } } }
-        }
-      }
-    });
-  })();
-  </script>
   {% endif %}
+
+  <!-- ────────────────────────────────────────────────
+       AI Davranışsal Değerlendirme
+       _write_ai_to_reports (api/main.py) bu bölümün
+       içindeki gizli .footer div'inden önce içerik enjekte eder.
+       .footer div'ini kaldırma.
+       ──────────────────────────────────────────────── -->
+  <div class="section-label">Davranışsal Değerlendirme</div>
+  <div class="ai-section-card">
+    <div class="footer"></div>
+  </div>
 
   <!-- Footer -->
   <div class="report-footer">
-    SensifyHR &nbsp;·&nbsp; Davranışsal sinyal analizi &mdash; işe alım kararı üretmez &nbsp;·&nbsp; Bilgi amaçlıdır.
+    SensifyHR &nbsp;·&nbsp; Davranışsal sinyal analizi — işe alım kararı üretmez &nbsp;·&nbsp; Bilgi amaçlıdır.
   </div>
 
 </div>

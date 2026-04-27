@@ -199,119 +199,67 @@ class ReportGenerator:
 
         if is_phase3:
             face_timeline = report.get("face_analysis", {}).get("timeline", []) or []
-            faz4 = _compute_faz4_dashboard_data(segment_packages, face_timeline=face_timeline)
+            # FAZ-5: HTML hesaplamalarında full teknik paketleri kullan (LLM temiz paketi değil)
+            segment_packages_full = report.get("segment_signal_packages_full") or segment_packages
+            faz4 = _compute_faz4_dashboard_data(segment_packages_full, face_timeline=face_timeline)
             emo_dist = _compute_emotion_distribution(face_timeline)
             audio_signal_tl = report.get("audio_signal_analysis", {}).get("timeline", []) or []
             voice_emo_dist = _compute_voice_emotion_distribution(audio_signal_tl)
 
-            # Öne çıkan anlar — tension_score >= 0.5 veya is_critical_moment=True
-            _neg_emos_set = {"Sad", "Fear", "Angry", "Disgust"}
-            critical_moments = []
-            for pkg in segment_packages:
-                ts = float(pkg.get("tension_score", 0) or 0)
-                if pkg.get("is_critical_moment") or ts >= 0.5:
-                    emo = (pkg.get("dominant_emotion") or "Neutral").strip()
-                    emo_cls = ("emo-negative" if emo in _neg_emos_set
-                               else ("emo-positive" if emo in ("Happy", "Surprise") else "emo-neutral"))
-                    critical_moments.append({
-                        "timestamp": pkg.get("timestamp", "—"),
-                        "emotion": emo,
-                        "emotion_class": emo_cls,
-                        "gaze_away": bool(pkg.get("gaze_away", False)),
-                        "voice_stress": bool(pkg.get("voice_stress", False)),
-                        "incongruence": bool(pkg.get("incongruence", False)),
-                        "speech_confidence": round(float(pkg.get("speech_confidence", 0) or 0), 2),
-                        "tension_pct": f"%{int(ts * 100)}",
-                        "tension_level": "high" if ts >= 0.7 else "medium",
-                        "text": (pkg.get("text", "") or "")[:180],
-                    })
-            critical_moments = critical_moments[:8]
+            # FAZ-5: Göz analizi olaylarını HTML için hazırla
+            gaze_analysis = report.get("gaze_analysis") or {}
+            gaze_away_events = gaze_analysis.get("gaze_away_events") or []
+            gaze_away_pct = float(gaze_analysis.get("gaze_away_percentage") or 0.0)
+            gaze_data_quality = gaze_analysis.get("data_quality") or ""
+            gaze_event_html = _render_gaze_events(gaze_away_events, gaze_away_pct, gaze_data_quality)
 
-            # "Baskın Duygu" KPI card — top emotion from confidence-filtered distribution
-            _neg_emos = {"Sad", "Fear", "Angry", "Disgust"}
-            if not emo_dist["no_data"] and emo_dist["labels"]:
-                top_idx = emo_dist["values"].index(max(emo_dist["values"]))
-                baskin_duygu_label = emo_dist["labels"][top_idx]
-                baskin_duygu_pct = f"{emo_dist['values'][top_idx]:.1f}%"
-                baskin_duygu_card_class = "danger" if baskin_duygu_label in _neg_emos else "accent2"
-            else:
-                baskin_duygu_label = "—"
-                baskin_duygu_pct = "—"
-                baskin_duygu_card_class = "warn"
-            speech_stats = _compute_speech_stats(
-                text_segments,
-                float(video_info.get("duration_seconds") or 0.0),
-            )
+            # FAZ-5: Duygu dağılımı — Türkçe etiketlerle chart'a geçirilecek
+            _emo_tr_disp = {
+                "Happy": "Mutlu/Pozitif", "Surprise": "Şaşkın", "Neutral": "Nötr",
+                "Sad": "Düşünceli", "Fear": "Endişeli", "Angry": "Gergin", "Disgust": "Rahatsız",
+            }
+            emo_dist_labels_tr = [_emo_tr_disp.get(l, l) for l in emo_dist.get("labels", [])]
 
-            # Yüz algılama oranı (ham binary tespit: face_detected=True oranı)
-            face_detected_pct = "—"
-            if face_timeline:
-                det = sum(1 for f in face_timeline if f.get("face_detected", True))
-                face_detected_pct = f"{det / len(face_timeline) * 100:.0f}"
+            # FAZ-5: Göz teması yüzde — delta analizi sonucundan al (6s eşikli, daha güvenilir)
+            _delta_away_pct = float(gaze_analysis.get("gaze_away_percentage") or 0.0)
+            gaze_focus_num_val = round(100.0 - _delta_away_pct, 1)
 
-            # Genel katılım skoru (0-10, yalnızca güvenilir sinyaller)
-            eng_score, eng_label, eng_class = _compute_engagement_score(
-                report, segment_packages, face_timeline
-            )
+            # FAZ-5: Zaman bloklarında duygu labellarını Türkçeleştir
+            _tr_emo = {
+                "Happy": "Pozitif", "Surprise": "Şaşkın", "Neutral": "Nötr",
+                "Sad": "Düşünceli", "Fear": "Endişeli", "Angry": "Gergin", "Disgust": "Rahatsız",
+            }
+            for blk in time_blocks:
+                raw_emo = blk.get("dominant_emotion", "Neutral")
+                blk["dominant_emotion"] = _tr_emo.get(raw_emo, raw_emo)
+
+            # FAZ-5: Üst grafik bölümü için veri — Chart.js zaman serileri
+            chart_has_data = bool(faz4.get("chart_labels"))
 
             template = self.template_env.get_template("report_v3.html")
             html = template.render(
                 interview_id=interview_id,
                 analysis_date=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
                 video_duration=f'{video_info.get("duration_seconds", 0):.1f}',
-                # Kart 1 — Göz Teması
-                gaze_label=faz4["gaze_label"],
-                gaze_card_class=faz4["gaze_card_class"],
-                gaze_focus_pct=faz4["gaze_focus_pct"],
-                gaze_aversion_ts=faz4["gaze_aversion_ts"],
-                # Kart 2 — Ses Güveni
-                speech_label=faz4["speech_label"],
-                speech_card_class=faz4["speech_card_class"],
-                avg_speech_confidence=faz4["avg_speech_confidence"],
-                conf_drop_ts=faz4["conf_drop_ts"],
-                baskin_ses_str=voice_emo_dist["top2_str"],
-                # Kart 3 — Duygusal Denge
-                emotion_label=faz4["emotion_label"],
-                emotion_card_class=faz4["emotion_card_class"],
-                emotion_neg_pct=faz4["emotion_neg_pct"],
-                crit_count=faz4["crit_count"],
-                crit_timestamps=faz4["crit_timestamps"],
-                # Kart 4 — Baskın Duygu
-                baskin_duygu_label=baskin_duygu_label,
-                baskin_duygu_pct=baskin_duygu_pct,
-                baskin_duygu_card_class=baskin_duygu_card_class,
-                # Öne çıkan anlar
-                critical_moments=critical_moments,
-                critical_moment_count=len(critical_moments),
-                # Konuşma istatistikleri (Step F)
-                speech_dur_str=speech_stats["speech_dur_str"],
-                silence_dur_str=speech_stats["silence_dur_str"],
-                long_silence_count=speech_stats["long_silence_count"],
-                longest_silence_dur=speech_stats["longest_silence_dur"],
-                longest_silence_ts=speech_stats["longest_silence_ts"],
-                avg_words=speech_stats["avg_words"],
-                pace_label=speech_stats["pace_label"],
-                # Duygu dağılımı — yüz (Step D)
-                emo_dist_no_data=emo_dist["no_data"],
-                emo_dist_labels_json=json.dumps(emo_dist["labels"], ensure_ascii=False),
-                emo_dist_values_json=json.dumps(emo_dist["values"]),
-                emo_dist_colors_json=json.dumps(emo_dist["colors"]),
-                # Ses duygu dağılımı — SER (Step 4)
+                # Üst grafik bölümü (FAZ-5: dağılım chart'ları)
+                chart_has_data=chart_has_data,
+                # FAZ-5: Duygu dağılımı chart (Türkçe etiketler)
+                emo_dist_no_data=emo_dist.get("no_data", True),
+                emo_dist_labels_json=json.dumps(emo_dist_labels_tr, ensure_ascii=False),
+                emo_dist_values_json=json.dumps(emo_dist.get("values", [])),
+                emo_dist_colors_json=json.dumps(emo_dist.get("colors", [])),
+                # FAZ-5: Göz teması yüzde (dağılım chart)
+                gaze_focus_pct_num=gaze_focus_num_val,
+                # Ses profili dağılımı (Chart.js)
                 voice_emo_dist_no_data=voice_emo_dist["no_data"],
                 voice_emo_dist_labels_json=json.dumps(voice_emo_dist["labels"], ensure_ascii=False),
                 voice_emo_dist_values_json=json.dumps(voice_emo_dist["values"]),
                 voice_emo_dist_colors_json=json.dumps(voice_emo_dist["colors"]),
-                # Konuşma Yapısı — Thought Units
-                thought_units=thought_units[:20],
-                thought_unit_count=len(thought_units),
-                # Zaman Bloğu Paragrafları
+                # Konuşma İçeriği Analizi (zaman blokları — Türkçeleştirilmiş)
                 time_blocks=time_blocks,
                 time_block_count=len(time_blocks),
-                # Genel Katılım Skoru (yeni)
-                engagement_score=eng_score,
-                engagement_label=eng_label,
-                engagement_class=eng_class,
-                face_detected_pct=face_detected_pct,
+                # FAZ-5: Göz kaçırma olayları (delta analizi)
+                gaze_event_html=gaze_event_html,
                 # LLM raporu: injected by _write_ai_to_reports after generation
             )
         else:
@@ -389,6 +337,18 @@ class ReportGenerator:
             ss = voice.get("speech_silence")
             if isinstance(ss, dict):
                 ss.pop("speech_segments", None)
+
+        # FAZ-5: speaker alanını JSON çıktısından kaldır
+        for seg_list_key in ("segments", "thought_units"):
+            seg_list = clean.get("text_analysis", {}).get(seg_list_key, [])
+            if isinstance(seg_list, list):
+                for s in seg_list:
+                    if isinstance(s, dict):
+                        s.pop("speaker", None)
+        # segment_signal_packages (clean) içinden de speaker kaldır
+        for pkg in clean.get("segment_signal_packages", []):
+            if isinstance(pkg, dict):
+                pkg.pop("speaker", None)
 
         json_path = os.path.join(self.reports_dir, f"report_{interview_id}.json")
         with open(json_path, "w", encoding="utf-8") as f:
@@ -734,6 +694,57 @@ def _render_soft_skill_cards(section_text: str, max_items: int = 8) -> str:
             "</div>"
         )
     return "\n".join(cards)
+
+
+# =====================================================================
+# FAZ-5 Göz Delta Analizi Render
+# =====================================================================
+
+def _render_gaze_events(events: List[Dict], away_pct: float, data_quality: str) -> str:
+    """
+    Göz kaçırma olaylarını IK'ya uygun HTML olarak render eder.
+    Olay yoksa ya da veri kalitesi düşükse uygun mesaj döndürür.
+    """
+    if data_quality == "dusuk":
+        return (
+            '<p class="gaze-note gaze-note-warn">'
+            'Yüz tespiti yetersiz kaldı — göz teması analizi yapılamadı.</p>'
+        )
+
+    if not events:
+        return (
+            '<p class="gaze-note gaze-note-ok">'
+            'Mülakat boyunca kameraya odaklanma sürekliydi. '
+            'Belirgin bir bakış kayması olayı tespit edilmedi.</p>'
+        )
+
+    qual_label = {
+        "yuksek": "Yüksek", "orta": "Orta",
+        "telefon_videosu": "Dikey video (telefon)",
+    }.get(data_quality, data_quality)
+
+    rows = []
+    for ev in events:
+        s = _escape_html(ev.get("start_label", ""))
+        e = _escape_html(ev.get("end_label", ""))
+        dur = ev.get("duration_seconds", 0)
+        interp = _escape_html(ev.get("interpretation", ""))
+        rows.append(
+            f'<li class="gaze-event-item">'
+            f'<span class="gaze-ts">{s} – {e}</span>'
+            f'<span class="gaze-dur">({dur:.0f}s)</span>'
+            f'<span class="gaze-interp">{interp}</span>'
+            f'</li>'
+        )
+
+    pct_str = f"{away_pct:.1f}%"
+    items_html = "\n".join(rows)
+    return (
+        f'<p class="gaze-note gaze-note-warn">'
+        f'Mülakat süresinin <strong>{pct_str}</strong>\'inde kameradan bakış kayması tespit edildi '
+        f'(veri kalitesi: {qual_label}).</p>'
+        f'<ul class="gaze-event-list">{items_html}</ul>'
+    )
 
 
 # =====================================================================
@@ -1200,54 +1211,123 @@ def _md_bold(s: str) -> str:
 
 
 def _format_ai_report_html(ai_text: str) -> str:
-    """LLM markdown çıktısını temiz HTML'e dönüştürür (## başlıklar, - maddeler, paragraflar)."""
+    """
+    LLM markdown çıktısını yapılandırılmış, bölüm-özel HTML'e dönüştürür.
+
+    Yeni 6 bölümlü format:
+      ## Genel İzlenim         → geniş izlenim kartı
+      ## Güçlü Yanlar          → yeşil madde listesi
+      ## Gelişim Alanları      → sarı madde listesi
+      ## Sözel ve Davranışsal Profil → 6 boyutlu profil ızgarası
+      ## Davranışsal Uyarılar  → uyarı kartı
+      ## IK İçin Önerilen Sorular → soru kartları
+    """
     if not ai_text:
         return "<p>Analiz metni mevcut değil.</p>"
 
-    parts: List[str] = []
-    in_list = False
+    # ── Bölüm eşleştirme tablosu (ASCII normalize key'ler) ───────────
+    import unicodedata as _ud
 
-    for raw in ai_text.replace("\r\n", "\n").split("\n"):
-        line = raw.rstrip()
+    def _ascii_lower(s: str) -> str:
+        """Türkçe karakterleri ASCII'ye çevirerek karşılaştırma yapar."""
+        return _ud.normalize("NFD", s.lower()).encode("ascii", "ignore").decode("ascii")
+
+    _SECTION_META = {
+        "genel izlenim":                ("genel-izlenim",    "Genel İzlenim"),
+        "guclu yanlar":                 ("guclu-yanlar",     "Güçlü Yanlar"),
+        "guclü yanlar":                 ("guclu-yanlar",     "Güçlü Yanlar"),
+        "gelisim alanlari":             ("gelisim-alanlari", "Gelişim Alanları"),
+        "sozel ve davranissal profil":  ("sozel-profil",     "Sözel ve Davranışsal Profil"),
+        "sozel ve davranissal":         ("sozel-profil",     "Sözel ve Davranışsal Profil"),
+        "sozel":                        ("sozel-profil",     "Sözel ve Davranışsal Profil"),
+        "swot analizi":                 ("swot",             "SWOT Analizi"),
+        "swot":                         ("swot",             "SWOT Analizi"),
+        "davranissal uyarilar":         ("uyarilar",         "Davranışsal Uyarılar"),
+    }
+
+    def _section_meta(heading: str):
+        key = _ascii_lower(heading.strip())
+        for k, v in _SECTION_META.items():
+            if k in key:
+                return v
+        return ("generic", heading)
+
+    # ── Metni bölümlere ayır ──────────────────────────────────────────
+    lines = ai_text.replace("\r\n", "\n").split("\n")
+    sections: List[tuple] = []  # (heading_or_None, [lines])
+    current_h = None
+    current_lines: List[str] = []
+
+    for line in lines:
         stripped = line.strip()
-
         if stripped.startswith("## "):
-            if in_list:
-                parts.append("</ul>")
-                in_list = False
-            heading = _escape_html(stripped[3:].strip())
-            parts.append(f'<h2 class="ai-section">{heading}</h2>')
-
-        elif stripped.startswith("### "):
-            if in_list:
-                parts.append("</ul>")
-                in_list = False
-            heading = _escape_html(stripped[4:].strip())
-            parts.append(f'<h3 class="ai-subsection">{heading}</h3>')
-
-        elif stripped.startswith(("- ", "* ", "• ")):
-            if not in_list:
-                parts.append('<ul class="ai-list">')
-                in_list = True
-            item = _md_bold(_escape_html(stripped[2:].strip()))
-            parts.append(f"<li>{item}</li>")
-
-        elif stripped == "":
-            if in_list:
-                parts.append("</ul>")
-                in_list = False
-
+            sections.append((current_h, current_lines))
+            current_h = stripped[3:].strip()
+            current_lines = []
         else:
-            if in_list:
-                parts.append("</ul>")
-                in_list = False
-            paragraph = _md_bold(_escape_html(stripped))
-            parts.append(f"<p>{paragraph}</p>")
+            current_lines.append(line)
+    sections.append((current_h, current_lines))
 
-    if in_list:
-        parts.append("</ul>")
+    # ── Bölüm içeriğini HTML'e çevir ──────────────────────────────────
+    def _lines_to_html(section_lines: List[str]) -> str:
+        parts: List[str] = []
+        in_list = False
+        for raw in section_lines:
+            s = raw.strip()
+            if not s:
+                if in_list:
+                    parts.append("</ul>")
+                    in_list = False
+                continue
+            if s.startswith(("- ", "* ", "• ")):
+                if not in_list:
+                    parts.append('<ul class="ai-list">')
+                    in_list = True
+                item = _md_bold(_escape_html(s[2:].strip()))
+                parts.append(f"<li>{item}</li>")
+            else:
+                if in_list:
+                    parts.append("</ul>")
+                    in_list = False
+                # **Bold:** label satırları (profil boyutları)
+                if s.startswith("**") and ":**" in s:
+                    bold_end = s.index(":**")
+                    label = _escape_html(s[2:bold_end])
+                    rest  = _md_bold(_escape_html(s[bold_end + 3:].strip()))
+                    parts.append(
+                        f'<div class="profile-item">'
+                        f'<span class="profile-label">{label}</span>'
+                        f'<span class="profile-body">{rest}</span>'
+                        f'</div>'
+                    )
+                else:
+                    parts.append(f'<p>{_md_bold(_escape_html(s))}</p>')
+        if in_list:
+            parts.append("</ul>")
+        return "\n".join(parts)
 
-    return "\n".join(parts)
+    # ── Bölümleri birleştir ───────────────────────────────────────────
+    html_parts: List[str] = []
+
+    for heading, sec_lines in sections:
+        if heading is None:
+            # Başlık öncesi içerik — nadiren var
+            for raw in sec_lines:
+                if raw.strip():
+                    html_parts.append(f'<p>{_escape_html(raw.strip())}</p>')
+            continue
+
+        css_class, display_name = _section_meta(heading)
+        inner = _lines_to_html(sec_lines)
+
+        html_parts.append(
+            f'<div class="ai-block ai-block-{css_class}">'
+            f'<div class="ai-block-header">{_escape_html(display_name)}</div>'
+            f'<div class="ai-block-body">{inner}</div>'
+            f'</div>'
+        )
+
+    return "\n".join(html_parts)
 
 
 if __name__ == "__main__":

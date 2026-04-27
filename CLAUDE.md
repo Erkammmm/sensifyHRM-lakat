@@ -1,11 +1,11 @@
-# SensifyHR FAZ-4 — Claude Code Master Guide
+# SensifyHR FAZ-5 — Claude Code Master Guide
 
 ## Project Overview
 AI-powered video interview analysis system. Analyzes a candidate's video recording by extracting
 face/emotion signals, gaze tracking, speech features, and transcribed text — aligns them into
 time-based segment packages — and feeds them to an LLM to generate an HR evaluation report.
 
-**FAZ-4 is complete.** All modules have been migrated and are working.
+**FAZ-5 aktif.** Rapor sadeleştirme, prompt mühendisliği, gaze delta analizi ve metin tabanlı davranışsal analiz geliştirmeleri yapılıyor.
 
 ---
 
@@ -26,7 +26,7 @@ SensifyHR-FAZ3/
 │   │   ├── ollama_ai.py              # DO NOT TOUCH
 │   │   ├── gemini.py                 # DO NOT TOUCH
 │   │   └── prompt_phase3.txt         # 5 sinyal kaynağı, 7 çıktı bölümü
-│   ├── reporting/                    # DO NOT TOUCH (entire folder)
+│   ├── reporting/                    # FAZ-5: rapor yeniden yapılandırılıyor
 │   └── pipeline.py                   # Ana orchestrator
 ├── api/main.py                       # DO NOT TOUCH
 ├── test_example.py                   # DO NOT TOUCH
@@ -116,9 +116,15 @@ Swagger: http://localhost:8000/docs
 - `src/audio/thought_unit_merger.py`
 - `src/nlp/ollama_ai.py`
 - `src/nlp/gemini.py`
-- `src/reporting/` (entire folder)
 - `api/main.py`
 - `test_example.py`
+
+## FAZ-5 Değiştirilecek Dosyalar
+- `src/reporting/report_generator.py` — hero kart kaldırıldı, yeni bölümler eklendi
+- `src/reporting/templates/report_v3.html` — 7 bölümlü IK odaklı yeni template
+- `src/nlp/prompt_phase3.txt` — XML tabanlı yeni prompt, 5 bölüm çıktı
+- `src/nlp/contextual_aggregator.py` — Gemini'ye giden veri filtrelendi, mülakatçı ayrımı kaldırıldı
+- `src/vision/face_analyzer.py` — delta tabanlı gaze analizi, telefon videosu desteği
 
 ---
 
@@ -129,3 +135,12 @@ Swagger: http://localhost:8000/docs
 4. Zero mediapipe imports in any active file
 5. Zero SER model imports in audio_signal_fusion.py
 6. Voice profile distribution (Canlı/Kararlı/Dengeli/Sakin/Gergin) in dashboard
+
+## Success Criteria (FAZ-5 — aktif)
+1. HTML raporda f0, pitch, tension_score, rms, hubert terimleri yok
+2. Hero kart (puan kartı) görünmüyor
+3. Gemini çıktısı `<rapor>` XML yapısında geliyor ve parse ediliyor
+4. Rapor şu 7 bölümden oluşuyor: Header → Genel İzlenim → Güçlü/Gelişim → Duygusal Seyir → İçerik Analizi → Davranışsal Uyarılar → IK Soruları
+5. Metin tabanlı davranışsal analiz bölümü: özgüven, tecrübe tutarlılığı, motivasyon, iletişim tarzı
+6. Gaze delta analizi: baseline + sapma bazlı, telefon videosu desteği
+7. Mülakatçı/aday ayırma kural mantığı tamamen kaldırıldı

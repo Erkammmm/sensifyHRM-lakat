@@ -559,6 +559,59 @@ def build_smart_blocks(
     return blocks
 
 
+# ---------------------------------------------------------------------------
+# LLM için temizlenmiş paket formatı
+# ---------------------------------------------------------------------------
+
+_EMOTION_TR_LLM = {
+    "Happy":    "Mutlu/Pozitif",
+    "Surprise": "Şaşkın",
+    "Neutral":  "Nötr",
+    "Sad":      "Düşünceli/Üzgün",
+    "Fear":     "Endişeli",
+    "Angry":    "Gergin",
+    "Disgust":  "Rahatsız",
+}
+
+_EMOTION_TR_DISPLAY = {
+    "Happy":    "Pozitif",
+    "Surprise": "Şaşkın",
+    "Neutral":  "Nötr",
+    "Sad":      "Düşünceli",
+    "Fear":     "Endişeli",
+    "Angry":    "Gergin",
+    "Disgust":  "Rahatsız",
+}
+
+
+def clean_packages_for_llm(
+    packages: List[Dict],
+    text_segments: List[Dict],
+) -> List[Dict]:
+    """
+    LLM'e gidecek minimal, IK-dostu paket formatı oluşturur.
+
+    - Teknik alanlar kaldırılır: f0, rms, hubert, tension_score, voice_stress,
+      incongruence, avg_gaze_pitch, avg_gaze_yaw, speech_confidence (raw sayı)
+    - speaker alanı kaldırılmıştır — mülakatçı/aday ayrımı yapılmıyor
+    - Duygu labelları Türkçeye çevrilir
+    """
+    clean: List[Dict] = []
+    for pkg in packages:
+        emotion = pkg.get("dominant_emotion", "Neutral")
+        clean.append({
+            "timestamp":          pkg.get("timestamp", ""),
+            "text":               pkg.get("text", ""),
+            "dominant_emotion":   _EMOTION_TR_LLM.get(emotion, emotion),
+            "emotion_confidence": pkg.get("emotion_confidence", 0.0),
+            "gaze_away":          bool(pkg.get("gaze_away", False)),
+            "gaze_direction":     pkg.get("gaze_direction", "center"),
+            "is_critical_moment": bool(pkg.get("is_critical_moment", False)),
+            "speech_style":       pkg.get("speech_style", ""),
+        })
+    return clean
+
+
 # backward-compat alias
 def build_time_blocks(
     text_segments: List[Dict],

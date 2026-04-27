@@ -17,11 +17,11 @@ from collections import Counter
 
 from .audio.text_analyzer import TextAnalyzer
 from .audio.audio_analyzer import AudioAnalyzer
-from .vision.face_analyzer import FaceAnalyzer
+from .vision.face_analyzer import FaceAnalyzer, compute_gaze_delta_analysis
 from .audio.voice_analyzer import VoiceAnalyzer
 from .vision.video_processor import VideoProcessor
 from .audio.audio_signal_fusion import AudioSignalFusion
-from .nlp.contextual_aggregator import build_segment_signal_packages, build_smart_blocks
+from .nlp.contextual_aggregator import build_segment_signal_packages, build_smart_blocks, clean_packages_for_llm
 from .audio.thought_unit_merger import merge_into_thought_units
 def analyze_consistency(text_sentiment, face_emotion) -> str:
     """
@@ -261,8 +261,18 @@ class InterviewAnalysisPipeline:
             print("[Adım 5/5] Tutarsızlık analizi yapılıyor...")
             anomalies = find_anomalies(text_data, face_timeline)
 
+        # FAZ-5: Delta tabanlı göz analizi (baseline sapma olayları)
+        gaze_analysis: Dict = {}
+        if phase3_enabled and face_timeline:
+            print("[FAZ-5] Gaze delta analizi yapılıyor...")
+            _t0 = time.time()
+            gaze_analysis = compute_gaze_delta_analysis(face_timeline, video_info)
+            print(f"[TIMING] GazeDeltaAnalysis: {time.time() - _t0:.1f}s — "
+                  f"{len(gaze_analysis.get('gaze_away_events', []))} olay tespit edildi")
+
         # FAZ-4 Contextual Aggregator: Segment Signal Packages (LLM input)
         segment_signal_packages = []
+        _segment_packages_full = []
         if phase3_enabled:
             print("[FAZ-4] Contextual Aggregator: segment paketleri oluşturuluyor...")
             _t0 = time.time()
@@ -277,6 +287,12 @@ class InterviewAnalysisPipeline:
                 ),
             )
             print(f"[TIMING] ContextualAggregator.build: {time.time() - _t0:.1f}s")
+
+            # FAZ-5: LLM için teknik alanları soyulmuş temiz kopya; HTML için tam kopya saklanır
+            _segment_packages_full = segment_signal_packages
+            segment_signal_packages = clean_packages_for_llm(
+                _segment_packages_full, text_data
+            )
 
         # Zaman bloğu paragrafları (konuşma yapısı)
         time_blocks = []
@@ -302,6 +318,12 @@ class InterviewAnalysisPipeline:
                 os.remove(audio_path)
             except Exception:
                 pass
+
+        # FAZ-5: speaker alanını ham veriden kaldır (API response ve JSON temiz olsun)
+        for _seg in text_data:
+            if isinstance(_seg, dict): _seg.pop("speaker", None)
+        for _tu in thought_units:
+            if isinstance(_tu, dict): _tu.pop("speaker", None)
 
         duration = time.time() - start_time
 
@@ -341,10 +363,14 @@ class InterviewAnalysisPipeline:
             "voice_analysis": voice_analysis,
             # Tutarsızlık
             "anomalies": anomalies,
-            # FAZ-3 Segment Signal Package (LLM'ye giden tek veri)
+            # FAZ-3 Segment Signal Package (LLM'ye giden temiz veri)
             "segment_signal_packages": segment_signal_packages if phase3_enabled else [],
+            # FAZ-5: HTML rapor için tam teknik paketler (LLM'ye gitmiyor)
+            "segment_signal_packages_full": (_segment_packages_full if phase3_enabled else []),
             # Zaman bloğu paragrafları
             "time_blocks": time_blocks if phase3_enabled else [],
+            # FAZ-5: Delta tabanlı göz analizi (baseline sapma olayları)
+            "gaze_analysis": gaze_analysis,
         }
 
         print(f"\n{'='*60}")
