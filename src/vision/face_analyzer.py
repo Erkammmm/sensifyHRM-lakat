@@ -14,6 +14,15 @@ from typing import Dict, List, Tuple
 import cv2
 import numpy as np
 
+# Amaç:
+# Ortak logging altyapısını kullanmak.
+try:
+    from ..logging_config import get_logger
+except ImportError:
+    from src.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 from uniface.attribute import Emotion
 from uniface.constants import DDAMFNWeights, GazeWeights, RetinaFaceWeights
 from uniface.detection import RetinaFace
@@ -40,11 +49,11 @@ class FaceAnalyzer:
     """
 
     def __init__(self):
-        print(f"[{self.__class__.__name__}] Başlatılıyor... UniFace modelleri yükleniyor...")
+        logger.debug("[%s] Başlatılıyor... UniFace modelleri yükleniyor...", self.__class__.__name__)
         self.detector = RetinaFace(model_name=RetinaFaceWeights.MNET_025)
         self.gaze_estimator = MobileGaze(model_name=GazeWeights.RESNET18)
         self.emotion_predictor = Emotion(model_name=DDAMFNWeights.AFFECNET7)
-        print(f"[{self.__class__.__name__}] Hazır!")
+        logger.debug("[%s] Hazır!", self.__class__.__name__)
 
     def process_video(
         self,
@@ -68,12 +77,12 @@ class FaceAnalyzer:
                         focus_score, dominant_emotion, data_count}
         """
         if not os.path.exists(video_path):
-            print(f"[{self.__class__.__name__}] Video bulunamadı: {video_path}")
+            logger.error("[%s] Video bulunamadı: %s", self.__class__.__name__, video_path)
             return [], {}
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            print(f"[{self.__class__.__name__}] Video açılamadı: {video_path}")
+            logger.error("[%s] Video açılamadı: %s", self.__class__.__name__, video_path)
             return [], {}
 
         fps = cap.get(cv2.CAP_PROP_FPS)
@@ -83,10 +92,12 @@ class FaceAnalyzer:
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
-        print(
-            f"[{self.__class__.__name__}] Video Analizi Başladı "
-            f"(Kaynak FPS: {fps:.0f} -> Her {PROCESS_EVERY_N}. kare isleniyor, "
-            f"~{fps / PROCESS_EVERY_N:.1f} kare/sn efektif)..."
+        logger.debug(
+            "[%s] Video Analizi Başladı (Kaynak FPS: %.0f -> Her %s. kare işleniyor, ~%.1f kare/sn efektif)...",
+            self.__class__.__name__,
+            fps,
+            PROCESS_EVERY_N,
+            fps / PROCESS_EVERY_N,
         )
 
         timeline: List[Dict] = []
@@ -203,9 +214,11 @@ class FaceAnalyzer:
             "data_count": len(timeline),
         }
 
-        print(
-            f"[{self.__class__.__name__}] Yüz analizi tamamlandı: "
-            f"{len(timeline)} kayıt ({len(detected)} karede yüz tespit edildi)."
+        logger.debug(
+            "[%s] Yüz analizi tamamlandı: %s kayıt (%s karede yüz tespit edildi).",
+            self.__class__.__name__,
+            len(timeline),
+            len(detected),
         )
         return timeline, summary
 
@@ -383,4 +396,4 @@ def compute_gaze_delta_analysis(
 
 if __name__ == "__main__":
     analyzer = FaceAnalyzer()
-    print("FaceAnalyzer modülü hazır.")
+    logger.info("FaceAnalyzer modülü hazır.")

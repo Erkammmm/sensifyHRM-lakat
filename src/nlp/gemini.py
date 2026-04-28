@@ -9,6 +9,15 @@ import sys
 import warnings
 from typing import Optional
 
+# Amaç:
+# Ortak logging altyapısını kullanmak.
+try:
+    from ..logging_config import get_logger
+except ImportError:
+    from src.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 # ─── Prompt yükleyici ──────────────────────────────────────────────────────
 
@@ -129,7 +138,7 @@ def _try_gemini_model(model_name: str, full_prompt: str, api_key: str,
             err_str = str(exc)
             # 503 geçici → retry; 404 / 400 → kalıcı hata, tekrar deneme
             if "503" in err_str and attempt < retries:
-                print(f"[LLM] {model_name} 503 geçici yoğunluk, {retry_delay}s sonra tekrar ({attempt}/{retries})...")
+                logger.info("[LLM] %s 503 geçici yoğunluk, %ss sonra tekrar (%s/%s)...", model_name, retry_delay, attempt, retries)
                 time.sleep(retry_delay)
                 continue
             raise
@@ -177,13 +186,13 @@ def generate_gemini_text(summary_text: str, phase: str = "v2") -> str:
     last_error: Optional[Exception] = None
     for model_name in candidates:
         try:
-            print(f"[LLM] Gemini deneniyor: {model_name}...")
+            logger.info("[LLM] Gemini deneniyor: %s...", model_name)
             text = _try_gemini_model(model_name, full_prompt, api_key)
-            print(f"[LLM] Gemini başarılı: {model_name} ({len(text)} karakter)")
+            logger.info("[LLM] Gemini başarılı: %s (%s karakter)", model_name, len(text))
             return text
         except Exception as exc:
             last_error = exc
-            print(f"[LLM] Gemini başarısız ({model_name}): {exc}")
+            logger.error("[LLM] Gemini başarısız (%s): %s", model_name, exc)
             continue
 
     raise RuntimeError(f"Tüm Gemini modelleri başarısız: {last_error}")
@@ -206,19 +215,22 @@ def generate_analysis(report: dict) -> str:
 
 def _run_cli() -> int:
     if len(sys.argv) < 2:
-        print("Kullanım: python src/nlp/gemini.py <report_json_path>", file=sys.stderr)
+        logger.error("Kullanım: python src/nlp/gemini.py <report_json_path>")
         return 2
     report_path = sys.argv[1]
     if not os.path.exists(report_path):
-        print("report_path bulunamadı", file=sys.stderr)
+        logger.error("report_path bulunamadı")
         return 2
     with open(report_path, "r", encoding="utf-8") as f:
         report = json.load(f)
     try:
-        print(generate_analysis(report))
+        logger.info("Analiz oluşturuluyor...")
+        result = generate_analysis(report)
+        logger.info("Analiz tamamlandı.")
+        print(result)
         return 0
     except Exception as exc:
-        print(str(exc), file=sys.stderr)
+        logger.error("Analiz sırasında hata oluştu: %s", exc)
         return 1
 
 

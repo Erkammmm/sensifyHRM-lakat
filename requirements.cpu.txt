@@ -50,3 +50,10 @@ tqdm==4.67.3
 requests==2.32.5
 pydantic==2.12.5
 ffmpeg-python==0.2.0
+
+
+# 21.04.2026
+# GPU olmayan sunucularda VAD ve speaker diarization performansını artırmak için eklenen kütüphaneler
+silero-vad==6.2.1
+speechbrain==1.1.0
+scikit-learn==1.8.0

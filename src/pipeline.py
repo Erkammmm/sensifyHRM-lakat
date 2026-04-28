@@ -9,20 +9,27 @@ Tüm analiz adımlarını koordine eder:
 """
 
 import os
+import sys
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, Optional
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Optional
 
-from .audio.text_analyzer import TextAnalyzer
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
+
 from .audio.audio_analyzer import AudioAnalyzer
 from .vision.face_analyzer import FaceAnalyzer, compute_gaze_delta_analysis
 from .audio.voice_analyzer import VoiceAnalyzer
 from .vision.video_processor import VideoProcessor
 from .audio.audio_signal_fusion import AudioSignalFusion
-from .nlp.contextual_aggregator import build_segment_signal_packages, build_smart_blocks, clean_packages_for_llm
+from .nlp.contextual_aggregator import build_segment_signal_packages, build_smart_blocks
 from .audio.thought_unit_merger import merge_into_thought_units
+from .audio.text_analyzer import TextAnalyzer
+from .audio.speaker_diarizer import SpeakerDiarizer, assign_speakers_to_segments
+from .audio.role_mapper import RoleMapper, refine_question_ownership
 def analyze_consistency(text_sentiment, face_emotion) -> str:
     """
     Metin duygusunu yüz ifadesiyle karşılaştırarak tutarsızlık tespit eder.
@@ -91,6 +98,97 @@ def find_anomalies(text_data, face_timeline) -> list:
 
     return anomalies
 
+# Amaç:
+# Pipeline baştan sona tek satırda yüzde bazlı ilerleme göstermek.
+class _PipelineProgressBar:
+    def __init__(self, label: str = "[Pipeline] İlerleme"):
+        self.label = label
+        self.last_percent = -1
+        self.last_stage = ""
+
+    def update(self, percent: float, stage: str = "") -> None:
+        percent = int(max(0, min(100, float(percent))))
+        stage = stage or ""
+
+        if percent == self.last_percent and stage == self.last_stage:
+            return
+
+        self.last_percent = percent
+        self.last_stage = stage
+
+        bar_width = 30
+        filled = int(bar_width * percent / 100)
+        bar = "#" * filled + "-" * (bar_width - filled)
+
+        sys.stdout.write(f"\r{self.label}: [{bar}] {percent:3d}% | {stage:<32}")
+        sys.stdout.flush()
+
+    def finish(self, stage: str = "Tamamlandı") -> None:
+        self.update(100, stage)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+
+# Amaç:
+# Mapping confidence değerini okunabilir seviyeye çevirmek.
+def interpret_mapping_confidence(score: float) -> str:
+    if score is None:
+        return "unknown"
+    if score >= 6.0:
+        return "high"
+    if score >= 3.0:
+        return "medium"
+    return "low"
+
+
+# Amaç:
+# Diarization cluster quality score'unu okunabilir seviyeye çevirmek.
+# Silhouette score tipik olarak -1 ile 1 arasındadır; burada pratik yorum katmanı ekliyoruz.
+def interpret_cluster_quality(score) -> str:
+    if score is None:
+        return "unknown"
+    if score >= 0.50:
+        return "high"
+    if score >= 0.25:
+        return "medium"
+    return "low"
+
+
+# Amaç:
+# Speaker bazlı özet üretmek.
+# Frontend/debug için role_scores'tan daha okunabilir ve doğrudan gösterilebilir yapı sağlar.
+def build_speaker_summary(role_map: Dict, role_scores: Dict) -> Dict:
+    summary = {}
+
+    total_duration_all = sum(
+        float(stats.get("total_duration", 0.0)) for stats in (role_scores or {}).values()
+    ) or 1.0
+
+    for speaker_id, stats in (role_scores or {}).items():
+        total_duration = float(stats.get("total_duration", 0.0))
+        question_count = int(stats.get("question_count", 0))
+        segment_count = int(stats.get("segment_count", 0))
+        question_ratio = float(stats.get("question_ratio", 0.0))
+        first_start = float(stats.get("first_start", 0.0))
+        candidate_advantage = float(stats.get("candidate_advantage", 0.0))
+
+        talk_ratio = total_duration / total_duration_all
+        role_confidence = abs(candidate_advantage)
+
+        summary[speaker_id] = {
+            "role": role_map.get(speaker_id, "Bilinmiyor"),
+            "segment_count": segment_count,
+            "total_duration": round(total_duration, 3),
+            "talk_ratio": round(talk_ratio, 3),
+            "question_count": question_count,
+            "question_ratio": round(question_ratio, 3),
+            "question_density": round(question_count / max(total_duration, 1e-6), 3),
+            "first_start": round(first_start, 3),
+            "candidate_advantage": round(candidate_advantage, 3),
+            "role_confidence": round(role_confidence, 3),
+        }
+
+    return summary
 
 class InterviewAnalysisPipeline:
     """
@@ -99,28 +197,46 @@ class InterviewAnalysisPipeline:
     """
 
     def __init__(self, phase3_enabled: bool = True):
-        print("=" * 60)
-        print("[Pipeline] SensifyHR Mülakat Analiz Sistemi Başlatılıyor...")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("[Pipeline] SensifyHR Mülakat Analiz Sistemi Başlatılıyor...")
+        logger.info("=" * 60)
 
-        # CPU thread optimizasyonu — OMP_NUM_THREADS env varına uy
+        # Amaç:Pipeline içindeki PyTorch thread kullanımını sunucuya göre sabitlemek.
+        # Burada varsayılanı 8 yapıyoruz.
         import torch as _torch
-        _n_threads = int(os.getenv("OMP_NUM_THREADS", str(os.cpu_count() or 4)))
+
+        _n_threads = int(os.getenv("SENSIFYHR_CPU_THREADS", "8"))
+
+        # Ana CPU kütüphaneleri ile aynı thread sayısını kullan
+        os.environ["OMP_NUM_THREADS"] = str(_n_threads)
+        os.environ["MKL_NUM_THREADS"] = str(_n_threads)
+        os.environ["OPENBLAS_NUM_THREADS"] = str(_n_threads)
+        os.environ["NUMEXPR_NUM_THREADS"] = str(_n_threads)
+
         _torch.set_num_threads(_n_threads)
-        print(f"[Pipeline] CPU thread sayısı: {_n_threads}")
+
+        # Inter-op thread sayısını düşük tutarak oversubscription riskini azaltıyoruz.
+        try:
+            _torch.set_num_interop_threads(1)
+        except RuntimeError:
+            pass
+
+        logger.info("[Pipeline] CPU thread sayısı sabitlendi: %s", _n_threads)
 
         # v3 default (ürün modu)
         self.phase3_enabled = bool(phase3_enabled)
 
         self.video_processor = VideoProcessor()
-        self.text_analyzer = TextAnalyzer()
-        self.audio_analyzer = AudioAnalyzer()
+        self.text_analyzer = TextAnalyzer() #> v2 için
+        self.speaker_diarizer = SpeakerDiarizer() #> v2 için
+        self.role_mapper = RoleMapper() #> v2 için
+        self.audio_analyzer = AudioAnalyzer() #> v2 için
         self.face_analyzer = FaceAnalyzer()
         self.voice_analyzer = VoiceAnalyzer()
         # FAZ-3 audio signal (lazy init değil; model init süresi yüksek olabilir)
         self._audio_signal_fusion: Optional[AudioSignalFusion] = None
 
-        print("[Pipeline] Tüm modüller hazır!\n")
+        logger.info("[Pipeline] Tüm modüller hazır!\n")
 
     def _get_audio_signal_fusion(self) -> AudioSignalFusion:
         if self._audio_signal_fusion is None:
@@ -162,30 +278,94 @@ class InterviewAnalysisPipeline:
             phase3_enabled = self.phase3_enabled
 
         start_time = time.time()
-        print(f"\n{'='*60}")
-        print(f"[Pipeline] Analiz Başlıyor: {interview_id}")
-        print(f"[Pipeline] Video: {video_path}")
-        print(f"[Pipeline] Phase3 Enabled: {bool(phase3_enabled)}")
-        print(f"{'='*60}\n")
+        logger.info("\n%s", "=" * 60)
+        logger.info("[Pipeline] Analiz Başlıyor: %s", interview_id)
+        logger.info("[Pipeline] Video: %s", video_path)
+        logger.info("[Pipeline] Phase3 Enabled: %s", bool(phase3_enabled))
+        logger.info("%s\n", "=" * 60)
+
+        progress = _PipelineProgressBar()
+        progress.update(1, "Başlatılıyor")
 
         # 0) Video bilgileri
-        print("[Adım 0/5] Video bilgileri alınıyor...")
         _t0 = time.time()
         video_info = self.video_processor.get_video_info(video_path)
-        print(f"[TIMING] VideoProcessor.get_video_info: {time.time() - _t0:.1f}s")
+        progress.update(5, "Video bilgileri alındı")
+        logger.debug("[TIMING] VideoProcessor.get_video_info: %.1fs", time.time() - _t0)
 
         # 1) Ses çıkarma (sequential — audio_path diğer adımlar için gerekli)
-        print("[Adım 1/5] Ses çıkarılıyor...")
         _t0 = time.time()
         audio_path = self.video_processor.extract_audio(video_path)
-        print(f"[TIMING] VideoProcessor.extract_audio: {time.time() - _t0:.1f}s")
+        progress.update(10, "Ses çıkarıldı")
+        logger.debug("[TIMING] VideoProcessor.extract_audio: %.1fs", time.time() - _t0)
+
+
+
+        def _pipeline_stt_progress(local_ratio: float) -> None:
+            # STT aşamasını toplam pipeline'ın %10 - %55 aralığına yay
+            progress.update(10 + (float(local_ratio) * 45), "STT / Transkripsiyon")
 
         # 2) Metin analizi — sequential (Whisper tam GPU gerektirir)
-        print("[Adım 2/5] Metin analizi yapılıyor (STT)...")
         _t0 = time.time()
-        text_data = self.text_analyzer.process_video(audio_path, phase3_enabled=bool(phase3_enabled))
+        text_data = self.text_analyzer.process_video(audio_path,phase3_enabled=bool(phase3_enabled),progress_callback=_pipeline_stt_progress,)
+        progress.update(60, "STT / Speaker / Role tamam")
+        #> v2 için: Speaker Diarization + Role Mapping (sequential; GPU olmayan sunucular için optimize edildi)
+        if phase3_enabled:
+            diarized_windows = self.speaker_diarizer.diarize(audio_path)
+            diarization_diagnostics = getattr(self.speaker_diarizer, "last_diarization_diagnostics", {})
+
+            diarization_diagnostics = {
+                **diarization_diagnostics,
+                "quality_rating": interpret_cluster_quality(
+                    diarization_diagnostics.get("cluster_quality_score")
+                ),
+            }
+
+            text_data = assign_speakers_to_segments(text_data, diarized_windows)
+
+            # İlk role mapping
+            text_data, role_map, role_scores, role_diagnostics = self.role_mapper.assign_roles(text_data)
+
+            # Interaction-driven ownership düzeltmesi
+            text_data = refine_question_ownership(text_data, role_map)
+
+            # Düzeltme sonrası tekrar role mapping
+            text_data, role_map, role_scores, role_diagnostics = self.role_mapper.assign_roles(text_data)
+
+            role_diagnostics = {
+                **role_diagnostics,
+                "rating": interpret_mapping_confidence(
+                    float(role_diagnostics.get("mapping_confidence", 0.0) or 0.0)
+                ),
+            }
+
+            speaker_summary = build_speaker_summary(role_map, role_scores)
+
+        else:
+            diarized_windows = []
+            role_map = {}
+            role_scores = {}
+            role_diagnostics = {
+                "mapping_confidence": 0.0,
+                "rating": "unknown",
+                "candidate_id": None,
+                "interviewer_count": 0,
+                "reason": "phase3 disabled",
+            }
+            diarization_diagnostics = {
+                "selected_cluster_k": 0,
+                "cluster_quality_score": None,
+                "quality_rating": "unknown",
+                "k_search_scores": {},
+                "vad_region_count": 0,
+                "embedding_window_count": 0,
+                "speaker_window_distribution": {},
+            }
+            speaker_summary = {}
+
         text_summary = self.text_analyzer.get_summary(text_data)
-        print(f"[TIMING] TextAnalyzer.process_video: {time.time() - _t0:.1f}s")
+        progress.update(60, "STT / Speaker / Role tamam")
+        logger.debug("[TIMING] TextAnalyzer.process_video: %.1fs", time.time() - _t0)
 
         thought_units = []
         if phase3_enabled:
@@ -200,13 +380,12 @@ class InterviewAnalysisPipeline:
         face_timeline, face_summary = [], {}
 
         if phase3_enabled:
-            print("[Adım 3-4/5] Paralel analiz basliyor: VoiceAnalyzer + AudioSignalFusion + FaceAnalyzer...")
             _t_parallel = time.time()
 
             def _run_voice():
                 _t = time.time()
                 result = self.voice_analyzer.analyze_audio(audio_path)
-                print(f"[TIMING] VoiceAnalyzer.analyze_audio: {time.time() - _t:.1f}s")
+                logger.debug("[TIMING] VoiceAnalyzer.analyze_audio: %.1fs", time.time() - _t)
                 return result
 
             def _run_audio_signal():
@@ -214,7 +393,7 @@ class InterviewAnalysisPipeline:
                 fusion = self._get_audio_signal_fusion()
                 data = fusion.process_audio(audio_path)
                 summary = fusion.get_summary(data)
-                print(f"[TIMING] AudioSignalFusion.process_audio: {time.time() - _t:.1f}s")
+                logger.debug("[TIMING] AudioSignalFusion.process_audio: %.1fs", time.time() - _t)
                 return data, summary
 
             def _run_face():
@@ -222,8 +401,10 @@ class InterviewAnalysisPipeline:
                 timeline, summary = self.face_analyzer.process_video(
                     video_path, phase3_enabled=True
                 )
-                print(f"[TIMING] FaceAnalyzer.process_video: {time.time() - _t:.1f}s")
+                logger.debug("[TIMING] FaceAnalyzer.process_video: %.1fs", time.time() - _t)
                 return timeline, summary
+
+            progress.update(65, "Ses / Yüz analizleri çalışıyor")
 
             with ThreadPoolExecutor(max_workers=3) as executor:
                 fut_voice  = executor.submit(_run_voice)
@@ -234,47 +415,41 @@ class InterviewAnalysisPipeline:
                 audio_signal_data, audio_signal_summary = fut_audio.result()
                 face_timeline, face_summary = fut_face.result()
 
-            print(f"[TIMING] Paralel blok toplam: {time.time() - _t_parallel:.1f}s")
+            logger.debug("[TIMING] Paralel blok toplam: %.1fs", time.time() - _t_parallel)
+            progress.update(90, "Ses / Yüz analizleri tamam")
         else:
-            print("[Adım 3/5] Ses duygu analizi yapılıyor (HuBERT SER)...")
             _t0 = time.time()
             audio_emotion_data = self.audio_analyzer.process_video(video_path)
             audio_emotion_summary = self.audio_analyzer.get_summary(audio_emotion_data)
-            print(f"[TIMING] AudioAnalyzer.process_video: {time.time() - _t0:.1f}s")
+            logger.debug("[TIMING] AudioAnalyzer.process_video: %.1fs", time.time() - _t0)
 
-            print("[Adım 4/5] Yüz analizi yapılıyor (UniFace)...")
             _t0 = time.time()
             face_timeline, face_summary = self.face_analyzer.process_video(
                 video_path, phase3_enabled=False
             )
-            print(f"[TIMING] FaceAnalyzer.process_video: {time.time() - _t0:.1f}s")
+            logger.debug("[TIMING] FaceAnalyzer.process_video: %.1fs", time.time() - _t0)
 
             _t0 = time.time()
             voice_analysis = self.voice_analyzer.analyze_audio(audio_path)
-            print(f"[TIMING] VoiceAnalyzer.analyze_audio: {time.time() - _t0:.1f}s")
+            logger.debug("[TIMING] VoiceAnalyzer.analyze_audio: %.1fs", time.time() - _t0)
 
         # 5) Tutarsızlık analizi
         anomalies = []
-        if phase3_enabled:
-            print("[Adım 5/5] Tutarsızlık analizi (FAZ-3) kapalı: sentiment/emotion label kullanılmıyor.")
-        else:
-            print("[Adım 5/5] Tutarsızlık analizi yapılıyor...")
+        if not phase3_enabled:
             anomalies = find_anomalies(text_data, face_timeline)
 
         # FAZ-5: Delta tabanlı göz analizi (baseline sapma olayları)
         gaze_analysis: Dict = {}
         if phase3_enabled and face_timeline:
-            print("[FAZ-5] Gaze delta analizi yapılıyor...")
             _t0 = time.time()
             gaze_analysis = compute_gaze_delta_analysis(face_timeline, video_info)
-            print(f"[TIMING] GazeDeltaAnalysis: {time.time() - _t0:.1f}s — "
-                  f"{len(gaze_analysis.get('gaze_away_events', []))} olay tespit edildi")
+            logger.debug(f"[TIMING] GazeDeltaAnalysis: {time.time() - _t0:.1f}s — "
+                         f"{len(gaze_analysis.get('gaze_away_events', []))} olay tespit edildi")
 
         # FAZ-4 Contextual Aggregator: Segment Signal Packages (LLM input)
         segment_signal_packages = []
         _segment_packages_full = []
         if phase3_enabled:
-            print("[FAZ-4] Contextual Aggregator: segment paketleri oluşturuluyor...")
             _t0 = time.time()
             segment_signal_packages = build_segment_signal_packages(
                 text_segments=thought_units or text_data,
@@ -286,13 +461,7 @@ class InterviewAnalysisPipeline:
                     else (voice_analysis if isinstance(voice_analysis, list) else [])
                 ),
             )
-            print(f"[TIMING] ContextualAggregator.build: {time.time() - _t0:.1f}s")
-
-            # FAZ-5: LLM için teknik alanları soyulmuş temiz kopya; HTML için tam kopya saklanır
-            _segment_packages_full = segment_signal_packages
-            segment_signal_packages = clean_packages_for_llm(
-                _segment_packages_full, text_data
-            )
+            logger.debug(f"[TIMING] ContextualAggregator.build: {time.time() - _t0:.1f}s")
 
         # Zaman bloğu paragrafları (konuşma yapısı)
         time_blocks = []
@@ -310,7 +479,7 @@ class InterviewAnalysisPipeline:
                 voice_timeline=_voice_tl,
                 duration=_video_duration,
             )
-            print(f"[Pipeline] Akıllı bloklar: {len(time_blocks)} blok")
+            logger.debug("[Pipeline] Akıllı bloklar: %s blok", len(time_blocks))
 
         # Geçici ses dosyasını temizle
         if os.path.exists(audio_path):
@@ -327,17 +496,50 @@ class InterviewAnalysisPipeline:
 
         duration = time.time() - start_time
 
+        # Amaç:
+        # Input flag yanlış/kapalı gelse bile, phase3 çıktısı gerçekten oluşmuşsa
+        # raporda bunu aktif kabul etmek.
+        phase3_report_enabled = bool(
+            phase3_enabled
+            or diarized_windows
+            or role_map
+            or role_scores
+            or speaker_summary
+            or any(seg.get("speaker_id") for seg in (text_data or []))
+        )
+
+        progress.update(99, "Rapor oluşturuluyor")
         # Birleşik rapor
         report = {
             "interview_id": interview_id,
             "phase": "v3" if phase3_enabled else "v2",
             "duration_seconds": round(duration, 2),
             "video_info": video_info,
-            # Metin Analizi
+            # Metin Analizi, konuşmacı pencereleri ve rol atamaları dahil
             "text_analysis": {
                 "segments": text_data,
-                "thought_units": thought_units if phase3_enabled else [],
-                "summary": text_summary,
+                "thought_units": thought_units if phase3_report_enabled else [],
+                "speaker_windows": diarized_windows if phase3_report_enabled else [],
+                "speaker_count": len(role_map) if phase3_report_enabled else 0,
+                "speaker_summary": speaker_summary if phase3_report_enabled else {},
+                "diarization_diagnostics": diarization_diagnostics if phase3_report_enabled else {
+                    "selected_cluster_k": 0,
+                    "cluster_quality_score": None,
+                    "quality_rating": "unknown",
+                    "k_search_scores": {},
+                    "vad_region_count": 0,
+                    "embedding_window_count": 0,
+                    "speaker_window_distribution": {},
+                },
+                "role_map": role_map if phase3_report_enabled else {},
+                "role_scores": role_scores if phase3_report_enabled else {},
+                "role_diagnostics": role_diagnostics if phase3_report_enabled else {
+                    "mapping_confidence": 0.0,
+                    "rating": "unknown",
+                    "candidate_id": None,
+                    "interviewer_count": 0,
+                    "reason": "phase3 disabled",
+                },
             },
             # Ses Duygu Analizi
             "audio_emotion_analysis": {
@@ -373,20 +575,22 @@ class InterviewAnalysisPipeline:
             "gaze_analysis": gaze_analysis,
         }
 
-        print(f"\n{'='*60}")
-        print(f"[Pipeline] Analiz Tamamlandı! Süre: {duration:.1f} saniye")
-        print(f"  - Metin: {text_summary.get('total_sentences', 0)} cümle")
+        progress.finish("Tamamlandı")
+
+        logger.info("\n%s", "=" * 60)
+        logger.info("[Pipeline] Analiz Tamamlandı! Süre: %.1f saniye", duration)
+        logger.info(" - Metin: %s cümle", text_summary.get("total_sentences", 0))
         if phase3_enabled:
-            print(f"  - Ses Sinyali: {audio_signal_summary.get('total_chunks', 0)} parça")
+            logger.info(" - Ses Sinyali: %s parça", audio_signal_summary.get("total_chunks", 0))
         else:
-            print(f"  - Ses Duygusu: {audio_emotion_summary.get('total_chunks', 0)} parça")
-        print(f"  - Yüz: {face_summary.get('data_count', 0)} kayıt")
-        print(f"  - Anomali: {len(anomalies)} tutarsızlık")
-        print(f"{'='*60}\n")
+            logger.info(" - Ses Duygusu: %s parça", audio_emotion_summary.get("total_chunks", 0))
+        logger.info(" - Yüz: %s kayıt", face_summary.get("data_count", 0))
+        logger.info(" - Anomali: %s tutarsızlık", len(anomalies))
+        logger.info("%s\n", "=" * 60)
 
         return report
 
 
 if __name__ == "__main__":
     p = InterviewAnalysisPipeline()
-    print("Pipeline hazır. Kullanım: p.process_interview('video.mp4')")
+    logger.info("Pipeline hazır. Kullanım: p.process_interview('video.mp4')")

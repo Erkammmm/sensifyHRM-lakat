@@ -14,7 +14,14 @@ Video mülakat kaydından **yüz duygusu**, **göz bakışı**, **ses profili** 
 | Göz Bakışı | UniFace MobileGaze + delta analizi | Baseline sapma olayları (zaman damgalı, yön, yorum) |
 | Ses Profili | torchaudio f0+enerji kural sistemi | Canlı/Kararlı/Dengeli/Sakin/Gergin |
 | Konuşma | faster-whisper-large-v3-turbo | Türkçe STT + zaman damgaları |
+<<<<<<< HEAD
 | LLM Yorumu | Gemini 2.5 Pro/Flash → Ollama/Gemma3:12b | 5 bölümlü IK odaklı Türkçe rapor |
+=======
+| Speaker Diarization | ECAPA embeddings + clustering | `Speaker_0`, `Speaker_1`, `Speaker_2`, ... |
+| Role Mapping | interaction-driven speaker scoring | `Aday`, `Mülakatçı1`, `Mülakatçı2`, ... |
+| Diagnostics | speaker / role / diarization diagnostics | `speaker_summary`, `role_diagnostics`, `diarization_diagnostics` |
+| LLM Yorumu | Gemini 2.5 Pro/Flash → Ollama/Gemma3:12b | Davranışsal Türkçe rapor |
+>>>>>>> remotes/origin/feature/development-new
 
 ---
 
@@ -23,11 +30,11 @@ Video mülakat kaydından **yüz duygusu**, **göz bakışı**, **ses profili** 
 ### 1. Conda Ortamı
 
 ```bash
-conda create -n gpu_env_videoai python=3.10
+conda create -n gpu_env_videoai python=3.11
 conda activate gpu_env_videoai
 ```
 
-### 2. PyTorch (CUDA 12.1)
+### 2. PyTorch
 
 ```bash
 pip install torch==2.5.1+cu121 torchaudio==2.5.1+cu121 torchvision==0.20.1+cu121 \
@@ -38,6 +45,7 @@ pip install torch==2.5.1+cu121 torchaudio==2.5.1+cu121 torchvision==0.20.1+cu121
 
 ```bash
 pip install -r requirements.txt
+pip install -r requirements.cpu.txt
 ```
 
 ### 4. Ollama (Yedek LLM)
@@ -52,6 +60,15 @@ ollama serve
 
 ```bash
 echo "GEMINI_API_KEY=your_api_key_here" > .env
+```
+
+### 6. .env yapısı
+
+```env
+SENSIFYHR_STT_DEVICE=cpu
+SENSIFYHR_SENTIMENT_DEVICE=cpu
+SENSIFYHR_FW_COMPUTE_TYPE=int8
+
 ```
 
 ---
@@ -96,6 +113,26 @@ curl http://localhost:8000/status/{interview_id}
 - `llm_provider=gemini|ollama|none` — LLM seçimi
 
 ---
+### Güncel Çalışma Notları
+
+- Proje artık yalnızca temel multimodal sinyal üretmekle kalmaz; aynı zamanda konuşmacıları ayırır ve bunları aday / mülakatçı rollerine eşler.
+- Özellikle panel mülakat senaryolarında birden fazla mülakatçı desteklenir.
+- Phase-3 akışında transkript segmentleri daha küçük parçalara bölünerek soru-cevap karışması azaltılır.
+- Soru sahipliği düzeltmesi, konuya özel anahtar kelimeler yerine konuşma akışına göre yapılır.
+- Terminal tarafında pipeline-level progress bar ile analiz ilerleyişi daha okunabilir şekilde gösterilir.
+
+### Güncel Akış
+
+1. Video bilgileri alınır  
+2. Ses çıkarılır  
+3. Konuşma metne dönüştürülür  
+4. Konuşmacılar ayrıştırılır  
+5. Konuşmacılar aday / mülakatçı rollerine eşlenir  
+6. Kısa soru segmentleri konuşma akışına göre düzeltilir  
+7. Thought unit blokları speaker-aware şekilde oluşturulur  
+8. Ses ve yüz analizleri paralel çalıştırılır  
+9. Nihai JSON / HTML rapor üretilir
+
 
 ## Çıktılar
 
@@ -104,6 +141,7 @@ Her analizde `reports/` klasörüne iki dosya yazılır:
 - `{id}.json` — ham sinyal verileri + LLM analizi (makine tarafından okunabilir)
 - `{id}.html` — İK dashboard (tarayıcıda açılır)
 
+<<<<<<< HEAD
 ### HTML Rapor Bölümleri (FAZ-5)
 
 | Bölüm | İçerik |
@@ -122,13 +160,37 @@ Her analizde `reports/` klasörüne iki dosya yazılır:
 | Gelişim Alanları | Maksimum 3 madde, yargılayıcı değil gelişime yönelik |
 | Sözel ve Davranışsal Profil | 6 boyut: özgüven, tecrübe tutarlılığı, motivasyon derinliği, soru anlama, düşünce akışı, atıf tarzı |
 | Davranışsal Uyarılar | Yalnızca yüz duygu verisiyle desteklenebilen gözlemler |
+=======
+### Güncel Çıktı Davranışı
+
+- Ham `Speaker_0`, `Speaker_1`, `Speaker_2` etiketleri artık aday / mülakatçı rolleriyle birlikte yorumlanabilir.
+- Soru ve cevap blokları önceye göre daha temiz ayrıştırılır.
+- Thought unit yapısı speaker ve role sınırlarına daha duyarlı hale getirilmiştir.
+- Rapor çıktısı, hem teknik debugging hem de ürün/demo kullanımı için daha anlamlı bir yapı sunar.
+
+### Dashboard Bölümleri
+
+| Bölüm | İçerik |
+|-------|--------|
+| KPI Kartları | Baskın duygu, kamera teması %, konuşma güveni, stres skoru |
+| Yüz Duygu Dağılımı | 7 sınıf pasta grafik (Happy/Sad/Angry/Fear/Disgust/Surprise/Neutral) |
+| Ses Profili Dağılımı | 5 profil bar grafik (Canlı/Kararlı/Dengeli/Sakin/Gergin) |
+| Kritik Anlar | Yüksek gerilim veya tutarsızlık gözlemlenen anlar |
+| Konuşma Blokları | Doğal paragraf blokları (duygu/güven/kamera badge'leri ile) |
+| Role Diagnostics | Aday / mülakatçı eşleme kalitesi, mapping confidence, aday speaker ve mülakatçı sayısı|
+| Konuşmacı Rolleri | `Speaker_0`, `Speaker_1` gibi ham speaker etiketlerinin `Aday`, `Mülakatçı1`, `Mülakatçı2` olarak yorumlanmış hali |
+| LLM Analizi | Gemini/Ollama davranışsal Türkçe rapor metni |
+| Grafikler | 5 timeline chart: duygu, valence, gaze, güven, ses enerjisi |
+>>>>>>> remotes/origin/feature/development-new
+
+
 
 ---
 
 ## Proje Yapısı
 
 ```
-SensifyHR-FAZ3/
+SensifyHR-FAZ4/
 ├── src/
 │   ├── vision/
 │   │   ├── face_analyzer.py          # UniFace + compute_gaze_delta_analysis()
@@ -137,7 +199,9 @@ SensifyHR-FAZ3/
 │   │   ├── audio_signal_fusion.py    # torchaudio ses profili (f0+rms → 5 profil)
 │   │   ├── voice_analyzer.py         # torchaudio per-second ses özellikleri
 │   │   ├── text_analyzer.py          # faster-whisper STT
-│   │   └── thought_unit_merger.py    # segment birleştirici
+│   │   ├── speaker_diarizer.py       # konuşmacı ayrımı (embedding + clustering)
+│   │   ├── role_mapper.py            # aday / mülakatçı role mapping + question ownership refinement
+│   │   └── thought_unit_merger.py    # speaker-aware thought unit birleştirici
 │   ├── nlp/
 │   │   ├── contextual_aggregator.py  # sinyal hizalama + clean_packages_for_llm()
 │   │   ├── ollama_ai.py              # Ollama entegrasyonu
@@ -146,11 +210,17 @@ SensifyHR-FAZ3/
 │   ├── reporting/
 │   │   ├── report_generator.py       # HTML + JSON rapor üretimi
 │   │   ├── plot.py                   # matplotlib grafikler
+<<<<<<< HEAD
 │   │   └── templates/report_v3.html  # Jinja2 IK dashboard (FAZ-5 tasarım)
 │   └── pipeline.py                   # Ana orchestrator
+=======
+│   │   └── templates/report_v3.html  # Jinja2 dashboard template
+│   └── pipeline.py                   # Ana orchestrator + progress bar + diagnostics raporlama
+>>>>>>> remotes/origin/feature/development-new
 ├── api/main.py                       # FastAPI endpoint'leri
 ├── test_example.py                   # CLI test scripti
 ├── requirements.txt                  # Bağımlılıklar (pin'li versiyon)
+├── requirements.cpu.txt              # CPU-first kurulum bağımlılıkları
 ├── ARCHITECTURE.md                   # Detaylı sistem mimarisi
 ├── PROJE_DOKUMANTASYONU.md           # Sunum/rapor kaynağı
 └── .env                              # GEMINI_API_KEY (git'e girmiyor)
@@ -160,13 +230,18 @@ Runtime klasörler (git'e girmiyor):
 - `reports/` — üretilen raporlar
 - `temp_uploads/` — API yüklemeleri için geçici (analiz sonrası temizlenir)
 
+Ek olarak speaker-role mapping ve diagnostics çıktıları JSON raporuna dahil edilir:
+- `speaker_summary`
+- `role_diagnostics`
+- `diarization_diagnostics`
+
 ---
 
 ## Teknik Gereksinimler
 
 | Bileşen | Versiyon |
 |---------|---------|
-| Python | 3.10 |
+| Python | 3.11 |
 | CUDA | 12.1 |
 | torch | 2.5.1+cu121 |
 | torchaudio | 2.5.1+cu121 |
@@ -174,6 +249,14 @@ Runtime klasörler (git'e girmiyor):
 | faster-whisper | 1.2.1 (large-v3-turbo) |
 
 GPU önerilir (NVIDIA, minimum 6GB VRAM). CPU modunda çalışır ama çok yavaştır.
+
+### Güncel Çalışma Notu
+
+Son güncellemelerle birlikte proje, CPU-first kullanım senaryosuna göre iyileştirilmiştir.
+
+- Sistem artık CPU ortamında çalışacak şekilde düzenlenmiş ve test edilmiştir.
+- Speaker diarization, role mapping ve interaction-driven refinement akışı CPU kullanımına uygun şekilde geliştirilmiştir.
+- GPU destekli kurulum mümkün olsa da, güncel kullanım hedefi CPU üzerinde stabil ve kabul edilebilir performans elde etmektir.
 
 ---
 
